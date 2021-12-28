@@ -98,6 +98,34 @@ void example2() {
     fmt::print("{},rows {} cols {}\n", d, d.rows(), d.cols());
     Eigen::RowVectorXd rd = a.row(1);
     fmt::print("{},rows {} cols {}\n", rd, rd.rows(), rd.cols());
+
+    // map matrix to vector
+
+    Eigen::Map<Eigen::RowVectorXd> v1(a.data(), a.size());
+    fmt::print("v1: {}\n", v1); // because a is col-major
+
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> a2(
+        a);
+    Eigen::Map<Eigen::RowVectorXd> v2(a2.data(), a2.size());
+    fmt::print("v2: {}\n", v2); // a2 is row-major
+    // reshpae
+
+    using RowMatrixXd =
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    Eigen::Map<RowMatrixXd> a3(a2.data(), 6, 2);
+    fmt::print("a3: {}\n", a3); // row-major to row major
+
+    Eigen::Map<Eigen::MatrixXd> a4(a.data(), 6, 2);
+    fmt::print("a4: {}\n", a3); // col-major to col-major
+    // after 3.4 api
+    Eigen::MatrixXd a5 = a.reshaped(6, 2);
+    fmt::print("a5: {}\n", a5); // interesing-behavour
+    RowMatrixXd a6 = a2.reshaped<Eigen::RowMajor>(6, 2);
+    fmt::print("a6: {}\n", a6);
+
+    fmt::print("a5 vector view: {}\n", a.reshaped().transpose()); // vector-view
+    fmt::print("a6 vector view: {}\n",
+               a.reshaped<Eigen::RowMajor>().transpose()); // vector-view
   }
 
   {
@@ -126,17 +154,70 @@ void example2() {
     a << 1, 2,
         3,4,
         5,6;
-   std::cout << (a.array() > 3) << std::endl;
+    // clang-format on
+    std::cout << (a.array() > 3) << std::endl;
     a = (a.array() > 3).select(3, a);
     std::cout << a << std::endl;
   }
 }
+void example3() {
+  Eigen::Matrix2d x;
+  x << 1, 2, 3, 4;
+  Eigen::Matrix2d y;
+  y << 5, 6, 7, 8;
+  fmt::print("x - y :\n{}\n", x - y);
+  fmt::print("x + y :\n{}\n", x + y);
+  fmt::print("x * y :\n{}\n", x.array() * y.array());
+  fmt::print("x / y :\n{}\n", x.array() / y.array());
+  fmt::print("np.sqrt(x):\n{}\n", x.cwiseSqrt());
+
+  Eigen::Vector2d v;
+  Eigen::Vector2d w;
+  v << 9, 10;
+  w << 11, 12;
+  fmt::print("v.dot(w):\n{}\n", v.dot(w));
+  fmt::print("x.dot(v):\n{}\n", x * v);
+  fmt::print("x.dot(y):\n{}\n", x * y);
+
+  fmt::print("np.sum(x):\n{}\n", x.sum());
+  fmt::print("np.sum(x,axis=0):\n{}\n", x.colwise().sum());
+  fmt::print("np.sum(x,axis=1):\n{}\n", x.rowwise().sum());
+  fmt::print("np.max(x,axis=1):\n{}\n", x.rowwise().maxCoeff());
+  fmt::print("np.max(x,axis=0):\n{}\n", x.colwise().maxCoeff());
+  //寻找和最大的列向量
+  Eigen::MatrixXd mat(2, 4);
+  mat << 1, 2, 6, 9, 3, 1, 7, 2;
+  Eigen::MatrixXd::Index idx;
+  float maxNorm = mat.colwise().sum().maxCoeff(&idx);
+  fmt::print("max col-vector:\n{} and its sum is {}\n", mat.col(idx), maxNorm);
+  fmt::print("np.transpose(x):\n{}\n", x.transpose());
+}
+void example4() {
+  // broadcasting
+  Eigen::MatrixXd mat(4, 3);
+  mat << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12;
+  Eigen::Vector3d v(1, 0, 1);
+  Eigen::MatrixXd y = mat.rowwise() + v.transpose();
+  fmt::print("y=\n{}\n", y);
+  Eigen::RowVector3d v1(v.data());
+  fmt::print("np.tile(v,(4,1))\n{}\n", v1.replicate<4, 1>());
+  y = v1.replicate<4, 1>();
+  fmt::print("y=\n{}\n", y);
+  fmt::print("mat + y\n{}\n", mat + y);
+  // outer product
+  auto u = Eigen::Vector3d(1, 2, 3);
+  auto w = Eigen::Vector2d(4, 5);
+  fmt::print("u outproduct w:\n {}\n", u * w.transpose());
+}
 
 int main() {
-  fmt::print("Eigen Version: {}.{}.{}", EIGEN_WORLD_VERSION,
+  fmt::print("Eigen Version: {}.{}.{}\n", EIGEN_WORLD_VERSION,
              EIGEN_MAJOR_VERSION, EIGEN_MINOR_VERSION);
   static_assert(EIGEN_MAJOR_VERSION >= 4, "Eigen Version must >= 3.4.x");
-  example1();
-  example2();
+  //  example1();
+  //  example2();
+  //  example3();
+  example4();
+
   return 0;
 }
