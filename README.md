@@ -1,3 +1,3 @@
 # RECIPE
 
-Code snippnets for learning random topics.
+Code snippets for learning random topics.
