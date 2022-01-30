@@ -78,3 +78,85 @@ end
 
 s:withdraw(400)
 print(s:tostring())
+
+
+
+local function search(k,plist)
+    for i = 1,#plist do 
+        local v = plist[i][k]
+        if v then return v end
+    end
+end
+
+function createClass(...)
+    local c = {}
+    local parents = {...}
+
+    setmetatable(c,{__index = function (t,k) 
+        local v =  search(k,parents)
+        -- it will caches the function from the parents to avoid repeatedly search in the parent tables
+        -- however if the parent tables is modified in run-time
+        -- the child table will NOT be notified
+        t[k] = v
+        return v
+     end })
+    c.__index = c
+    function c:new(o)
+        o = o or {}
+        setmetatable(o,c)
+        return o
+    end
+
+    return c
+end
+
+Named = {name = "default"}
+function Named:getname()
+    return self.name
+end
+
+function Named:setname(n)
+    self.name = n
+end
+
+
+NamedAccount = createClass(Account,Named)
+
+account = NamedAccount:new{name = "Paul"}
+print(account:tostring())
+print(account.name)
+
+
+-- privacy
+-- 利用闭包捕获变量来实现私有性，闭包能延长变量的生命周期，但是被捕获的变量无法被直接访问
+
+function NewAccount(initialBalance)
+    local acc = Account:new({balance=initialBalance})
+    local withdraw = function (v)
+        acc:withdraw(v)
+    end
+    local deposit = function (v)
+        acc:deposit(v)
+    end
+    local getBalance = function()
+        return acc.balance
+    end
+    local tostring = function()
+        return acc:tostring()
+    end
+    return {
+        withdraw = withdraw,
+        tostring = tostring,
+        deposit = deposit,
+        getBalance = getBalance
+    }
+end
+
+
+-- there is no way to access the inner acc
+privateac = NewAccount(1000)
+print(privateac.tostring())
+privateac.deposit(100)
+print(privateac.tostring())
+privateac.withdraw(200)
+print(privateac.tostring())
