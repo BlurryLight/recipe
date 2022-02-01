@@ -64,6 +64,24 @@ end
 setDefault3(t,2000)
 print(t.x,t.z) -- 10 2000
 
+-- advanced way4 dual presentation
+local defaults = {}
+setmetatable(defaults,{__mode = 'k'})
+local mt = {__index = function(t) return defaults[t] end}
+function setDefault4(t,d)
+    defaults[t] = d
+    setmetatable(t,mt)
+end
+setDefault4(t,5000)
+print(t.x,t.z) -- 10 5000 
+t = nil
+collectgarbage()
+-- 由于defaults是弱引用表，t被设置为nil以后,defaults内的引用也被回收了,所以下面的应该什么也不输出
+for k,v in pairs(defaults) do
+    print("in defaults",v) 
+end
+
+
 
 -- proxy table
 function track(t)
