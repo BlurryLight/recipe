@@ -2,3 +2,7 @@ build
 *.user
 .idea
 eigen-*
+.cache
+shadertoys/hello.html
+shadertoys/texture_buffers.frag
+compile*.json

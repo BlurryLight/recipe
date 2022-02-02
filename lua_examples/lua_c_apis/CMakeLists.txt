@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.11)
+project(lua_examples)
+include_directories(include)
+link_directories(lib)
+link_libraries(lua53c)
+add_subdirectory(chapter27)
