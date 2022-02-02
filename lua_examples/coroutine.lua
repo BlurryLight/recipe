@@ -12,7 +12,7 @@ print(coroutine.resume(co))
 print(coroutine.status(co))
 co = nil
 
--- producer-reader
+-- producer-cosumer
 function producer ()
     return coroutine.create( function ()
         while true do
