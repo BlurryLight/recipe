@@ -53,9 +53,8 @@ using SharpDX.DXGI;
 using SharpDX.Windows;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using Device = SharpDX.Direct3D11.Device;
-using Device2 = SharpDX.Direct3D11.Device2;
 
-namespace ClearForm
+namespace DebugLayers
 {
     /// <summary>
     ///   SharpDX port of SharpDX-MiniTri Direct3D 11 Sample
@@ -78,75 +77,37 @@ namespace ClearForm
             };
 
             // Create Device and SwapChain
-            Device2 device;
-            SwapChain2 swapChain;
-            using (var device12 = new Device(DriverType.Hardware,
-#if DEBUG
+            Device device;
+            SwapChain swapChain;
+            Device.CreateWithSwapChain(
+                SharpDX.Direct3D.DriverType.Hardware,
+                // Enable Device debug layer
                 DeviceCreationFlags.Debug,
-#else
-                DeviceCreationFlags.None,
-#endif
                 new[]
                 {
-                    FeatureLevel.Level_11_1, FeatureLevel.Level_11_0
-                }))
-            {
-                device = device12.QueryInterfaceOrNull<Device2>();
-                if (device == null)
+                    SharpDX.Direct3D.FeatureLevel.Level_11_0,
+                    SharpDX.Direct3D.FeatureLevel.Level_10_1,
+                    SharpDX.Direct3D.FeatureLevel.Level_10_0,
+                },
+                new SwapChainDescription()
                 {
-                    throw new NotSupportedException("Device2 is not supported");
-                }
-            }
-
-            using (var dxgi = device.QueryInterface<SharpDX.DXGI.Device2>())
-                //创建dxgi的时候会包含adapter,adapter又会创建factory
-            using (var adapter = dxgi.Adapter)
-            using (var factory = adapter.GetParent<Factory2>())
-            {
-                // SwapChain description for Dx11.1+
-                // https://docs.microsoft.com/en-us/windows/win32/api/dxgi1_2/ns-dxgi1_2-dxgi_swap_chain_desc1
-                // SwapChainDesc1 和 基础的 SwapChainDesc差距很大
-                //需要拆分成两个desc，分别描述正常的和全屏下的表现
-                var desc1 = new SwapChainDescription1
-                {
-                    BufferCount = 1,
-                    Width = form.ClientSize.Width,
-                    Height = form.ClientSize.Height,
-                    Format = Format.R8G8B8A8_UNorm,
-                    Stereo = false,
-                    //disable MSAA
+                    ModeDescription =
+                        new ModeDescription(
+                            form.ClientSize.Width,
+                            form.ClientSize.Height,
+                            new Rational(60, 1),
+                            Format.R8G8B8A8_UNorm
+                        ),
                     SampleDescription = new SampleDescription(1, 0),
-                    // after swapchains present, the backbuffer is discarded
-                    SwapEffect = SwapEffect.Discard,
-                    Usage = Usage.RenderTargetOutput | Usage.BackBuffer,
+                    Usage = SharpDX.DXGI.Usage.BackBuffer | Usage.RenderTargetOutput,
+                    BufferCount = 1,
                     Flags = SwapChainFlags.None,
-                    Scaling = Scaling.Stretch
-                };
-                var swapChainFullScreenDesc = new SwapChainFullScreenDescription()
-                {
-                    RefreshRate = new Rational(60, 1),
-                    Scaling = DisplayModeScaling.Centered,
-                    Windowed = true
-                };
-                //实际的实现是CreateForHwnd
-                //https://docs.microsoft.com/en-us/windows/win32/api/dxgi1_2/nf-dxgi1_2-idxgifactory2-createswapchainforhwnd
-                var swapChain1 = new SwapChain1(factory,
-                    device,
-                    form.Handle,
-                    ref desc1,
-                    swapChainFullScreenDesc,
-                    null
-                //adapter.Outputs[0]
-                // 这个参数允许限制显示器，adapters.outputs[0],但是在我的电脑上不起作用
-                );
-                Console.WriteLine(adapter.Outputs.Length);
-
-                swapChain = swapChain1.QueryInterfaceOrNull<SwapChain2>();
-                if (swapChain == null)
-                {
-                    throw new NotSupportedException("swapchain2 is not supported");
-                }
-            }
+                    IsWindowed = true,
+                    OutputHandle = form.Handle,
+                    SwapEffect = SwapEffect.Discard
+                },
+                out device, out swapChain
+            );
 
             var context = device.ImmediateContext;
 
@@ -199,13 +160,17 @@ namespace ClearForm
                     (float) ((totalSeconds / 2.0) % 1.0));
                 context.ClearRenderTargetView(renderTargetView, lerpColor);
                 //internally use Present1 method
-                swapChain.Present(0, PresentFlags.None, new PresentParameters());
-                //swapChain.Present(0, PresentFlags.RestrictToOutput, new PresentParameters());
+                swapChain.Present(0, 0);
+                //intentionally bug
+                // swapChain.Present(0, PresentFlags.RestrictToOutput);
                 deltaTime = (clock.ElapsedMilliseconds / clockFrequency) - totalSeconds;
             });
 
             #endregion
 
+#if DEBUG
+            Console.WriteLine($@"Active Sharpdx Objects {SharpDX.Diagnostics.ObjectTracker.ReportActiveObjects()}");
+#endif
 
             // Release all resources
 
@@ -219,9 +184,6 @@ namespace ClearForm
             context.Dispose();
             swapChain.Dispose();
 
-#if DEBUG
-            Console.WriteLine($@"Active Sharpdx Objects {SharpDX.Diagnostics.ObjectTracker.ReportActiveObjects()}");
-#endif
             #endregion
         }
     }
