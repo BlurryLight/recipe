@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MiniTri", "MiniTri\MiniTri.csproj", "{550A082F-933F-43BB-B1E1-2627952E9EEE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClearForm", "ClearForm\ClearForm.csproj", "{A738D294-07E6-4F46-8093-32E9CFB87525}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{550A082F-933F-43BB-B1E1-2627952E9EEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{550A082F-933F-43BB-B1E1-2627952E9EEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{550A082F-933F-43BB-B1E1-2627952E9EEE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A738D294-07E6-4F46-8093-32E9CFB87525}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A738D294-07E6-4F46-8093-32E9CFB87525}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A738D294-07E6-4F46-8093-32E9CFB87525}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A738D294-07E6-4F46-8093-32E9CFB87525}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
+﻿// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,8 +43,8 @@
 * THE SOFTWARE.
 */
 using System;
+using System.Drawing;
 using SharpDX;
-using SharpDX.D3DCompiler;
 using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
@@ -52,7 +52,7 @@ using SharpDX.Windows;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using Device = SharpDX.Direct3D11.Device;
 
-namespace MiniTri
+namespace ClearForm
 {
     /// <summary>
     ///   SharpDX port of SharpDX-MiniTri Direct3D 11 Sample
@@ -62,8 +62,12 @@ namespace MiniTri
         [STAThread]
         private static void Main()
         {
-            #region Direct3D Init 
-            var form = new RenderForm("SharpDX - MiniTri Direct3D 11 Sample");
+            #region Direct3D Init
+
+            var form = new RenderForm("SharpDX - MiniTri Direct3D 11 Sample")
+            {
+                ClientSize = new Size(1600, 800)
+            };
 
             // SwapChain description
             var desc = new SwapChainDescription
@@ -86,64 +90,22 @@ namespace MiniTri
             Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.None,new [] {FeatureLevel.Level_11_1,FeatureLevel.Level_11_0}, desc, out device, out swapChain);
             var context = device.ImmediateContext;
 
-            // Ignore all windows events
-            var factory = swapChain.GetParent<Factory>();
-            factory.MakeWindowAssociation(form.Handle, WindowAssociationFlags.IgnoreAll);
-
             // New RenderTargetView from the backbuffer
             var backBuffer = Texture2D.FromSwapChain<Texture2D>(swapChain, 0);
             var renderTargetView = new RenderTargetView(device, backBuffer);
-
-            // Compile Vertex and Pixel shaders
-            var vertexShaderByteCode = ShaderBytecode.CompileFromFile("MiniTri.fx", "VS", "vs_4_0", ShaderFlags.None, EffectFlags.None);
-            var vertexShader = new VertexShader(device, vertexShaderByteCode);
-
-            var pixelShaderByteCode = ShaderBytecode.CompileFromFile("MiniTri.fx", "PS", "ps_4_0", ShaderFlags.None, EffectFlags.None);
-            var pixelShader = new PixelShader(device, pixelShaderByteCode);
             #endregion
 
-            // Layout from VertexShader input signature
-            var layout = new InputLayout(
-                device,
-                ShaderSignature.GetInputSignature(vertexShaderByteCode),
-                new[]
-                    {
-                        new InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
-                        new InputElement("COLOR", 0, Format.R32G32B32A32_Float, 16, 0)
-                    });
-
-            // Instantiate Vertex buiffer from vertex data
-            var vertices = Buffer.Create(device, BindFlags.VertexBuffer, new[]
-                                  {
-                                      new Vector4(0.0f, 0.5f, 0.5f, 1.0f), new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                                      new Vector4(0.5f, -0.5f, 0.5f, 1.0f), new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
-                                      new Vector4(-0.5f, -0.5f, 0.5f, 1.0f), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)
-                                  });
-
-            // Prepare All the stages
-            context.InputAssembler.InputLayout = layout;
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(vertices, 32, 0));
-            context.VertexShader.Set(vertexShader);
-            context.Rasterizer.SetViewport(new Viewport(0, 0, form.ClientSize.Width, form.ClientSize.Height, 0.0f, 1.0f));
-            context.PixelShader.Set(pixelShader);
-            context.OutputMerger.SetTargets(renderTargetView);
-
+            #region D3d Loop
             // Main loop
             RenderLoop.Run(form, () =>
                                       {
-                                          context.ClearRenderTargetView(renderTargetView, Color.Black);
-                                          context.Draw(3, 0);
+                                          context.ClearRenderTargetView(renderTargetView, SharpDX.Color.LightBlue);
                                           swapChain.Present(0, PresentFlags.None);
                                       });
+            #endregion
 
             // Release all resources
-            vertexShaderByteCode.Dispose();
-            vertexShader.Dispose();
-            pixelShaderByteCode.Dispose();
-            pixelShader.Dispose();
-            vertices.Dispose();
-            layout.Dispose();
+            #region D3d Clean
             renderTargetView.Dispose();
             backBuffer.Dispose();
             context.ClearState();
@@ -151,7 +113,7 @@ namespace MiniTri
             device.Dispose();
             context.Dispose();
             swapChain.Dispose();
-            factory.Dispose();
+            #endregion
         }
     }
 }
