@@ -75,10 +75,13 @@ namespace ClearForm
                                BufferCount = 1,
                                ModeDescription= 
                                    new ModeDescription(form.ClientSize.Width, form.ClientSize.Height,
+                                       // UNORM代表unsigned_normalized
                                                        new Rational(60, 1), Format.R8G8B8A8_UNorm),
                                IsWindowed = true,
                                OutputHandle = form.Handle,
+                               //disable MSAA
                                SampleDescription = new SampleDescription(1, 0),
+                               // after swapchains present, the backbuffer is discarded
                                SwapEffect = SwapEffect.Discard,
                                Usage = Usage.RenderTargetOutput | Usage.BackBuffer,
                                Flags = SwapChainFlags.None
@@ -87,19 +90,27 @@ namespace ClearForm
             // Create Device and SwapChain
             Device device;
             SwapChain swapChain;
+            //静态方法，把创建出来的device和swapchain放入上面的两个变量(引用
+            //DeviceCreationFlags = D3D11_CREATE_DEVICE_FLAG
             Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.None,new [] {FeatureLevel.Level_11_1,FeatureLevel.Level_11_0}, desc, out device, out swapChain);
             var context = device.ImmediateContext;
 
             // New RenderTargetView from the backbuffer
             var backBuffer = Texture2D.FromSwapChain<Texture2D>(swapChain, 0);
+            // 要使用buffer必须创建对应的view，所有的操作都是对view进行操作
             var renderTargetView = new RenderTargetView(device, backBuffer);
             #endregion
 
             #region D3d Loop
             // Main loop
             RenderLoop.Run(form, () =>
-                                      {
-                                          context.ClearRenderTargetView(renderTargetView, SharpDX.Color.LightBlue);
+            {
+                Int32 unixTimestamp = (int)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+                // In Project Settings change the application Type as Console to allow Console.Writeline
+                // Console.WriteLine(unixTimestamp);
+                var lerpColor = SharpDX.Color.Lerp(SharpDX.Color.LightBlue, SharpDX.Color.DarkBlue,
+                    (float) ((unixTimestamp % 30) / 30.0));
+                                          context.ClearRenderTargetView(renderTargetView, lerpColor);
                                           swapChain.Present(0, PresentFlags.None);
                                       });
             #endregion
