@@ -127,7 +127,7 @@ namespace DebugLayers
             #region D3d Loop
 
             var clock = new System.Diagnostics.Stopwatch();
-            var clockFrequency = (double) System.Diagnostics.Stopwatch.Frequency;
+            var clockFrequency = (double)System.Diagnostics.Stopwatch.Frequency;
             clock.Start();
             var deltaTime = 0.0;
             var fpsTimer = new System.Diagnostics.Stopwatch();
@@ -148,7 +148,7 @@ namespace DebugLayers
                     fps = 1000.0 * fpsFrames / fpsTimer.ElapsedMilliseconds;
                     //$ 表示格式化，@表示支持多行
                     form.Text =
-                        $@"{OriginalText} - FPS: {fps:F2} ({(float) fpsTimer.ElapsedMilliseconds / fpsFrames:F2}ms/frame)";
+                        $@"{OriginalText} - FPS: {fps:F2} ({(float)fpsTimer.ElapsedMilliseconds / fpsFrames:F2}ms/frame)";
                     fpsFrames = 0;
                     fpsTimer.Reset();
                     fpsTimer.Restart();
@@ -157,12 +157,12 @@ namespace DebugLayers
                 #endregion
 
                 var lerpColor = SharpDX.Color.Lerp(SharpDX.Color.LightBlue, SharpDX.Color.DarkBlue,
-                    (float) ((totalSeconds / 2.0) % 1.0));
+                    (float)((totalSeconds / 2.0) % 1.0));
                 context.ClearRenderTargetView(renderTargetView, lerpColor);
                 //internally use Present1 method
-                swapChain.Present(0, 0);
+                // swapChain.Present(0, 0);
                 //intentionally bug
-                // swapChain.Present(0, PresentFlags.RestrictToOutput);
+                swapChain.Present(0, PresentFlags.RestrictToOutput);
                 deltaTime = (clock.ElapsedMilliseconds / clockFrequency) - totalSeconds;
             });
 

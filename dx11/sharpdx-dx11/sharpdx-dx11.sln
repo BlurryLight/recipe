@@ -1,10 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31321.278
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MiniTri", "MiniTri\MiniTri.csproj", "{550A082F-933F-43BB-B1E1-2627952E9EEE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClearForm", "ClearForm\ClearForm.csproj", "{A738D294-07E6-4F46-8093-32E9CFB87525}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebugLayers", "DebugLayers\DebugLayers.csproj", "{CBD69B07-AF30-4A3C-9184-CA586F818B33}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csproj", "{939D8319-6E32-4700-BE9F-C1D079F57DDD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +29,15 @@ Global
 		{CBD69B07-AF30-4A3C-9184-CA586F818B33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CBD69B07-AF30-4A3C-9184-CA586F818B33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CBD69B07-AF30-4A3C-9184-CA586F818B33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{939D8319-6E32-4700-BE9F-C1D079F57DDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{939D8319-6E32-4700-BE9F-C1D079F57DDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{939D8319-6E32-4700-BE9F-C1D079F57DDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{939D8319-6E32-4700-BE9F-C1D079F57DDD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {03F40B11-F366-4DF8-8C43-F6E58CE6F321}
 	EndGlobalSection
 EndGlobal
