@@ -1,4 +1,4 @@
-// Copyright (c) 2013 Justin Stenning
+﻿// Copyright (c) 2013 Justin Stenning
 // Adapted from original code by Alexandre Mutel
 // 
 //----------------------------------------------------------------------------
@@ -43,7 +43,7 @@ namespace Common
 {
     /// <summary>
     /// </summary>
-    public abstract class D3DApplicationBase: Component
+    public abstract class D3DApplicationBase : Component
     {
         DeviceManager _deviceManager;
         SharpDX.DXGI.SwapChain1 _swapChain;
@@ -55,17 +55,17 @@ namespace Common
 
         SharpDX.Direct2D1.Bitmap1 _bitmapTarget;
 
-//#if NETFX_CORE
-//        /// <summary>
-//        /// Gets the bounds of the control linked to this render target
-//        /// </summary>
-//        public Windows.Foundation.Rect Bounds { get; protected set; }
+        //#if NETFX_CORE
+        //        /// <summary>
+        //        /// Gets the bounds of the control linked to this render target
+        //        /// </summary>
+        //        public Windows.Foundation.Rect Bounds { get; protected set; }
 
-//        /// <summary>
-//        /// Gets the bounds of the control linked to this render target
-//        /// </summary>
-//        public abstract Windows.Foundation.Rect CurrentBounds { get; }
-//#else
+        //        /// <summary>
+        //        /// Gets the bounds of the control linked to this render target
+        //        /// </summary>
+        //        public abstract Windows.Foundation.Rect CurrentBounds { get; }
+        //#else
         /// <summary>
         /// Gets the configured bounds of the control used to render to
         /// </summary>
@@ -75,7 +75,7 @@ namespace Common
         /// Gets the current bounds of the control used to render to
         /// </summary>
         public abstract SharpDX.Rectangle CurrentBounds { get; }
-//#endif
+        //#endif
         /// <summary>
         /// Gets the <see cref="DeviceManager"/> attached to this instance.
         /// </summary>
@@ -228,7 +228,7 @@ namespace Common
             // any size dependent resources.
             this.OnSizeChanged += CreateSizeDependentResources;
         }
-        
+
         /// <summary>
         /// Initialize the attached DeviceManager and trigger an initial
         /// OnSizeChanged event.
@@ -312,9 +312,9 @@ namespace Common
             if (_swapChain != null)
             {
                 _swapChain.ResizeBuffers(
-                    _swapChain.Description1.BufferCount, 
-                    Width, 
-                    Height, 
+                    _swapChain.Description1.BufferCount,
+                    Width,
+                    Height,
                     _swapChain.Description.ModeDescription.Format,
                     _swapChain.Description.Flags);
             }
@@ -371,24 +371,24 @@ namespace Common
             // Allocate a 2-D texture as the depth/stencil buffer.
             // Create a DSV to use on bind.
             this.DepthBuffer = ToDispose(new Texture2D(device, new Texture2DDescription()
-                {
-                    Format = SharpDX.DXGI.Format.D32_Float_S8X24_UInt,
-                    ArraySize = 1,
-                    MipLevels = 1,
-                    Width = RenderTargetSize.Width,
-                    Height = RenderTargetSize.Height,
-                    SampleDescription = SwapChain.Description.SampleDescription,
-                    BindFlags = BindFlags.DepthStencil,
-                }));
+            {
+                Format = SharpDX.DXGI.Format.D32_Float_S8X24_UInt,
+                ArraySize = 1,
+                MipLevels = 1,
+                Width = RenderTargetSize.Width,
+                Height = RenderTargetSize.Height,
+                SampleDescription = SwapChain.Description.SampleDescription,
+                BindFlags = BindFlags.DepthStencil,
+            }));
             this.DepthStencilView = ToDispose(
                 new DepthStencilView(
-                    device, 
-                    DepthBuffer, 
-                    new DepthStencilViewDescription() 
-                    { 
+                    device,
+                    DepthBuffer,
+                    new DepthStencilViewDescription()
+                    {
                         Dimension = (SwapChain.Description.SampleDescription.Count > 1 || SwapChain.Description.SampleDescription.Quality > 0) ? DepthStencilViewDimension.Texture2DMultisampled : DepthStencilViewDimension.Texture2D
                     }));
-            
+
             // Set the OutputMerger targets
             context.OutputMerger.SetTargets(DepthStencilView, RenderTargetView);
 

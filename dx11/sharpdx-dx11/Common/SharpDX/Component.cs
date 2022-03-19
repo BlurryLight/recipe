@@ -127,6 +127,9 @@ namespace SharpDX
         /// Dispose a disposable object and set the reference to null. Removes this object from the ToDispose list.
         /// </summary>
         /// <param name="objectToDispose">Object to dispose.</param>
+        /// The internal implementation is in
+        /// https://github.com/sharpdx/SharpDX/blob/master/Source/SharpDX/DisposeCollector.cs
+        /// It will return default(T). And for object and class, the default is null
         protected internal void RemoveAndDispose<T>(ref T objectToDispose)
         {
             if (!ReferenceEquals(objectToDispose, null) && DisposeCollector != null)
