@@ -1,4 +1,4 @@
-﻿// DDSTextureLoader Ported to C# by Justin Stenning, March 2017
+// DDSTextureLoader Ported to C# by Justin Stenning, March 2017
 //--------------------------------------------------------------------------------------
 // File: DDSTextureLoader.cpp
 //

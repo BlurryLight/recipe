@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2013 Justin Stenning
+// Copyright (c) 2013 Justin Stenning
 // This software contains source code provided by NVIDIA Corporation.
 // Portions adapted from https://code.google.com/p/nvidia-mesh-tools/
 //

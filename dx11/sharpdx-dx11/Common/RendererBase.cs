@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2013 Justin Stenning
+// Copyright (c) 2013 Justin Stenning
 // Adapted from original code by Alexandre Mutel
 // 
 //----------------------------------------------------------------------------
