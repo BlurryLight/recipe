@@ -372,7 +372,8 @@ namespace Common
             // Create a DSV to use on bind.
             this.DepthBuffer = ToDispose(new Texture2D(device, new Texture2DDescription()
             {
-                Format = SharpDX.DXGI.Format.D32_Float_S8X24_UInt,
+                //Format = SharpDX.DXGI.Format.D32_Float_S8X24_UInt, //64 bit. 32 float and 8 stencil
+                Format = SharpDX.DXGI.Format.D24_UNorm_S8_UInt,
                 ArraySize = 1,
                 MipLevels = 1,
                 Width = RenderTargetSize.Width,

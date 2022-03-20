@@ -189,17 +189,17 @@ namespace D3DAPP
         {
             base.CreateSizeDependentResources(app);
 
-            //// Create a viewport descriptor of the render size.
-            //this.Viewport = new SharpDX.ViewportF(
-            //    (float)RenderTargetBounds.X + 100,
-            //    (float)RenderTargetBounds.Y + 100,
-            //    (float)RenderTargetBounds.Width - 200,
-            //    (float)RenderTargetBounds.Height - 200,
-            //    0.0f,   // min depth
-            //    1.0f);  // max depth
+            // Create a viewport descriptor of the render size.
+            this.Viewport = new SharpDX.ViewportF(
+                (float)RenderTargetBounds.X + 100,
+                (float)RenderTargetBounds.Y + 100,
+                (float)RenderTargetBounds.Width - 200,
+                (float)RenderTargetBounds.Height - 200,
+                0.0f,   // min depth
+                1.0f);  // max depth
 
-            //// Set the current viewport for the rasterizer.
-            //this.DeviceManager.Direct3DContext.Rasterizer.SetViewport(Viewport);
+            // Set the current viewport for the rasterizer.
+            this.DeviceManager.Direct3DContext.Rasterizer.SetViewport(Viewport);
         }
 
         public override void Run()
