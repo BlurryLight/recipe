@@ -6,3 +6,4 @@ eigen-*
 shadertoys/hello.html
 shadertoys/texture_buffers.frag
 compile*.json
+buildw

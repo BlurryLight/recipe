@@ -123,8 +123,8 @@ bool D3DApp::InitMainWindow() {
   }
   window_ = window;
   this->mainWnd_ = glfwGetWin32Window(window);
-//  glfwSetFramebufferSizeCallback(window, OnResizeFrame);
-  glfwSetWindowSizeCallback(window,OnResizeFrame);
+  glfwSetFramebufferSizeCallback(window, OnResizeFrame);
+//  glfwSetWindowSizeCallback(window,OnResizeFrame);
   return true;
 }
 bool D3DApp::InitDirect3D() {
