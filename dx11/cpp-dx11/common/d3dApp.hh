@@ -6,11 +6,11 @@
 #define DIDX11LAB_D3DAPP_HH
 
 #include <DirectXMath.h>
+#include <comdef.h> // for _com_error
 #include <d3d11_1.h>
-#include <wrl/client.h>
-#include <string>
-#include <comdef.h>      // for _com_error
 #include <iostream>
+#include <string>
+#include <wrl/client.h>
 
 struct GLFWwindow;
 namespace PD {
@@ -22,7 +22,7 @@ inline void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
             << " Error: " << (const char *)err.Description() << std::endl;
 }
 
-#define HR_RETURN(op)                                                           \
+#define HR_RETURN(op)                                                          \
   if (FAILED(hr = (op))) {                                                     \
     assert(0);                                                                 \
     DxTrace(__FILEW__, __LINE__, hr, L#op);                                    \
@@ -32,7 +32,8 @@ inline void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
 #define HR(op)                                                                 \
   if (FAILED(hr = (op))) {                                                     \
     assert(0);                                                                 \
-    DxTrace(__FILEW__, __LINE__, hr, L#op); }
+    DxTrace(__FILEW__, __LINE__, hr, L#op);                                    \
+  }
 
 class D3DApp {
 public:
@@ -54,10 +55,9 @@ protected:
 
   HWND mainWnd_;
   bool EnableMSAA_;
-  uint32_t  MSAAQuality_;
+  uint32_t MSAAQuality_;
 
-  template <class T>
-  using ComPtr = Microsoft::WRL::ComPtr<T>;
+  template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
   ComPtr<ID3D11Device> pd3dDevice_;
   ComPtr<ID3D11DeviceContext> pd3dDeviceIMContext_;
@@ -73,11 +73,11 @@ protected:
   D3D11_VIEWPORT ScreenViewport_;
 
   std::string WinTitle_ = "D3D11 Example";
-public:
-  int ClientWidth_,ClientHeight_;
-  GLFWwindow* window_;
 
+public:
+  int ClientWidth_, ClientHeight_;
+  GLFWwindow *window_;
 };
-}
+} // namespace PD
 
 #endif // DIDX11LAB_D3DAPP_HH
