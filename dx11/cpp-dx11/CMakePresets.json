@@ -1,0 +1,160 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "description": "For more information: http://aka.ms/cmakepresetsvs",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "environment": {
+        "VCPKG_FEATURE_FLAGS": "manifests,versions,binarycaching,registries"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "1"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "msvc-x64-debug",
+      "displayName": "x64 Debug",
+      "description": "Sets debug build type and x64 arch",
+      "inherits": "base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "msvc-x64-release",
+      "displayName": "x64 Release",
+      "description": "Sets release build type",
+      "inherits": "msvc-x64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "msvc-x86-debug",
+      "displayName": "x86 Debug ",
+      "description": "Sets debug build type and x86 arch",
+      "inherits": "base",
+      "architecture": {
+        "value": "x86",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "msvc-x86-release",
+      "displayName": "x86 Release",
+      "description": "Sets release build type",
+      "inherits": "msvc-x86-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-gcc-debug",
+      "displayName": "Linux Debug",
+      "description": "Sets GCC",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "1"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-gcc-release",
+      "displayName": "Linux Release",
+      "description": "Sets release build type",
+      "inherits": "linux-gcc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-clang-debug",
+      "displayName": "Linux Release",
+      "description": "Sets release build type",
+      "inherits": "linux-gcc-debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-clang-release",
+      "displayName": "Linux Release",
+      "description": "Sets release build type",
+      "inherits": "linux-clang-debug",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default-build-linux-gcc",
+      "displayName": "Default",
+      "configurePreset": "linux-gcc-debug",
+      "description": "Vanilla build"
+    },
+    {
+      "name": "default-build-windows",
+      "displayName": "Default",
+      "configurePreset": "msvc-x64-debug",
+      "description": "Vanilla build"
+    },
+    {
+      "name": "verbose-build-linux",
+      "displayName": "Verbose Build",
+      "description": "Passes -v to Ninja",
+      "configurePreset": "linux-gcc-debug",
+      "nativeToolOptions": [ "-v" ]
+    },
+    {
+      "name": "verbose-build-windows",
+      "displayName": "Verbose Build",
+      "configurePreset": "msvc-x64-debug",
+      "inherits": "verbose-build-linux"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "core-test-linux",
+      "description": "Enable output on failure",
+      "configurePreset": "linux-gcc-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "core-test-windows",
+      "inherits": "core-test-linux",
+      "configurePreset": "msvc-x64-debug"
+    }
+  ]
+}
