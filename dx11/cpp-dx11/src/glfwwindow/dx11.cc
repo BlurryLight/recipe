@@ -65,7 +65,9 @@ HRESULT InitD3D(HWND OutputWindow)
 
   //从SwapChain那里得到BackBuffer
   ID3D11Texture2D* pBackBuffer = NULL;
-  hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+  // hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
+  // or don't use __uuidof
+  hr = g_pSwapChain->GetBuffer(0, IID_ID3D11Texture2D, (LPVOID*)&pBackBuffer);
   if (FAILED(hr))
     return hr;
 
