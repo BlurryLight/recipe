@@ -1,5 +1,4 @@
 #pragma once
-#include <d3d11.h>
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <debugapi.h>
@@ -7,7 +6,6 @@
 #include <string_view>
 #include <winerror.h>
 #include <winnt.h>
-
 
 // com release
 #define SAFE_RELEASE(p)                                                        \
@@ -17,12 +15,13 @@
       (p) = nullptr;                                                           \
     }                                                                          \
   }
-#define ignore(p) (void)((p))
+template <typename T> void ignore(T &&) {}
 
 inline void D3D11SetDebugObjectName(ID3D11DeviceChild *resource,
                                     std::string_view name) {
 #ifdef _DEBUG
-  resource->SetPrivateData(WKPDID_D3DDebugObjectName, name.size(), name.data());
+  resource->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)name.size(),
+                           name.data());
 #else
   ignore(resource);
   ignore(name);
@@ -35,7 +34,8 @@ inline void D3D11ClearDebugObjectName(ID3D11DeviceChild *resource) {
 
 inline void DXGISetDebugObjectName(IDXGIObject *object, std::string_view name) {
 #ifdef _DEBUG
-  object->SetPrivateData(WKPDID_D3DDebugObjectName, name.size(), name.data());
+  object->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)name.size(),
+                         name.data());
 #else
   ignore(object);
   ignore(name);

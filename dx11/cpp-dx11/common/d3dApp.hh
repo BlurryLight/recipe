@@ -59,24 +59,25 @@ protected:
 
   template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-  ComPtr<ID3D11Device> pd3dDevice_;
-  ComPtr<ID3D11DeviceContext> pd3dDeviceIMContext_;
-  ComPtr<IDXGISwapChain> pSwapChain_;
+  ComPtr<ID3D11Device1> pd3dDevice_ = nullptr;
+  ComPtr<ID3D11DeviceContext1> pd3dDeviceIMContext_ = nullptr;
+  ComPtr<IDXGISwapChain1> pSwapChain_ = nullptr;
 
-  ComPtr<ID3D11Device1> pd3dDevice1_;
-  ComPtr<ID3D11DeviceContext1> pd3dDeviceIMContext1_;
-  ComPtr<IDXGISwapChain1> pSwapChain1_;
+  // ComPtr<ID3D11Device1> pd3dDevice1_;
+  // ComPtr<ID3D11DeviceContext1> pd3dDeviceIMContext1_;
+  // ComPtr<IDXGISwapChain1> pSwapChain1_;
 
-  ComPtr<ID3D11Texture2D> pDepthStencilBuffer_;
-  ComPtr<ID3D11RenderTargetView> pRenderTargetView_;
-  ComPtr<ID3D11DepthStencilView> pDepthStencilView_;
+  ComPtr<ID3D11Texture2D> pDepthStencilBuffer_ = nullptr;
+  ComPtr<ID3D11RenderTargetView> pRenderTargetView_ = nullptr;
+  ComPtr<ID3D11DepthStencilView> pDepthStencilView_ = nullptr;
   D3D11_VIEWPORT ScreenViewport_;
+  D3D_FEATURE_LEVEL FeatureLevel_;
 
   std::string WinTitle_ = "D3D11 Example";
 
 public:
-  int ClientWidth_, ClientHeight_;
-  GLFWwindow *window_;
+  int ClientWidth_ = -1, ClientHeight_ = -1;
+  GLFWwindow *window_ = nullptr;
 };
 } // namespace PD
 

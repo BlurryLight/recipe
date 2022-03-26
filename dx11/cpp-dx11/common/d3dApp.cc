@@ -1,12 +1,15 @@
 //
 // Created by zhong on 3/23/2022.
 //
+#include "d3dApp.hh"
+#include "d3dUtils.hh"
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32 1 //暴露出win32相关的原生接口
-#include <GLFW/glfw3native.h>
+// glfw should be after windows.h
+// it will undefine foreirn APIENTRY to avoid redefine it
+#include <GLFW/glfw3native.h> //https://github.com/glfw/glfw/issues/1062
 #include <assert.h>
 
-#include "d3dApp.hh"
 using namespace PD;
 static D3DApp *g_app = nullptr;
 static void OnResizeFrame(GLFWwindow *window, int width, int height) {
@@ -17,13 +20,8 @@ static void OnResizeFrame(GLFWwindow *window, int width, int height) {
 };
 
 D3DApp::D3DApp()
-    : mainWnd_(nullptr), ClientHeight_(720), ClientWidth_(1280),
-      EnableMSAA_(true), MSAAQuality_(0), pd3dDevice_(nullptr),
-      pd3dDevice1_(nullptr), pd3dDeviceIMContext1_(nullptr),
-      pd3dDeviceIMContext_(nullptr), pSwapChain1_(nullptr),
-      pDepthStencilBuffer_(nullptr), pSwapChain_(nullptr),
-      pRenderTargetView_(nullptr), pDepthStencilView_(nullptr),
-      window_(nullptr) {
+    : mainWnd_(nullptr), EnableMSAA_(true), MSAAQuality_(0), ClientWidth_(1280),
+      ClientHeight_(720) {
   memset(&ScreenViewport_, 0, sizeof ScreenViewport_);
   g_app = this;
 }
@@ -57,7 +55,8 @@ bool D3DApp::Init() {
   return res;
 }
 void D3DApp::OnResize() {
-//  std::cout << "On Resize Height: " << ClientHeight_ << " Width:  " << ClientWidth_ << std::endl;
+  //  std::cout << "On Resize Height: " << ClientHeight_ << " Width:  " <<
+  //  ClientWidth_ << std::endl;
   HRESULT hr;
   assert(pd3dDeviceIMContext_);
   assert(pd3dDevice_);
@@ -86,7 +85,7 @@ void D3DApp::OnResize() {
   depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
   depthStencilDesc.CPUAccessFlags = 0;
   depthStencilDesc.MiscFlags = 0;
-  depthStencilDesc.SampleDesc.Count = 1;
+  depthStencilDesc.SampleDesc.Count = EnableMSAA_ ? 4 : 1;
   depthStencilDesc.SampleDesc.Quality = 0;
 
   // 创建深度缓冲区以及深度模板视图
@@ -124,7 +123,7 @@ bool D3DApp::InitMainWindow() {
   window_ = window;
   this->mainWnd_ = glfwGetWin32Window(window);
   glfwSetFramebufferSizeCallback(window, OnResizeFrame);
-//  glfwSetWindowSizeCallback(window,OnResizeFrame);
+  //  glfwSetWindowSizeCallback(window,OnResizeFrame);
   return true;
 }
 bool D3DApp::InitDirect3D() {
@@ -148,36 +147,45 @@ bool D3DApp::InitDirect3D() {
   DXGI_SWAP_CHAIN_DESC swapchainDescription;
   ZeroMemory(&swapchainDescription, sizeof(swapchainDescription));
   swapchainDescription.BufferCount = 1;
-  swapchainDescription.BufferDesc.Width = 640;
-  swapchainDescription.BufferDesc.Height = 480;
+  swapchainDescription.BufferDesc.Width = ClientWidth_;
+  swapchainDescription.BufferDesc.Height = ClientHeight_;
   swapchainDescription.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   swapchainDescription.BufferDesc.RefreshRate.Numerator = 60;
   swapchainDescription.BufferDesc.RefreshRate.Denominator = 1;
   swapchainDescription.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   swapchainDescription.OutputWindow = MainWnd();
-  swapchainDescription.SampleDesc.Count = 1;
+  swapchainDescription.SampleDesc.Count = EnableMSAA_ ? 4 : 1;
   swapchainDescription.SampleDesc.Quality = 0;
   swapchainDescription.Windowed = TRUE;
 
   D3D_DRIVER_TYPE outDriverType;     //最终决定的DriverType
   D3D_FEATURE_LEVEL outFeatureLevel; //最终决定的FeatureLevel
+
+  ComPtr<ID3D11Device> d3dDevice = nullptr;
+  ComPtr<ID3D11DeviceContext> d3dDeviceIMContext = nullptr;
+  ComPtr<IDXGISwapChain> SwapChain = nullptr;
   //按照驱动类型依次尝试创建Device和SwapChain
   for (UINT driverTypeIndex = 0; driverTypeIndex < ARRAYSIZE(driverTypes);
        driverTypeIndex++) {
     outDriverType = driverTypes[driverTypeIndex];
     hr = D3D11CreateDeviceAndSwapChain(
         NULL, outDriverType, NULL, 0, featureLevels, ARRAYSIZE(featureLevels),
-        D3D11_SDK_VERSION, &swapchainDescription, &pSwapChain_, &pd3dDevice_,
-        &outFeatureLevel, &pd3dDeviceIMContext_);
+        D3D11_SDK_VERSION, &swapchainDescription, &SwapChain, &d3dDevice,
+        &outFeatureLevel, &d3dDeviceIMContext);
     if (SUCCEEDED(hr))
       break;
   }
   if (FAILED(hr))
     return false;
+  FeatureLevel_ = outFeatureLevel;
+  SwapChain.As(&pSwapChain_);
+  d3dDevice.As(&pd3dDevice_);
+  d3dDeviceIMContext.As(&pd3dDeviceIMContext_);
 
   // 设置调试对象名
-  //  D3D11SetDebugObjectName(pd3dDeviceIMContext_.Get(), "ImmediateContext");
-  //  DXGISetDebugObjectName(pSwapChain_.Get(), "SwapChain");
+  D3D11SetDebugObjectName(pd3dDeviceIMContext_.Get(), "ImmediateContext");
+  // D3D11SetDebugObjectName(pd3dDevice_.Get(), "Device");
+  DXGISetDebugObjectName(pSwapChain_.Get(), "SwapChain");
 
   // 每当窗口被重新调整大小的时候，都需要调用这个OnResize函数。现在调用
   // 以避免代码重复
