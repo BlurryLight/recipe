@@ -34,9 +34,7 @@ public:
     pd3dDeviceIMContext_->ClearDepthStencilView(
         pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
         0);
-    HRESULT hr;
     pd3dDeviceIMContext_->Draw(3, 0);
-    HR(pSwapChain_->Present(0, 0));
   };
 
 private:

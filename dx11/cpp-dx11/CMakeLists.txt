@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 find_package(glfw3 REQUIRED)
 
+add_subdirectory(third_party)
 add_subdirectory(common)
 add_subdirectory(src)
 

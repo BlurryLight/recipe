@@ -9,6 +9,10 @@
 // it will undefine foreirn APIENTRY to avoid redefine it
 #include <GLFW/glfw3native.h> //https://github.com/glfw/glfw/issues/1062
 #include <assert.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_dx11.h>
+#include <imgui/imgui_impl_glfw.h>
+// #include <imgui/imgui_impl_win32.h>
 
 using namespace PD;
 static D3DApp *g_app = nullptr;
@@ -38,15 +42,39 @@ float D3DApp::AspectRatio() const {
   assert(ClientHeight_ > 0);
   return (float)(ClientWidth_) / (float)(ClientHeight_);
 }
+
+void D3DApp::DrawImGUI() {
+  {
+    ImGui::Begin("Hello, world!");
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+                1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::End();
+  }
+}
 int D3DApp::Run() {
   while (!glfwWindowShouldClose(window_)) {
+    // Deal with ImGUI
+    ImGui_ImplDX11_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    // ImGui_ImplWin32_NewFrame();
+
+    ImGui::NewFrame();
+    DrawImGUI();
+    ImGui::Render();
     //    UpdateScene();
     DrawScene();
+    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    HRESULT hr;
+    HR(pSwapChain_->Present(0, 0));
+
     //轮询并处理事件
     glfwPollEvents();
   }
 
   //使用GLFW完成操作后，通常是在应用程序退出之前，需要终止GLFW
+  ImGui_ImplDX11_Shutdown();
+  // ImGui_ImplWin32_Shutdown();
+  ImGui::DestroyContext();
   glfwTerminate();
   return 0;
 }
@@ -124,6 +152,14 @@ bool D3DApp::InitMainWindow() {
   this->mainWnd_ = glfwGetWin32Window(window);
   glfwSetFramebufferSizeCallback(window, OnResizeFrame);
   //  glfwSetWindowSizeCallback(window,OnResizeFrame);
+
+  // IMGUI INIT
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO &io = ImGui::GetIO();
+  (void)io;
+  // ImGui_ImplWin32_Init(mainWnd_);
+  ImGui_ImplGlfw_InitForOther(window, true);
   return true;
 }
 bool D3DApp::InitDirect3D() {
@@ -190,6 +226,8 @@ bool D3DApp::InitDirect3D() {
   // 每当窗口被重新调整大小的时候，都需要调用这个OnResize函数。现在调用
   // 以避免代码重复
   OnResize();
+
+  ImGui_ImplDX11_Init(d3dDevice.Get(), d3dDeviceIMContext.Get());
 
   return true;
 }

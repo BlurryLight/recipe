@@ -1,11 +1,14 @@
 #pragma once
+#include <comdef.h> // for _com_error
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <debugapi.h>
 #include <dxgi.h>
+#include <iostream>
 #include <string_view>
 #include <winerror.h>
 #include <winnt.h>
+
 
 // com release
 #define SAFE_RELEASE(p)                                                        \
@@ -79,3 +82,24 @@ inline HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
     return hr;
   }
 }
+
+inline void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
+                    const wchar_t *proc) {
+  _com_error err(hr);
+  std::cerr << "file:" << file << "line:" << line << ", " << proc
+            << "ErrorDesc: " << (const char *)err.Description()
+            << "ErrorMsg: " << err.ErrorMessage() << std::endl;
+}
+
+#define HR_RETURN(op)                                                          \
+  if (FAILED(hr = (op))) {                                                     \
+    DxTrace(__FILEW__, __LINE__, hr, L#op);                                    \
+    assert(0);                                                                 \
+    return hr;                                                                 \
+  }
+
+#define HR(op)                                                                 \
+  if (FAILED(hr = (op))) {                                                     \
+    DxTrace(__FILEW__, __LINE__, hr, L#op);                                    \
+    assert(0);                                                                 \
+  }
