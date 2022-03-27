@@ -56,12 +56,10 @@ int D3DApp::Run() {
     // Deal with ImGUI
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplGlfw_NewFrame();
-    // ImGui_ImplWin32_NewFrame();
-
     ImGui::NewFrame();
+
     DrawImGUI();
     ImGui::Render();
-    //    UpdateScene();
     DrawScene();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     HRESULT hr;

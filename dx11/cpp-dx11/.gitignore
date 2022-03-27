@@ -38,3 +38,5 @@ compile*json
 #images/
 cmake_vars.h
 #cmake*
+.vs/
+CMakeSettings.json
