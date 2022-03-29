@@ -4,6 +4,7 @@
 #include <iconv.h> //for gbk/big5/utf8
 #include <string.h>
 #include <vector>
+#include "detect_charset.hh"
 //https://stackoverflow.com/questions/28270310/how-to-easily-detect-utf8-encoding-in-the-string
 //take from here
 bool is_valid_utf8(const char * string)
@@ -69,7 +70,6 @@ bool is_valid_utf8(const char * string)
 int code_convert(char *from_charset,char *to_charset,char *inbuf,size_t inlen,char *outbuf,size_t outlen)
 {
 	iconv_t cd;
-	int rc;
 	char **pin = &inbuf;
 	char **pout = &outbuf;
 	cd = iconv_open(to_charset,from_charset);
@@ -81,10 +81,10 @@ int code_convert(char *from_charset,char *to_charset,char *inbuf,size_t inlen,ch
 	iconv_close(cd);
 	return 0;
 }
-std::string any2utf8(std::string in,std::string fromEncode,std::string toEncode)
+std::string any2any(std::string in,std::string fromEncode,std::string toEncode)
 {
 	char* inbuf=(char*) in.c_str();
-	int inlen=strlen(inbuf);
+	int inlen=(int)(in.size());
 	int outlen=inlen*3;//in case unicode 3 times than ascii
     // char outbuf[outlen]={0};
     std::vector<char> outbuf(outlen,0);
@@ -97,21 +97,27 @@ std::string any2utf8(std::string in,std::string fromEncode,std::string toEncode)
 		return in;
 	}
 }
+std::string any2utf8(std::string in,std::string fromEncode)
+{
+	return any2any(std::string(in),fromEncode,std::string("utf-8"));
+}
 std::string gbk2utf8(const char* in)
 {
-	return any2utf8(std::string(in),std::string("gbk"),std::string("utf-8"));
+	return any2utf8(std::string(in),std::string("gbk"));
 }
 
 std::string gbk2utf8(const std::string& in)
 {
     if(in.empty()) return "";
-	return any2utf8(in,std::string("gbk"),std::string("utf-8"));
+	return any2utf8(in,std::string("gbk"));
 }
 int main()
 {
+    auto read_file = [](std::string filename){
+    std::ifstream ifs(filename);
     std::string line;
-    auto read_file = []{
-    std::ifstream ifs("test_gbk.txt");
+    std::string encoding = "utf-8";
+    bool detected = false; // avoid repeated detect 
     while(!ifs.eof())
     {
         std::getline(ifs,line);
@@ -122,11 +128,39 @@ int main()
         }
         else
         {
-            std::cout << "converted"<< std::endl;
-            std::cout << gbk2utf8(line) << std::endl;
+            if(!detected)
+            {
+                //记录当前ifs的位置
+                auto p = ifs.tellg();
+                std::string oldline = line;
+                std::string buf = line;
+                //读取接下来的十行作为样本，送给detect_charset作为检测
+                //注意，样本需要一定长度才能大概率猜对编码
+                for(int i = 0; i < 10 && !ifs.eof();i++)
+                {
+                    std::getline(ifs,line);
+                    buf += line;
+                }
+                int error = detect_charset(buf,&encoding);
+                if(error)
+                {
+                    throw std::runtime_error("detect failed!");
+                }
+                line = oldline;
+                //回退当前ifs的位置
+                ifs.seekg(p, std::ios_base::beg);
+                detected = true;
+            }
+            std::cout << "from " << encoding << " converted to utf-8"<< std::endl;
+            std::cout << any2utf8(line,encoding) << std::endl;
         }
     }
-    }
-   
+    };
+    std::cout << "="  << "gbk" << "="  << std::endl;
+    read_file("test_gbk.txt");
+    std::cout << "="  << "BIG-5" << "="  << std::endl;
+    // read_file("test_big5.txt");
+    std::cout << "="  << "UTF-8" << "="  << std::endl;
+    read_file("test_utf8.txt");
     return 0;
 }

@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 project(UTF8_test)
+set(CMAKE_CXX_STANDARD 17)
 if (DEFINED VCPKG_TARGET_TRIPLET) # we are using vcpkg
     message("VCPKG found!")
-    find_package(iconv REQUIRED)
+    find_package(Iconv REQUIRED)
+    find_package(ICU REQUIRED COMPONENTS i18n )
 endif (DEFINED VCPKG_TARGET_TRIPLET)
 
 add_executable(main main.cc)
 if (DEFINED VCPKG_TARGET_TRIPLET)
-    target_link_libraries(main PRIVATE Iconv::Charset Iconv::Iconv)
+    target_link_libraries(main PRIVATE Iconv::Charset Iconv::Iconv ICU::i18n)
 endif (DEFINED VCPKG_TARGET_TRIPLET)
 target_compile_options(main PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 configure_file(test_gbk.txt test_gbk.txt COPYONLY)
