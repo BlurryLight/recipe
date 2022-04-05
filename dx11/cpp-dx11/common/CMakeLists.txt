@@ -1,4 +1,4 @@
-add_library(d3dlib d3dApp.cc)
+add_library(d3dlib d3dApp.cc d3dUtils.cc)
 target_link_libraries(d3dlib PUBLIC glfw)
 target_link_libraries(d3dlib PUBLIC imguilib)
 target_include_directories(d3dlib INTERFACE ${CMAKE_SOURCE_DIR}/common)

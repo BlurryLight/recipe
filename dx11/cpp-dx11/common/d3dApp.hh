@@ -53,6 +53,7 @@ protected:
   D3D_FEATURE_LEVEL FeatureLevel_;
 
   std::string WinTitle_ = "D3D11 Example";
+  bool vsync_ = true;
 
 public:
   int ClientWidth_ = -1, ClientHeight_ = -1;

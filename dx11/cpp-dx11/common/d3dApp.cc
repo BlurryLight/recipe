@@ -63,7 +63,7 @@ int D3DApp::Run() {
     DrawScene();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     HRESULT hr;
-    HR(pSwapChain_->Present(0, 0));
+    HR(pSwapChain_->Present(vsync_ ? 1 : 0, 0));
 
     //轮询并处理事件
     glfwPollEvents();

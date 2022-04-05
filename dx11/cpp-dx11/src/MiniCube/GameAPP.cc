@@ -4,6 +4,9 @@
 #include <d3dUtils.hh>
 #include <winnt.h>
 
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_dx11.h>
+#include <imgui/imgui_impl_glfw.h>
 namespace PD {
 struct VertexPosColor {
   DirectX::XMFLOAT3 pos;
@@ -12,7 +15,7 @@ struct VertexPosColor {
 
 class GameApp : public D3DApp {
 public:
-  GameApp() : D3DApp() { this->WinTitle_ = "FirstTriangle"; };
+  GameApp() : D3DApp() { this->WinTitle_ = "MiniCube"; };
   ~GameApp(){};
 
   bool Init() override {
@@ -24,6 +27,16 @@ public:
     if (!InitResource())
       return false;
     return true;
+  }
+  void DrawImGUI() override {
+    D3DApp::DrawImGUI();
+    {
+      ImGui::Begin("Others!");
+      if (ImGui::Button("reload shaders")) {
+        this->reloadShaders();
+      }
+      ImGui::End();
+    }
   }
   void UpdateScene(float dt) override {
     static float phi = 0.0f, theta = 0.0f;
@@ -69,16 +82,52 @@ private:
     DirectX::XMMATRIX Proj;
   };
   MVP CBuffer_;
+  const D3D11_INPUT_ELEMENT_DESC inputLayout_[2] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+       D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12,
+       D3D11_INPUT_PER_VERTEX_DATA, 0}};
 
 protected:
+  bool reloadShaders() {
+    ComPtr<ID3DBlob> blob;
+    HRESULT hr;
+    // SAFE_RELEASE(pVertexShader_);
+    // SAFE_RELEASE(pVertexShader_);
+    ComPtr<ID3D11VertexShader> vshader;
+    ComPtr<ID3D11PixelShader> pshader;
+    // force relaod
+    // if failed ,nothing happens, return false immediately
+    HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso",
+                                   L"HLSL\\Triangle_VS.hlsl", "VS", "vs_5_0",
+                                   blob.ReleaseAndGetAddressOf(), true));
+    HR(pd3dDevice_->CreateVertexShader(blob->GetBufferPointer(),
+                                       blob->GetBufferSize(), nullptr,
+                                       vshader.GetAddressOf()));
+    SAFE_RELEASE(pVertexShader_);
+    SAFE_RELEASE(pVertexLayout_);
+    pVertexShader_ = vshader;
+
+    HR(pd3dDevice_->CreateInputLayout(
+        inputLayout_, ARRAYSIZE(inputLayout_), blob->GetBufferPointer(),
+        blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
+    HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso",
+                                   L"HLSL\\Triangle_PS.hlsl", "PS", "ps_5_0",
+                                   blob.ReleaseAndGetAddressOf(), true));
+
+    SAFE_RELEASE(pPixelShader_);
+    HR(pd3dDevice_->CreatePixelShader(blob->GetBufferPointer(),
+                                      blob->GetBufferSize(), nullptr,
+                                      pshader.GetAddressOf()));
+    pPixelShader_ = pshader;
+
+    pd3dDeviceIMContext_->VSSetShader(pVertexShader_.Get(), nullptr, 0);
+    pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
+    return true;
+  }
   bool InitEffect() {
     ComPtr<ID3DBlob> blob;
     HRESULT hr;
-    const D3D11_INPUT_ELEMENT_DESC inputLayout[2] = {
-        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-         D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12,
-         D3D11_INPUT_PER_VERTEX_DATA, 0}};
 
     HR(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso", L"HLSL\\Triangle_VS.hlsl",
                             "VS", "vs_5_0", blob.ReleaseAndGetAddressOf()));
@@ -86,7 +135,7 @@ protected:
                                        blob->GetBufferSize(), nullptr,
                                        pVertexShader_.GetAddressOf()));
     HR(pd3dDevice_->CreateInputLayout(
-        inputLayout, ARRAYSIZE(inputLayout), blob->GetBufferPointer(),
+        inputLayout_, ARRAYSIZE(inputLayout_), blob->GetBufferPointer(),
         blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
 
     HR(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso", L"HLSL\\Triangle_PS.hlsl",
