@@ -53,6 +53,8 @@ void D3DApp::DrawImGUI() {
 }
 int D3DApp::Run() {
   while (!glfwWindowShouldClose(window_)) {
+    // Deal with glfw3
+    this->ProcessInput(window_);
     // Deal with ImGUI
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -154,8 +156,7 @@ bool D3DApp::InitMainWindow() {
   // IMGUI INIT
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImGuiIO &io = ImGui::GetIO();
-  (void)io;
+  imgui_io_ = &(ImGui::GetIO());
   // ImGui_ImplWin32_Init(mainWnd_);
   ImGui_ImplGlfw_InitForOther(window, true);
   return true;
@@ -228,4 +229,9 @@ bool D3DApp::InitDirect3D() {
   ImGui_ImplDX11_Init(d3dDevice.Get(), d3dDeviceIMContext.Get());
 
   return true;
+}
+
+void D3DApp::ProcessInput(GLFWwindow *) {
+  if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    glfwSetWindowShouldClose(window_, true);
 }

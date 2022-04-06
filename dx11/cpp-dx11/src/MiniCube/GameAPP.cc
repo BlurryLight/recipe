@@ -4,6 +4,7 @@
 #include <d3dUtils.hh>
 #include <winnt.h>
 
+#include <GLFW/glfw3.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -32,15 +33,24 @@ public:
     D3DApp::DrawImGUI();
     {
       ImGui::Begin("Others!");
+      ImGui::LabelText("Current Speed:", "%f", rotation_speed_);
       if (ImGui::Button("reload shaders")) {
         this->reloadShaders();
       }
+      ImGui::Checkbox("vsync", &vsync_);
       ImGui::End();
     }
   }
+  void ProcessInput(GLFWwindow *window) override {
+    D3DApp::ProcessInput(window);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+      this->rotation_speed_ += 0.01f * imgui_io_->DeltaTime;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+      this->rotation_speed_ -= 0.01f * imgui_io_->DeltaTime;
+  }
   void UpdateScene(float dt) override {
     static float phi = 0.0f, theta = 0.0f;
-    phi += 0.0001f, theta += 0.00015f;
+    phi += rotation_speed_ * dt, theta += rotation_speed_ * dt;
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
 
@@ -60,7 +70,8 @@ public:
   void DrawScene() override {
     assert(pd3dDeviceIMContext_);
     assert(pSwapChain_);
-    UpdateScene(0);
+    float dt = imgui_io_->DeltaTime;
+    UpdateScene(dt * 1000.0f);
     static float blue[4] = {0.0f, 0.0f, 0.2f, 1.0f};
     pd3dDeviceIMContext_->ClearRenderTargetView(pRenderTargetView_.Get(), blue);
     pd3dDeviceIMContext_->ClearDepthStencilView(
@@ -87,6 +98,7 @@ private:
        D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12,
        D3D11_INPUT_PER_VERTEX_DATA, 0}};
+  float rotation_speed_ = 0.0001f;
 
 protected:
   bool reloadShaders() {

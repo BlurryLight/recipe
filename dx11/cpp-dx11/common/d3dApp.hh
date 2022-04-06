@@ -11,6 +11,7 @@
 #include <wrl/client.h>
 
 struct GLFWwindow;
+struct ImGuiIO;
 namespace PD {
 
 class D3DApp {
@@ -25,6 +26,7 @@ public:
   virtual void OnResize();
   virtual void UpdateScene(float dt) = 0;
   virtual void DrawScene() = 0;
+  virtual void ProcessInput(GLFWwindow *); // default do nothing
   /**
    * @brief 有关IMGUI的**内容**
    *
@@ -54,6 +56,7 @@ protected:
 
   std::string WinTitle_ = "D3D11 Example";
   bool vsync_ = true;
+  ImGuiIO *imgui_io_ = nullptr;
 
 public:
   int ClientWidth_ = -1, ClientHeight_ = -1;
