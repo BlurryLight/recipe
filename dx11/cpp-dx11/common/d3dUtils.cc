@@ -1,6 +1,34 @@
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 #include "d3dUtils.hh"
+#include <codecvt>
 #include <comdef.h> // for _com_error
 #include <debugapi.h>
+
+std::string utf16_to_utf8(std::u16string const &s) {
+  std::wstring_convert<
+      std::codecvt_utf8_utf16<char16_t, 0x10ffff,
+                              std::codecvt_mode::little_endian>,
+      char16_t>
+      cnv;
+  std::string utf8 = cnv.to_bytes(s);
+  if (cnv.converted() < s.size())
+    throw std::runtime_error("incomplete conversion");
+  return utf8;
+}
+
+std::u16string utf8_to_utf16(std::string const &utf8) {
+  std::wstring_convert<
+      std::codecvt_utf8_utf16<char16_t, 0x10ffff,
+                              std::codecvt_mode::little_endian>,
+      char16_t>
+      cnv;
+  std::u16string s = cnv.from_bytes(utf8);
+  if (cnv.converted() < utf8.size())
+    throw std::runtime_error("incomplete conversion");
+  return s;
+}
+std::u16string utf8_to_utf16_windows(std::string const &utf8) { return u""; }
+std::string utf16_to_utf8_windows(std::u16string const &s) { return ""; }
 namespace PD {
 void D3D11SetDebugObjectName(ID3D11DeviceChild *resource,
                              std::string_view name) {
@@ -63,6 +91,21 @@ HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
     return hr;
   }
 }
+
+/**
+ * @brief Format error message about HRESULT
+ * I do some experiments about charset convert around utf16, utf8 and gbk.
+ * FormatMessageW得到的wstring的编码是utf16le，它既不能在pwsh(utf-8)显示，也不能在cmd/powershell(gbk)里显示，要正确打印它需要设置locale。
+ * 或者转到utf8表示。
+ *
+ * 使用SUBLANG_ENGLISH_US标记调用FormatMessageA得到的char*的编码是GBK，但是由于它是英语的所以英语部分在ASCII范围内，所以既能在pwsh里显示也能在cmd里显示
+ * 使用SUBLANG_DEFAULT标记调用FormatMessageA得到的char*编码是GBK，但是它是中文的，所以在pwsh(utf-8)里无法显示，只能在cmd(GBK)里显示
+ *
+ * @param file
+ * @param line
+ * @param hr
+ * @param proc
+ */
 void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
              const wchar_t *proc) {
 
@@ -71,9 +114,29 @@ void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
                      FORMAT_MESSAGE_IGNORE_INSERTS,
                  NULL, hr, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
                  (char *)&output, 0, NULL);
+
+  char *output_ansi;
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                 NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                 (char *)&output_ansi, 0, NULL);
+
+  wchar_t *outputw;
+  FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                 NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                 (wchar_t *)&outputw, 0, NULL);
   std::wcerr << "file:" << file << "line:" << line << ", " << proc << std::endl;
   //  << "ErrorDesc: " << err.Description()
   //  << "ErrorMsg: " << output << std::endl;
-  std::printf("Error Msg: %s", output);
+  std::printf("English Error Msg: %s", output);
+
+  std::printf("GBK Error Msg: %s", output_ansi); // inner is GBK
+
+  // this is only valid for windows
+  std::wstring wstr(outputw); // inner is utf16LE
+  std::u16string u16str(wstr.begin(), wstr.end());
+  std::string u8str = utf16_to_utf8(u16str);
+  std::printf("Error Msg: %s", u8str.c_str());
 }
 } // namespace PD
