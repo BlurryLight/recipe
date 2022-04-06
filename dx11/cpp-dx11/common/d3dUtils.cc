@@ -118,7 +118,10 @@ HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
 
 /**
  * @brief Format error message about HRESULT
- * I do some experiments about charset convert around utf16, utf8 and gbk.
+ * I did some experiments about charset convert around utf16, utf8 and gbk.
+ * Go
+ * https://github.com/BlurryLight/recipe/blob/997d605fbeb053279a4b9981dd8cba8eca719c9f/dx11/cpp-dx11/common/d3dUtils.cc#L133
+ * for details.
  * FormatMessageW得到的wstring的编码是utf16le，它既不能在pwsh(utf-8)显示，也不能在cmd/powershell(gbk)里显示，要正确打印它需要设置locale。
  * 或者转到utf8表示。
  *
@@ -138,32 +141,7 @@ void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
                      FORMAT_MESSAGE_IGNORE_INSERTS,
                  NULL, hr, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
                  (char *)&output, 0, NULL);
-
-  char *output_ansi;
-  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                     FORMAT_MESSAGE_IGNORE_INSERTS,
-                 NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                 (char *)&output_ansi, 0, NULL);
-
-  wchar_t *outputw;
-  FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                     FORMAT_MESSAGE_IGNORE_INSERTS,
-                 NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                 (wchar_t *)&outputw, 0, NULL);
   std::wcerr << "file:" << file << "line:" << line << ", " << proc << std::endl;
-  std::printf("English Error Msg: %s", output);
-
-  std::printf("GBK Error Msg: %s", output_ansi); // inner is GBK
-
-  // this is only valid for windows
-  std::wstring wstr(outputw); // inner is utf16LE
-  std::u16string u16str(wstr.begin(), wstr.end());
-  // std::string u8str = utf16_to_utf8(u16str);
-  std::string u8str = utf16_to_utf8_windows(u16str);
-  std::printf("u8 Error Msg: %s", u8str.c_str());
-
-  u16str = utf8_to_utf16_windows(u8str);
-  u8str = utf16_to_utf8(u16str);
-  std::printf("u8 Error Msg again: %s", u8str.c_str());
+  std::printf("Error Msg: %s", output);
 }
 } // namespace PD
