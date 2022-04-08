@@ -8,13 +8,13 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
-#include <vector>
+#include <shapes.hh>
 #include <vertexLayout.hh>
 namespace PD {
 
 class GameApp : public D3DApp {
 public:
-  GameApp() : D3DApp() { this->WinTitle_ = "MiniCube"; };
+  GameApp() : D3DApp() { this->WinTitle_ = "Light Example"; };
   ~GameApp(){};
 
   bool Init() override {
@@ -88,7 +88,9 @@ public:
     pd3dDeviceIMContext_->ClearDepthStencilView(
         pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
         0);
-    pd3dDeviceIMContext_->DrawIndexed(36, 0, 0);
+    for (const auto &shape : shapes_) {
+      shape->draw(pd3dDeviceIMContext_.Get());
+    }
   };
 
 private:
@@ -105,6 +107,7 @@ private:
   };
   MVP CBuffer_;
   float rotation_speed_ = 0.0001f;
+  std::vector<std::unique_ptr<Mesh>> shapes_;
 
 protected:
   bool reloadShaders() {
@@ -127,9 +130,9 @@ protected:
     pVertexShader_ = vshader;
 
     HR(pd3dDevice_->CreateInputLayout(
-        VertexPosColor::inputLayout, ARRAYSIZE(VertexPosColor::inputLayout),
-        blob->GetBufferPointer(), blob->GetBufferSize(),
-        pVertexLayout_.GetAddressOf()));
+        VertexPosNormalTex::inputLayout,
+        ARRAYSIZE(VertexPosNormalTex::inputLayout), blob->GetBufferPointer(),
+        blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
     HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso",
                                    L"HLSL\\Triangle_PS.hlsl", "PS", "ps_5_0",
                                    blob.ReleaseAndGetAddressOf(), true));
@@ -154,9 +157,9 @@ protected:
                                        blob->GetBufferSize(), nullptr,
                                        pVertexShader_.GetAddressOf()));
     HR(pd3dDevice_->CreateInputLayout(
-        VertexPosColor::inputLayout, ARRAYSIZE(VertexPosColor::inputLayout),
-        blob->GetBufferPointer(), blob->GetBufferSize(),
-        pVertexLayout_.GetAddressOf()));
+        VertexPosNormalTex::inputLayout,
+        ARRAYSIZE(VertexPosNormalTex::inputLayout), blob->GetBufferPointer(),
+        blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
 
     HR(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso", L"HLSL\\Triangle_PS.hlsl",
                             "PS", "ps_5_0", blob.ReleaseAndGetAddressOf()));
@@ -168,27 +171,20 @@ protected:
   }
   bool InitResource() {
     using namespace DirectX;
-    VertexPosColor vertices[] = {
-        {XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)},
-        {XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)},
-        {XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f)},
-        {XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f)},
-        {XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f)},
-        {XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f)},
-        {XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f)},
-        {XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f)}};
-
+    this->shapes_.emplace_back(std::make_unique<CubeMesh>());
+    auto mesh = dynamic_cast<CubeMesh *>(this->shapes_[0].get());
     // 设置顶点缓冲区描述
     D3D11_BUFFER_DESC vertexBufferDesc;
     ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
     vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-    vertexBufferDesc.ByteWidth = sizeof vertices;
+    vertexBufferDesc.ByteWidth =
+        sizeof(CubeMesh::value_type) * mesh->vdata.size();
     vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     vertexBufferDesc.CPUAccessFlags = 0;
     // 新建顶点缓冲区
     D3D11_SUBRESOURCE_DATA InitData;
     ZeroMemory(&InitData, sizeof(InitData));
-    InitData.pSysMem = vertices;
+    InitData.pSysMem = mesh->vdata.data();
     HRESULT hr;
     HR(pd3dDevice_->CreateBuffer(&vertexBufferDesc, &InitData,
                                  pVertexBuffer_.GetAddressOf()));
@@ -234,7 +230,7 @@ protected:
     CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 
     //绑定资源
-    UINT stride = sizeof(VertexPosColor);
+    UINT stride = sizeof(VertexPosNormalTex);
     UINT offset = 0;
 
     pd3dDeviceIMContext_->IASetVertexBuffers(

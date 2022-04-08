@@ -2,6 +2,7 @@ set(SRC
     d3dApp.cc 
     d3dUtils.cc
     vertexLayout.cc
+    shapes.cc
 )
 
 add_library(d3dlib ${SRC})
