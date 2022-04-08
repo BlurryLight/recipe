@@ -168,9 +168,8 @@ bool D3DApp::InitDirect3D() {
 
   //列出所有考虑的FeatureLevel：
   D3D_FEATURE_LEVEL featureLevels[] = {
-      D3D_FEATURE_LEVEL_11_0,
-      D3D_FEATURE_LEVEL_10_1,
-      D3D_FEATURE_LEVEL_10_0,
+      D3D_FEATURE_LEVEL_12_0, D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+      D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
   };
 
   //列出所有考虑的驱动类型（越靠前越优先考虑）
@@ -212,9 +211,22 @@ bool D3DApp::InitDirect3D() {
     if (SUCCEEDED(hr))
       break;
   }
-  if (FAILED(hr))
-    return false;
+  HR(hr); // check error
   FeatureLevel_ = outFeatureLevel;
+  switch (FeatureLevel_) {
+  case D3D_FEATURE_LEVEL_12_0:
+    std::cout << "Feature Level: 12.0" << std::endl;
+    break;
+  case D3D_FEATURE_LEVEL_11_1:
+    std::cout << "Feature Level: 11.1" << std::endl;
+    break;
+  case D3D_FEATURE_LEVEL_11_0:
+    std::cout << "Feature Level: 11.0" << std::endl;
+    break;
+  default:
+    std::cout << "Feature Level: other" << std::endl;
+  }
+
   SwapChain.As(&pSwapChain_);
   d3dDevice.As(&pd3dDevice_);
   d3dDeviceIMContext.As(&pd3dDeviceIMContext_);

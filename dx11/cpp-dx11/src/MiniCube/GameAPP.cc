@@ -8,11 +8,8 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <vertexLayout.hh>
 namespace PD {
-struct VertexPosColor {
-  DirectX::XMFLOAT3 pos;
-  DirectX::XMFLOAT4 color;
-};
 
 class GameApp : public D3DApp {
 public:
@@ -106,12 +103,6 @@ private:
     DirectX::XMMATRIX Proj;
   };
   MVP CBuffer_;
-  const D3D11_INPUT_ELEMENT_DESC inputLayout_[2] = {
-      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-       D3D11_INPUT_PER_VERTEX_DATA, 0},
-      // byte offset
-      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-       offsetof(VertexPosColor, color), D3D11_INPUT_PER_VERTEX_DATA, 0}};
   float rotation_speed_ = 0.0001f;
 
 protected:
@@ -135,8 +126,9 @@ protected:
     pVertexShader_ = vshader;
 
     HR(pd3dDevice_->CreateInputLayout(
-        inputLayout_, ARRAYSIZE(inputLayout_), blob->GetBufferPointer(),
-        blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
+        VertexPosColor::inputLayout, ARRAYSIZE(VertexPosColor::inputLayout),
+        blob->GetBufferPointer(), blob->GetBufferSize(),
+        pVertexLayout_.GetAddressOf()));
     HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso",
                                    L"HLSL\\Triangle_PS.hlsl", "PS", "ps_5_0",
                                    blob.ReleaseAndGetAddressOf(), true));
@@ -161,8 +153,9 @@ protected:
                                        blob->GetBufferSize(), nullptr,
                                        pVertexShader_.GetAddressOf()));
     HR(pd3dDevice_->CreateInputLayout(
-        inputLayout_, ARRAYSIZE(inputLayout_), blob->GetBufferPointer(),
-        blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
+        VertexPosColor::inputLayout, ARRAYSIZE(VertexPosColor::inputLayout),
+        blob->GetBufferPointer(), blob->GetBufferSize(),
+        pVertexLayout_.GetAddressOf()));
 
     HR(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso", L"HLSL\\Triangle_PS.hlsl",
                             "PS", "ps_5_0", blob.ReleaseAndGetAddressOf()));
