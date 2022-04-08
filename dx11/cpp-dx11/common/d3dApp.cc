@@ -151,6 +151,8 @@ bool D3DApp::InitMainWindow() {
   window_ = window;
   this->mainWnd_ = glfwGetWin32Window(window);
   glfwSetFramebufferSizeCallback(window, OnResizeFrame);
+  glfwSetWindowUserPointer(window,
+                           (void *)this); // restore this pointer to glfw window
   //  glfwSetWindowSizeCallback(window,OnResizeFrame);
 
   // IMGUI INIT
@@ -234,4 +236,14 @@ bool D3DApp::InitDirect3D() {
 void D3DApp::ProcessInput(GLFWwindow *) {
   if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window_, true);
+}
+void PD::D3DApp::glfw_keycallback(int key, int scancode, int action, int mods) {
+  (void)mods;
+  if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+    AllowMouseMove_ = !AllowMouseMove_;
+    if (AllowMouseMove_)
+      glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    else
+      glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+  }
 }

@@ -21,6 +21,12 @@ public:
 
   bool Init() override {
     auto res = D3DApp::Init();
+    auto key_cb = [](GLFWwindow *win, int key, int scancode, int action,
+                     int mods) {
+      static_cast<D3DApp *>(glfwGetWindowUserPointer(win))
+          ->glfw_keycallback(key, scancode, action, mods);
+    };
+    glfwSetKeyCallback(window_, key_cb);
     if (!res)
       return res;
     if (!InitEffect())
@@ -28,6 +34,13 @@ public:
     if (!InitResource())
       return false;
     return true;
+  }
+  void glfw_keycallback(int key, int scancode, int action, int mods) override {
+    ignore(scancode);
+    ignore(mods);
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+      vsync_ = !vsync_;
+    }
   }
   void DrawImGUI() override {
     D3DApp::DrawImGUI();
@@ -96,8 +109,9 @@ private:
   const D3D11_INPUT_ELEMENT_DESC inputLayout_[2] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
        D3D11_INPUT_PER_VERTEX_DATA, 0},
-      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12,
-       D3D11_INPUT_PER_VERTEX_DATA, 0}};
+      // byte offset
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+       offsetof(VertexPosColor, color), D3D11_INPUT_PER_VERTEX_DATA, 0}};
   float rotation_speed_ = 0.0001f;
 
 protected:

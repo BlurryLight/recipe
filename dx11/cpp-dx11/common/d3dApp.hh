@@ -26,6 +26,7 @@ public:
   virtual void OnResize();
   virtual void UpdateScene(float dt) = 0;
   virtual void DrawScene() = 0;
+  virtual void glfw_keycallback(int key, int scancode, int action, int mods);
   virtual void ProcessInput(GLFWwindow *); // default do nothing
   /**
    * @brief 有关IMGUI的**内容**
@@ -56,6 +57,7 @@ protected:
 
   std::string WinTitle_ = "D3D11 Example";
   bool vsync_ = true;
+  bool AllowMouseMove_ = true;
   ImGuiIO *imgui_io_ = nullptr;
 
 public:
