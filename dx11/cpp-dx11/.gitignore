@@ -40,3 +40,4 @@ cmake_vars.h
 #cmake*
 .vs/
 CMakeSettings.json
+*.cso

@@ -44,13 +44,19 @@ float D3DApp::AspectRatio() const {
 }
 
 void D3DApp::DrawImGUI() {
+  static bool show_demo_window_ = false;
+  if (show_demo_window_) {
+    ImGui::ShowDemoWindow(&show_demo_window_);
+  }
   {
     ImGui::Begin("Hello, world!");
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::End();
+    ImGui::Checkbox("Show DemoWindow", &show_demo_window_);
   }
+  ImGui::End();
 }
+
 int D3DApp::Run() {
   while (!glfwWindowShouldClose(window_)) {
     // Deal with glfw3

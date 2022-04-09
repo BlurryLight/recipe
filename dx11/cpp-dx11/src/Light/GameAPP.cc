@@ -8,13 +8,24 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <resource_path_searcher.h>
 #include <shapes.hh>
 #include <vertexLayout.hh>
 namespace PD {
 
 class GameApp : public D3DApp {
 public:
-  GameApp() : D3DApp() { this->WinTitle_ = "Light Example"; };
+  GameApp() : D3DApp() {
+    this->WinTitle_ = "Light Example";
+    auto path = PD::ResourcePathSearcher::Path(__FILEW__);
+    if (!path.is_absolute()) {
+      path = fs::absolute(path);
+    }
+    path = path.parent_path(); // get the current source dir
+    path_manager_.add_path(path);
+    dir_path_ = path;
+    path_manager_.add_path(path / "HLSL");
+  };
   ~GameApp(){};
 
   bool Init() override {
@@ -108,6 +119,8 @@ private:
   MVP CBuffer_;
   float rotation_speed_ = 0.0001f;
   std::vector<std::unique_ptr<Mesh>> shapes_;
+  ResourcePathSearcher path_manager_;
+  ResourcePathSearcher::Path dir_path_;
 
 protected:
   bool reloadShaders() {
@@ -119,9 +132,10 @@ protected:
     ComPtr<ID3D11PixelShader> pshader;
     // force relaod
     // if failed ,nothing happens, return false immediately
-    HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso",
-                                   L"HLSL\\Triangle_VS.hlsl", "VS", "vs_5_0",
-                                   blob.ReleaseAndGetAddressOf(), true));
+    HR_RETURN(CreateShaderFromFile(
+        (dir_path_ / "HLSL" / "Triangle_VS.cso").wstring(),
+        path_manager_.find_path("Triangle_VS.hlsl").wstring(), "VS", "vs_5_0",
+        blob.ReleaseAndGetAddressOf(), true));
     HR(pd3dDevice_->CreateVertexShader(blob->GetBufferPointer(),
                                        blob->GetBufferSize(), nullptr,
                                        vshader.GetAddressOf()));
@@ -133,9 +147,10 @@ protected:
         VertexPosNormalTex::inputLayout,
         ARRAYSIZE(VertexPosNormalTex::inputLayout), blob->GetBufferPointer(),
         blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
-    HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso",
-                                   L"HLSL\\Triangle_PS.hlsl", "PS", "ps_5_0",
-                                   blob.ReleaseAndGetAddressOf(), true));
+    HR_RETURN(CreateShaderFromFile(
+        (dir_path_ / "HLSL" / "Triangle_PS.cso").wstring(),
+        path_manager_.find_path("HLSL\\Triangle_PS.hlsl").wstring(), "PS",
+        "ps_5_0", blob.ReleaseAndGetAddressOf(), true));
 
     SAFE_RELEASE(pPixelShader_);
     HR(pd3dDevice_->CreatePixelShader(blob->GetBufferPointer(),
@@ -151,8 +166,10 @@ protected:
     ComPtr<ID3DBlob> blob;
     HRESULT hr;
 
-    HR(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso", L"HLSL\\Triangle_VS.hlsl",
-                            "VS", "vs_5_0", blob.ReleaseAndGetAddressOf()));
+    HR(CreateShaderFromFile(
+        (dir_path_ / "HLSL" / "Triangle_VS.cso").wstring(),
+        path_manager_.find_path("HLSL\\Triangle_VS.hlsl").wstring(), "VS",
+        "vs_5_0", blob.ReleaseAndGetAddressOf()));
     HR(pd3dDevice_->CreateVertexShader(blob->GetBufferPointer(),
                                        blob->GetBufferSize(), nullptr,
                                        pVertexShader_.GetAddressOf()));
@@ -161,8 +178,10 @@ protected:
         ARRAYSIZE(VertexPosNormalTex::inputLayout), blob->GetBufferPointer(),
         blob->GetBufferSize(), pVertexLayout_.GetAddressOf()));
 
-    HR(CreateShaderFromFile(L"HLSL\\Triangle_PS.cso", L"HLSL\\Triangle_PS.hlsl",
-                            "PS", "ps_5_0", blob.ReleaseAndGetAddressOf()));
+    HR(CreateShaderFromFile(
+        (dir_path_ / "HLSL" / "Triangle_PS.cso").wstring(),
+        path_manager_.find_path("HLSL\\Triangle_PS.hlsl").wstring(), "PS",
+        "ps_5_0", blob.ReleaseAndGetAddressOf()));
     HR(pd3dDevice_->CreatePixelShader(blob->GetBufferPointer(),
                                       blob->GetBufferSize(), nullptr,
                                       pPixelShader_.GetAddressOf()));
