@@ -17,11 +17,12 @@ class GameApp : public D3DApp {
 public:
   GameApp() : D3DApp() {
     this->WinTitle_ = "Light Example";
-    auto path = PD::ResourcePathSearcher::Path(__FILEW__);
+    // project_dir is defined in cmake
+    // don't use __FILE__. The value is changed between different generator
+    auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) {
       path = fs::absolute(path);
     }
-    path = path.parent_path(); // get the current source dir
     path_manager_.add_path(path);
     dir_path_ = path;
     path_manager_.add_path(path / "HLSL");
