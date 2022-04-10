@@ -12,6 +12,7 @@
 
 struct GLFWwindow;
 struct ImGuiIO;
+template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 namespace PD {
 
 class D3DApp {
@@ -42,8 +43,6 @@ protected:
   HWND mainWnd_;
   bool EnableMSAA_;
   uint32_t MSAAQuality_;
-
-  template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
   ComPtr<ID3D11Device1> pd3dDevice_ = nullptr;
   ComPtr<ID3D11DeviceContext1> pd3dDeviceIMContext_ = nullptr;

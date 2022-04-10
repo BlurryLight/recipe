@@ -26,6 +26,8 @@ public:
     path_manager_.add_path(path);
     dir_path_ = path;
     path_manager_.add_path(path / "HLSL");
+    path_manager_.add_path(ResourcePathSearcher::root_path / "resources" /
+                           "models");
   };
   ~GameApp(){};
 
@@ -100,9 +102,11 @@ public:
     pd3dDeviceIMContext_->ClearDepthStencilView(
         pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
         0);
-    for (const auto &shape : shapes_) {
-      shape->draw(pd3dDeviceIMContext_.Get());
-    }
+    // for (const auto &shape : shapes_) {
+    //   shape->draw(pd3dDeviceIMContext_.Get());
+    // }
+    // cube_->draw(pd3dDeviceIMContext_.Get());
+    models_[0]->draw();
   };
 
 private:
@@ -119,7 +123,8 @@ private:
   };
   MVP CBuffer_;
   float rotation_speed_ = 0.0001f;
-  std::vector<std::unique_ptr<Mesh>> shapes_;
+  std::vector<std::unique_ptr<Model>> models_;
+  std::unique_ptr<CubeMesh> cube_;
   ResourcePathSearcher path_manager_;
   ResourcePathSearcher::Path dir_path_;
 
@@ -191,8 +196,14 @@ protected:
   }
   bool InitResource() {
     using namespace DirectX;
-    this->shapes_.emplace_back(std::make_unique<CubeMesh>());
-    auto mesh = dynamic_cast<CubeMesh *>(this->shapes_[0].get());
+    // this->shapes_.emplace_back(std::make_unique<CubeMesh>());
+    // auto mesh = dynamic_cast<CubeMesh *>(this->shapes_[0].get());
+    cube_ = std::make_unique<CubeMesh>();
+    auto mesh = cube_.get();
+
+    Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
+                             path_manager_.find_path("bunny.obj"));
+    models_.push_back(std::unique_ptr<Model>(model));
     // 设置顶点缓冲区描述
     D3D11_BUFFER_DESC vertexBufferDesc;
     ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));

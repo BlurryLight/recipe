@@ -1,12 +1,7 @@
 #pragma once
 
-#ifndef FILESYSTEM_TS
 #include <filesystem>
 namespace fs = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#endif
 
 #include <set>
 #include <string>
@@ -15,12 +10,8 @@ namespace PD {
 
 class ResourcePathSearcher {
 public:
-#ifndef FILESYSTEM_TS
   using Path = std::filesystem::path;
-#else
-  using Path = std::experimental::filesystem::path;
-#endif
-private:
+
   std::set<Path> search_paths_;
 
 public:
