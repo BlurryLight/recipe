@@ -13,8 +13,12 @@ struct aiMesh;
 struct aiScene;
 struct aiNode;
 namespace PD {
-struct IMesh {
-  virtual void draw(ID3D11DeviceContext *) = 0;
+struct IMesh { // Non-copyable
+  IMesh() {}
+  IMesh(const IMesh &) = delete;
+  IMesh &operator=(const IMesh &) = delete;
+  virtual void draw() = 0;
+  virtual ~IMesh() {}
 };
 
 namespace details {
@@ -65,10 +69,17 @@ private:
 struct CubeMesh : public IMesh {
   using value_type = VertexPosNormalTex;
   using index_type = uint32_t;
-  CubeMesh();
+  ~CubeMesh() {
+    assert(vbo_);
+    vbo_->Release();
+    vbo_ = nullptr;
+  }
+  CubeMesh(ID3D11Device *, ID3D11DeviceContext *);
   std::vector<VertexPosNormalTex> vdata;
-  std::vector<uint32_t> indices;
-  void draw(ID3D11DeviceContext *context) override;
+  ID3D11Buffer *vbo_ = nullptr;
+  ID3D11Device *device_ = nullptr;
+  ID3D11DeviceContext *context_ = nullptr;
+  void draw() override;
 };
 
 // struct SphereMesh {

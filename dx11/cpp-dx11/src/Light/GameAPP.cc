@@ -105,14 +105,12 @@ public:
     // for (const auto &shape : shapes_) {
     //   shape->draw(pd3dDeviceIMContext_.Get());
     // }
-    // cube_->draw(pd3dDeviceIMContext_.Get());
+    cube_->draw();
     models_[0]->draw();
   };
 
 private:
   ComPtr<ID3D11InputLayout> pVertexLayout_;
-  ComPtr<ID3D11Buffer> pVertexBuffer_;
-  ComPtr<ID3D11Buffer> pVertexIndexBuffer_;
   ComPtr<ID3D11Buffer> pCBuffer_;
   ComPtr<ID3D11VertexShader> pVertexShader_;
   ComPtr<ID3D11PixelShader> pPixelShader_;
@@ -198,50 +196,14 @@ protected:
     using namespace DirectX;
     // this->shapes_.emplace_back(std::make_unique<CubeMesh>());
     // auto mesh = dynamic_cast<CubeMesh *>(this->shapes_[0].get());
-    cube_ = std::make_unique<CubeMesh>();
+    cube_ = std::make_unique<CubeMesh>(pd3dDevice_.Get(),
+                                       pd3dDeviceIMContext_.Get());
     auto mesh = cube_.get();
 
     Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
                              path_manager_.find_path("bunny.obj"));
     models_.push_back(std::unique_ptr<Model>(model));
-    // 设置顶点缓冲区描述
-    D3D11_BUFFER_DESC vertexBufferDesc;
-    ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-    vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-    vertexBufferDesc.ByteWidth =
-        sizeof(CubeMesh::value_type) * mesh->vdata.size();
-    vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    vertexBufferDesc.CPUAccessFlags = 0;
-    // 新建顶点缓冲区
-    D3D11_SUBRESOURCE_DATA InitData;
-    ZeroMemory(&InitData, sizeof(InitData));
-    InitData.pSysMem = mesh->vdata.data();
     HRESULT hr;
-    HR(pd3dDevice_->CreateBuffer(&vertexBufferDesc, &InitData,
-                                 pVertexBuffer_.GetAddressOf()));
-    //索引缓冲区描述
-    uint32_t indices[] = {// 正面
-                          0, 1, 2, 2, 3, 0,
-                          // 左面
-                          4, 5, 1, 1, 0, 4,
-                          // 顶面
-                          1, 5, 6, 6, 2, 1,
-                          // 背面
-                          7, 6, 5, 5, 4, 7,
-                          // 右面
-                          3, 2, 6, 6, 7, 3,
-                          // 底面
-                          4, 0, 3, 3, 7, 4};
-    D3D11_BUFFER_DESC indexBufferDesc;
-    ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
-    indexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-    indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-    indexBufferDesc.CPUAccessFlags = 0;
-    indexBufferDesc.ByteWidth = sizeof indices;
-    // 申请缓冲区
-    InitData.pSysMem = indices;
-    HR(pd3dDevice_->CreateBuffer(&indexBufferDesc, &InitData,
-                                 pVertexIndexBuffer_.GetAddressOf()));
     // 申请cbuffer
     D3D11_BUFFER_DESC CBufferDesc;
     ZeroMemory(&CBufferDesc, sizeof CBufferDesc);
@@ -260,25 +222,16 @@ protected:
     CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
     CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 
-    //绑定资源
-    UINT stride = sizeof(VertexPosNormalTex);
-    UINT offset = 0;
-
-    pd3dDeviceIMContext_->IASetVertexBuffers(
-        0, 1, pVertexBuffer_.GetAddressOf(), &stride, &offset);
     // 设置图元类型，设定输入布局
     pd3dDeviceIMContext_->IASetPrimitiveTopology(
         D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     pd3dDeviceIMContext_->IASetInputLayout(pVertexLayout_.Get());
-    pd3dDeviceIMContext_->IASetIndexBuffer(pVertexIndexBuffer_.Get(),
-                                           DXGI_FORMAT_R32_UINT, 0);
     // 将着色器绑定到渲染管线
     pd3dDeviceIMContext_->VSSetShader(pVertexShader_.Get(), nullptr, 0);
     pd3dDeviceIMContext_->VSSetConstantBuffers(0, 1, pCBuffer_.GetAddressOf());
     pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
 
     D3D11SetDebugObjectName(pVertexLayout_.Get(), "VertexPosColorLayout");
-    D3D11SetDebugObjectName(pVertexBuffer_.Get(), "VertexBuffer");
     D3D11SetDebugObjectName(pVertexShader_.Get(), "Trangle_VS");
     D3D11SetDebugObjectName(pPixelShader_.Get(), "Trangle_PS");
     return true;
