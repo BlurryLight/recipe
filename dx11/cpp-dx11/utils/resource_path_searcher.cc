@@ -17,11 +17,13 @@ void ResourcePathSearcher::add_path(const std::string &path) {
   search_paths_.emplace(p);
 }
 
-fs::path ResourcePathSearcher::find_path(const std::string &filename) const {
+fs::path ResourcePathSearcher::find_path(fs::path filename) const {
   for (const Path &p : search_paths_) {
+    if (!fs::exists(p))
+      continue;
     auto path = p / filename;
     if (fs::exists(path)) {
-      spdlog::debug("Resource: {} found!", path.string());
+      spdlog::debug("Resource: {} found!", path.u8string());
       // It may cause problems in Windows because Windows native path is encoded
       // in UTF16LE To Handle this problem will need complex machanism like
       // writing wstring overloads for all related functions.I won't bother to
@@ -29,31 +31,12 @@ fs::path ResourcePathSearcher::find_path(const std::string &filename) const {
       return path.is_absolute() ? path : fs::absolute(path);
     }
   }
-  std::string msg = "ResourcePathSearch cannot find " + filename;
+  std::string msg = "ResourcePathSearch cannot find " + filename.u8string();
   spdlog::error(msg);
   spdlog::shutdown();
   std::terminate();
 }
 
-fs::path ResourcePathSearcher::find_path(
-    const std::vector<std::string> &filenames) const {
-  Path ps;
-  for (const auto &i : filenames) {
-    ps /= i;
-  }
-
-  for (const Path &p : search_paths_) {
-    auto path = p / ps;
-    if (fs::exists(path)) {
-      spdlog::debug("Resource: {} found!", path.string());
-      return path.is_absolute() ? path : fs::absolute(path);
-    }
-  }
-  std::string msg = "ResourcePathSearch cannot find " + *filenames.rbegin();
-  spdlog::error(msg);
-  spdlog::shutdown();
-  std::terminate();
-}
 void ResourcePathSearcher::add_path(const ResourcePathSearcher::Path &path) {
   auto p = fs::absolute(path);
   search_paths_.emplace(p);

@@ -26,8 +26,8 @@ public:
     path_manager_.add_path(path);
     dir_path_ = path;
     path_manager_.add_path(path / "HLSL");
-    path_manager_.add_path(ResourcePathSearcher::root_path / "resources" /
-                           "models");
+    auto resource_path = ResourcePathSearcher::root_path / "resources";
+    path_manager_.add_path(resource_path / "models");
   };
   ~GameApp(){};
 
@@ -105,7 +105,7 @@ public:
     // for (const auto &shape : shapes_) {
     //   shape->draw(pd3dDeviceIMContext_.Get());
     // }
-    cube_->draw();
+    // cube_->draw();
     models_[0]->draw();
   };
 
@@ -200,8 +200,9 @@ protected:
                                        pd3dDeviceIMContext_.Get());
     auto mesh = cube_.get();
 
-    Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
-                             path_manager_.find_path("bunny.obj"));
+    Model *model =
+        new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
+                  path_manager_.find_path(L"bunny_中文路径测试.obj"));
     models_.push_back(std::unique_ptr<Model>(model));
     HRESULT hr;
     // 申请cbuffer
