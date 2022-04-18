@@ -1,0 +1,28 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+    <Target Name="CopyFiles" AfterTargets="Build">
+        <ItemGroup>
+            <!-- Because this ItemGroup is inside the target, this will enumerate
+                 all files just before calling Copy. If the ItemGroup were outside
+                 the target , it would enumerate the files during evaluation, before
+                 the build starts, which may miss files created during the build. -->
+            <MySourceFiles Include="$(ProjectDir)test_resource.txt"/>
+        </ItemGroup>
+
+        <Copy
+            SourceFiles="@(MySourceFiles)"
+            DestinationFolder="$(TargetDir)"
+        />
+        <Message Importance="High" Text="We have copys the files @(MySourceFiles)" />
+    </Target>
+	
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ClCompile>
+    <!-- 如果通过msbuild /p定义了HELLO，就把HELLO定义成输入的值-->
+	<PreprocessorDefinitions Condition="'$(HELLO)'!=''">HELLO=$(HELLO);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+	<!-- 否则定义为默认值100-->
+	<PreprocessorDefinitions Condition="'$(HELLO)'==''">HELLO=100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+  </ClCompile>
+  </ItemDefinitionGroup>
+  
+</Project>

@@ -1,0 +1,5 @@
+.vs
+# filters定义了vs的源码组织关系，每个人可能有不同的喜好(比如shaders到底属于资源还是属于源码)
+# 不要把它加到git里
+# https://stackoverflow.com/questions/1826901/should-i-add-vcxproj-filter-files-to-source-control
+*vcxproj.filters 
