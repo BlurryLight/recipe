@@ -3,3 +3,5 @@
 # 不要把它加到git里
 # https://stackoverflow.com/questions/1826901/should-i-add-vcxproj-filter-files-to-source-control
 *vcxproj.filters 
+Debug
+x64

@@ -18,10 +18,10 @@
 	
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
   <ClCompile>
-    <!-- 如果通过msbuild /p定义了HELLO，就把HELLO定义成输入的值-->
+    <!-- 如果通过msbuild /p或者visual studio定义了HELLO，就把HELLO定义成输入的值-->
 	<PreprocessorDefinitions Condition="'$(HELLO)'!=''">HELLO=$(HELLO);%(PreprocessorDefinitions)</PreprocessorDefinitions>
 	<!-- 否则定义为默认值100-->
-	<PreprocessorDefinitions Condition="'$(HELLO)'==''">HELLO=100;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+	<PreprocessorDefinitions Condition="'$(HELLO)'==''">%(PreprocessorDefinitions);HELLO=100</PreprocessorDefinitions>
   </ClCompile>
   </ItemDefinitionGroup>
   

@@ -114,7 +114,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HELLO=200;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
@@ -144,6 +144,6 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
-      <!--https://docs.microsoft.com/en-us/visualstudio/msbuild/target-build-order?view=vs-2022-->
+  <!--https://docs.microsoft.com/en-us/visualstudio/msbuild/target-build-order?view=vs-2022-->
   <!-- <Target Name="Build" DependsOnTargets="CopyFiles"/> -->
 </Project>
