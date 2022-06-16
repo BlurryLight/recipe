@@ -10,6 +10,8 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <vector>
 #include <vertexLayout.hh>
+
+#define OPENGL_MATRIX
 namespace PD {
 
 class GameApp : public D3DApp {
@@ -65,11 +67,13 @@ public:
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
 
-    // Transpose all data
-    //在hlsl里使用列主元存储矩阵，因为向量右乘以矩阵，所以一次要取矩阵的一个列
-    //在C++里矩阵是行主元，从行主元到列主元相当于经过了一次转置
-    //所以在C++里再手动转置一下，抵消上面的一次转置
+// Transpose all data
+//在hlsl里使用列主元存储矩阵，因为向量右乘以矩阵，所以一次要取矩阵的一个列
+//在C++里矩阵是行主元，从行主元到列主元相当于经过了一次转置
+//所以在C++里再手动转置一下，抵消上面的一次转置
+#ifndef OPENGL_MATRIX
     CBuffer_.World = DirectX::XMMatrixTranspose(CBuffer_.World);
+#endif
     // map data
     D3D11_MAPPED_SUBRESOURCE mappedData;
     HRESULT hr = S_OK;
@@ -116,9 +120,16 @@ protected:
     ComPtr<ID3D11PixelShader> pshader;
     // force relaod
     // if failed ,nothing happens, return false immediately
+
+#ifndef OPENGL_MATRIX
     HR_RETURN(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso",
                                    L"HLSL\\Triangle_VS.hlsl", "VS", "vs_5_0",
                                    blob.ReleaseAndGetAddressOf(), true));
+#else
+    HR(CreateShaderFromFile(L"HLSL\\Triangle_VS_OpenGL.cso",
+                            L"HLSL\\Triangle_VS_OpenGL.hlsl", "VS", "vs_5_0",
+                            blob.ReleaseAndGetAddressOf()));
+#endif
     HR(pd3dDevice_->CreateVertexShader(blob->GetBufferPointer(),
                                        blob->GetBufferSize(), nullptr,
                                        vshader.GetAddressOf()));
@@ -148,8 +159,14 @@ protected:
     ComPtr<ID3DBlob> blob;
     HRESULT hr;
 
+#ifndef OPENGL_MATRIX
     HR(CreateShaderFromFile(L"HLSL\\Triangle_VS.cso", L"HLSL\\Triangle_VS.hlsl",
                             "VS", "vs_5_0", blob.ReleaseAndGetAddressOf()));
+#else
+    HR(CreateShaderFromFile(L"HLSL\\Triangle_VS_OpenGL.cso",
+                            L"HLSL\\Triangle_VS_OpenGL.hlsl", "VS", "vs_5_0",
+                            blob.ReleaseAndGetAddressOf()));
+#endif
     HR(pd3dDevice_->CreateVertexShader(blob->GetBufferPointer(),
                                        blob->GetBufferSize(), nullptr,
                                        pVertexShader_.GetAddressOf()));
@@ -230,8 +247,10 @@ protected:
                                      XMVectorSet(0.0, 1.0, 0.0, 0.0));
     CBuffer_.Proj =
         XMMatrixPerspectiveFovLH(XM_PIDIV4, AspectRatio(), 0.1f, 100.0f);
+#ifndef OPENGL_MATRIX
     CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
     CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
+#endif
 
     //绑定资源
     UINT stride = sizeof(VertexPosColor);
