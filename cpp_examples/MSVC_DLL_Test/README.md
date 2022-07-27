@@ -1,0 +1,1 @@
+这个文件夹用来测试MSVC的dllexport和dllimport功能
