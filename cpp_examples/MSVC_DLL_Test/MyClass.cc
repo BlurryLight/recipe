@@ -2,6 +2,7 @@
 #include <cstdio>
 
 int MyClass::value = 1000;
+int SimpleDLLClass::m_nValue = 2000;
 MyClass::MyClass()
 {
     value = 1001;
