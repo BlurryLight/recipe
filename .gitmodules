@@ -1,3 +1,2 @@
-[submodule "cpp_examples/EASTL_playground/eastl"]
-	path = cpp_examples/EASTL_playground/eastl
-	url = https://github.com/electronicarts/EASTL
+[submodule "cpp_examples/EASTL_playground/EASTL"]
+	url = git@github.com:BlurryLight/EASTL.git

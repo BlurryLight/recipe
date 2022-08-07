@@ -1,5 +1,6 @@
 #include <new>
 #include <EASTL/vector.h>
+#include <EASTL/deque.h>
 
 void* operator new[](size_t size, const char* pName, int flags, unsigned debugFlags, const char* file, int line){
 	return new uint8_t[size];
