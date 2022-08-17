@@ -1,6 +1,7 @@
 #include <new>
 #include <EASTL/vector.h>
 #include <EASTL/deque.h>
+#include <EASTL/functional.h>
 
 void* operator new[](size_t size, const char* pName, int flags, unsigned debugFlags, const char* file, int line){
 	return new uint8_t[size];
@@ -9,6 +10,8 @@ void* operator new[](size_t size, size_t alignment, size_t alignmentOffset, cons
 	return new uint8_t[size];
 }
 #include <iostream>
+
+#ifndef _MSC_VER
 void vla_test()
 {
     int  n = 10;
@@ -23,6 +26,8 @@ void vla_test()
     std::cout << arr[9] << std::endl; //should be 90
 
 }
+#endif
+
 int main()
 {
     eastl::vector<int> vec;
