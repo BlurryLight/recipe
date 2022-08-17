@@ -8,3 +8,8 @@ shadertoys/texture_buffers.frag
 compile*.json
 buildw
 *tags
+*.dll
+*.exe
+*.a
+*.so
+*.obj

@@ -5,7 +5,8 @@ EASTL的子模块有环形依赖,绝对不要用submodule -r 递归。
 见 https://github.com/electronicarts/EASTL/commit/5bc06c380cac19395c42bb54e690ae2ee9f29ee1
 
 ```
-git clone -b 3.18.00 https://github.com/electronicarts/EASTL
+// 在EASTL上一层
+git submodule update --init
 cd EASTL
 git submodule update --init
 ```

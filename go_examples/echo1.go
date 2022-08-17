@@ -7,7 +7,6 @@ import (
 
 func main() {
 	var s, seq string
-	seq = ""
 	for i := 1; i < len(os.Args); i++ {
 		s += seq + os.Args[i]
 		seq = " "
