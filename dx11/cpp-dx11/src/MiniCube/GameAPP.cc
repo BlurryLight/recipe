@@ -11,7 +11,6 @@
 #include <vector>
 #include <vertexLayout.hh>
 
-#define OPENGL_MATRIX
 namespace PD {
 
 class GameApp : public D3DApp {
