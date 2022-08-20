@@ -18,4 +18,11 @@ func main() {
 
 	fmt.Println(strings.Join(os.Args[:], " "))
 	fmt.Println(os.Args[:])
+
+	var d = true
+	fmt.Println(d)
+
+	short_string := "short"
+	fmt.Println(short_string)
+
 }
