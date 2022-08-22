@@ -15,8 +15,9 @@ public:
 	{}
 	
 	template<class T, std::enable_if_t<(std::is_placeholder<std::remove_reference_t<T>>::value == 0)>* = nullptr>
-	constexpr auto operator[](T&& t) noexcept
-        -> typename std::remove_reference<T>::type
+	// constexpr auto operator[](T&& t) noexcept
+    //     -> typename std::remove_reference<T>::type
+    constexpr decltype(auto) operator[](T&& t) noexcept
 	{
         return std::forward<T>(t);
 	}
@@ -43,7 +44,6 @@ inline void test_callee_list()
     char a = 'b';
     const char& a_ref = a;
     assert(lst[a_ref] == 'b');
-    static_assert(std::is_same<decltype(lst[a_ref]),std::remove_reference<decltype(a)>::type>::value);
 
     // 传入占位符，返回占位符序号对应的值
     assert(lst[std::placeholders::_1] == 'a');

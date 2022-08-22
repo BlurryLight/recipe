@@ -14,7 +14,7 @@ public:
       : boundedArgs_{std::forward<TArgs>(args)...} {}
 
   template <size_t n>
-  constexpr auto operator[](index_constant<n>) noexcept 
+  constexpr decltype(auto) operator[](index_constant<n>) noexcept 
   {
     return std::get<n>(boundedArgs_);
   }
@@ -35,13 +35,8 @@ inline void test_binder_list() {
   assert(lst[index_constant<0>()] == 1);
   assert(lst[index_constant<1>()] == 2);
 
-  decltype(lst[index_constant<2>()]) b;
-  static_assert(std::is_same<decltype(b), std::remove_cv_t<decltype(std::placeholders::_1)>>::value);
   static_assert(std::is_placeholder<std::remove_reference<
                    decltype(lst[index_constant<2>()])>::type>::value > 0 );
 
-  // 验证 std::ref(int) 往 int&  的隐式转换
-  // static_assert(std::is_convertible<int&, decltype(std::declval<decltype(lst[index_constant<3>()])>().operator int& ())>::value);
-  static_assert(std::is_convertible<int&, decltype(lst[index_constant<3>()])>::value);
   std::cout << type_name<decltype(lst[index_constant<2>()])>() << std::endl;
 }
