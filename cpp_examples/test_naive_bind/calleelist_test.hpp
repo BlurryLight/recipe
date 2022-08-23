@@ -15,9 +15,7 @@ public:
 	{}
 	
 	template<class T, std::enable_if_t<(std::is_placeholder<std::remove_reference_t<T>>::value == 0)>* = nullptr>
-	// constexpr auto operator[](T&& t) noexcept
-    //     -> typename std::remove_reference<T>::type
-    constexpr decltype(auto) operator[](T&& t) noexcept
+  constexpr decltype(auto) operator[](T&& t) noexcept
 	{
         return std::forward<T>(t);
 	}
@@ -27,7 +25,8 @@ public:
 	{
 		return std::get<std::is_placeholder<T>::value - 1>(std::move(boundedArgs_));
 	}
-	std::tuple<Args&&...> boundedArgs_;	
+
+	std::tuple<typename std::decay_t<Args>...> boundedArgs_;	
 };
 
 template <class... Args> decltype(auto) make_callee_list(Args &&...args) {

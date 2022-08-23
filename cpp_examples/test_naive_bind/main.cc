@@ -14,12 +14,14 @@ int main()
     // test_callee_list();
     // test_binder();
 
+    std::cout << "naive bind " << std::endl;
     int n = 0;
     int& n_ref = n;
     auto fn = Redchards_Bind(foobar,1,n_ref);
     std::cout << fn() << " " << n << std::endl;
     std::cout << fn() << " " << n << std::endl;
 
+    std::cout << "std bind " << std::endl;
     int b = 0;
     int& b_ref = b;
     auto fn1 = std::bind(foobar,1,b_ref);

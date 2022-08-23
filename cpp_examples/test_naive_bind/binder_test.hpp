@@ -8,13 +8,12 @@ public:
 	template<class TFn, class ... TArgs>
 	constexpr binder(TFn&& f, TArgs&&... args) noexcept 
 	: f_{std::forward<TFn>(f)},
-	  argumentList_{std::forward<TArgs>(args)...}
+	  UnresolvedArgsList_{std::forward<TArgs>(args)...}
 	{}
 	
 // Please C++, give me a way of detecting noexcept :'(
 	template<class ... CallArgs>
 	constexpr decltype(auto) operator()(CallArgs&&... args) 
-	//noexcept(noexcept(call(std::make_index_sequence<sizeof...(Args)>{}, std::declval<Args>()...)))
 	{
 		return call(std::make_index_sequence<sizeof...(Args)>{}, std::forward<CallArgs>(args)...);
 	}
@@ -22,13 +21,21 @@ public:
 private:
 	template<class ... CallArgs, size_t ... Seq>
 	constexpr decltype(auto) call(std::index_sequence<Seq...>, CallArgs&&... args) 
-	//noexcept(noexcept(f_(this->binder_list<CallArgs...>{std::declval<CallArgs>()...}[this->argumentList_[index_constant<Seq>{}]]...)))
 	{
-		return f_((callee_list<CallArgs...>{std::forward<CallArgs>(args)...}[argumentList_[index_constant<Seq>{}]])...);
+		// 创建callee_List保存调用Operator()时候传入的参数,用于补齐占位符
+		auto calleeList = callee_list<CallArgs...>{std::forward<CallArgs>(args)...};
+		// 调用callee_list.operator[]
+
+		// Redchards原版:
+		// 参数折叠展开 f_(calleeList[argumentList_[index_constant<0>{}]],calleeList[argumentList_[index_constant<1>{}]],...);
+		// return f_(calleeList[argumentList_[index_constant<Seq>{}]]...);
+
+		return f_(calleeList[std::get<index_constant<Seq>{}>(UnresolvedArgsList_)]...);
 	}
 private:
 	std::function<std::remove_reference_t<std::remove_pointer_t<Fn>>> f_;
-	binder_list<Args...> argumentList_;
+	// 将占位符以及原有的参数保存在UnResolvedArgsLists_里，在call的时候填充占位符
+	std::tuple<typename std::decay_t<Args>...> UnresolvedArgsList_;
 };
 
 template<class Fn, class ... Args>
