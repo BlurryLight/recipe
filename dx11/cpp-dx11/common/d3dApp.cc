@@ -12,6 +12,8 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <spdlog/spdlog.h>
+#include <utils/cmake_vars.h>
 // #include <imgui/imgui_impl_win32.h>
 
 using namespace PD;
@@ -143,8 +145,21 @@ void D3DApp::OnResize() {
   pd3dDeviceIMContext_->RSSetViewports(1, &ScreenViewport_);
 }
 bool D3DApp::InitMainWindow() {
-  if (!glfwInit())
+  if (!glfwInit()) {
     return false;
+  }
+
+  float highDPIscaleFactor = 1.0;
+  // if it's a HighDPI monitor, try to scale everything
+  GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+  float xscale, yscale;
+  glfwGetMonitorContentScale(monitor, &xscale, &yscale);
+  if (xscale > 1 || yscale > 1) {
+    spdlog::info("XScale: {} YScale: {}", xscale, yscale);
+    highDPIscaleFactor = xscale;
+    // Don't use it. I don't like it
+    // glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+  }
 
   //创建窗口
   GLFWwindow *window = glfwCreateWindow(ClientWidth_, ClientHeight_,
@@ -165,6 +180,9 @@ bool D3DApp::InitMainWindow() {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   imgui_io_ = &(ImGui::GetIO());
+  imgui_io_->Fonts->AddFontFromFileTTF(
+      (ROOT_DIR + std::string("/resources/JetBrainsMono-Regular.ttf")).c_str(),
+      16.0f * highDPIscaleFactor, NULL, NULL);
   // ImGui_ImplWin32_Init(mainWnd_);
   ImGui_ImplGlfw_InitForOther(window, true);
   return true;

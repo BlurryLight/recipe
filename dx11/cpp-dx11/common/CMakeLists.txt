@@ -5,8 +5,6 @@ set(SRC
     shapes.cc
     ../utils/resource_path_searcher.cc
 )
-find_package(spdlog REQUIRED)
-find_package(fmt REQUIRED)
 
 add_library(d3dlib STATIC ${SRC})
 target_link_libraries(d3dlib PUBLIC glfw)
