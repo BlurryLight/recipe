@@ -14,18 +14,35 @@ public:
 	: boundedArgs_{std::forward<TArgs>(args)...}
 	{}
 	
-	template<class T, std::enable_if_t<(std::is_placeholder<std::remove_reference_t<T>>::value == 0)>* = nullptr>
+
+  // Original SFINAE
+	// template<class T, std::enable_if_t<(std::is_placeholder<std::remove_reference_t<T>>::value == 0)>* = nullptr>
+  // constexpr decltype(auto) operator[](T&& t) noexcept
+	// {
+  //       return std::forward<T>(t);
+	// }
+	
+	// template<class T, std::enable_if_t<(std::is_placeholder<T>::value != 0)>* = nullptr>
+	// constexpr decltype(auto) operator[](T) noexcept
+	// {
+	// 	return std::get<std::is_placeholder<T>::value - 1>(std::move(boundedArgs_));
+	// }
+
+	template<class T>
   constexpr decltype(auto) operator[](T&& t) noexcept
 	{
+    if constexpr (!std::is_placeholder_v<std::decay_t<T>>)
+    {
         return std::forward<T>(t);
-	}
-	
-	template<class T, std::enable_if_t<(std::is_placeholder<T>::value != 0)>* = nullptr>
-	constexpr decltype(auto) operator[](T) noexcept
-	{
-		return std::get<std::is_placeholder<T>::value - 1>(std::move(boundedArgs_));
+    }
+    else
+    {
+      constexpr size_t Index = std::is_placeholder<std::decay_t<T>>::value - 1;
+      return std::get<Index>(std::move(boundedArgs_));
+    }
 	}
 
+  // Bind以值类型存储所有变量，会擦除int& 到int
 	std::tuple<typename std::decay_t<Args>...> boundedArgs_;	
 };
 
