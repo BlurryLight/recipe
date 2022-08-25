@@ -15,7 +15,7 @@ namespace SharpMonkeyTest
         [Test]
         public void TestNextToken()
         {
-            var input = "=+(){},;";
+            var input = "=+(){},;\0"; // C# string is not \0 terminated
             var expectedTokens= new List<Token>()
             {
                 new Token(Constants.Assign,"="),
@@ -30,6 +30,7 @@ namespace SharpMonkeyTest
             };
 
             Lexer lexer = new Lexer(input);
+            int count = 0;
             foreach (var expectedToken in expectedTokens)
             {
                 var token = lexer.NextToken();
@@ -37,7 +38,10 @@ namespace SharpMonkeyTest
                     $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
                 Assert.AreEqual(expectedToken.Type, token.Type,
                     $"Error! Expected Type {expectedToken.Type} , Actual is {token.Type}");
+                count++;
             }
+
+            Assert.AreEqual(count, expectedTokens.Count);
         }
     }
 }
