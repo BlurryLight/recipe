@@ -71,7 +71,7 @@ namespace SharpMonkey
         public Token()
         {
             Type = Constants.Illegal;
-            Literal = "";
+            Literal = "INIT";
         }
         public Token(TokenType type,string literal)
         {
