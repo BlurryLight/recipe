@@ -3,6 +3,8 @@ using System.Diagnostics;
 
 namespace SharpMonkey
 {
+    using TokenType = System.String; // shame on c# doesn't have global typedef before c#10.0
+
     public class Lexer
     {
         public string InputContent;
@@ -34,14 +36,37 @@ namespace SharpMonkey
             }
         }
 
+        private char PeekNextChar()
+        {
+            if (ReadPos >= InputContent.Length)
+                return '\0';
+            else
+                return InputContent[ReadPos];
+        }
+
+        private Token TryMakeTwoCharToken(char expectedNextChar, TokenType typeIfTrue, TokenType typeIfFalse)
+        {
+            Token token;
+            if (PeekNextChar() == expectedNextChar)
+            {
+                var preChar = CurCh;
+                ReadChar();
+                token = new Token(typeIfTrue, preChar.ToString() + CurCh);
+            }
+            else
+                token = new Token(typeIfFalse, CurCh.ToString());
+
+            return token;
+        }
+
         public Token NextToken()
         {
-            Token token = new Token();
+            Token token;
             SkipWhitespace();
             switch (CurCh)
             {
                 case '=':
-                    token = new Token(Constants.Assign, CurCh.ToString());
+                    token = TryMakeTwoCharToken('=', Constants.Eq, Constants.Assign);
                     break;
                 case '+':
                     token = new Token(Constants.Plus, CurCh.ToString());
@@ -73,6 +98,15 @@ namespace SharpMonkey
                 case '}':
                     token = new Token(Constants.RBrace, CurCh.ToString());
                     break;
+                case '!':
+                    token = TryMakeTwoCharToken('=', Constants.NotEq, Constants.Bang);
+                    break;
+                case '<':
+                    token = new Token(Constants.Lt, CurCh.ToString());
+                    break;
+                case '>':
+                    token = new Token(Constants.Gt, CurCh.ToString());
+                    break;
                 case '\0':
                     token = new Token(Constants.Eof, "EOF");
                     break;
@@ -94,6 +128,7 @@ namespace SharpMonkey
                     {
                         token = new Token(Constants.Illegal, CurCh.ToString());
                     }
+
                     break;
             }
 
@@ -108,6 +143,7 @@ namespace SharpMonkey
             {
                 ReadChar();
             }
+
             return InputContent.Substring(pos, CurPos - pos);
         }
 
@@ -118,6 +154,7 @@ namespace SharpMonkey
             {
                 ReadChar();
             }
+
             return InputContent.Substring(pos, CurPos - pos);
         }
 

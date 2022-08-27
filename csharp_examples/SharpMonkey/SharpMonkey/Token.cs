@@ -17,6 +17,7 @@ namespace SharpMonkey
         public const string Minus = "-";
         public const string Asterisk = "*";
         public const string Slash = "/";
+        public const string Bang = "!";
 
         public const string Lt = "<";
         public const string Gt = ">";
@@ -49,7 +50,7 @@ namespace SharpMonkey
             {"false", False},
             {"if", If},
             {"else", Else},
-            {"Return", Return}
+            {"return", Return}
         };
 
         public static TokenType LookupIdent(string identifier)

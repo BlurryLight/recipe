@@ -12,6 +12,22 @@ namespace SharpMonkeyTest
         {
         }
 
+        private void CheckExpectedTokens(in Lexer lexer,in List<Token> expectedTokens)
+        {
+            int count = 0;
+            foreach (var expectedToken in expectedTokens)
+            {
+                var token = lexer.NextToken();
+                Assert.AreEqual(expectedToken.Literal, token.Literal,
+                    $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
+                Assert.AreEqual(expectedToken.Type, token.Type,
+                    $"Error! Expected Type {expectedToken.Type} , Actual is {token.Type}");
+                count++;
+            }
+
+            Assert.AreEqual(count, expectedTokens.Count);
+        }
+
         [Test]
         public void TestNextTokenSymbols()
         {
@@ -26,22 +42,11 @@ namespace SharpMonkeyTest
                 new Token(Constants.RBrace,"}"),
                 new Token(Constants.Comma,","),
                 new Token(Constants.Semicolon,";"),
-                new Token(Constants.Eof,""),
+                new Token(Constants.Eof,"EOF"),
             };
 
             Lexer lexer = new Lexer(input);
-            int count = 0;
-            foreach (var expectedToken in expectedTokens)
-            {
-                var token = lexer.NextToken();
-                Assert.AreEqual(expectedToken.Literal, token.Literal,
-                    $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
-                Assert.AreEqual(expectedToken.Type, token.Type,
-                    $"Error! Expected Type {expectedToken.Type} , Actual is {token.Type}");
-                count++;
-            }
-
-            Assert.AreEqual(count, expectedTokens.Count);
+            CheckExpectedTokens(lexer,expectedTokens);
         }
         
         [Test]
@@ -92,18 +97,59 @@ namespace SharpMonkeyTest
             };
 
             Lexer lexer = new Lexer(input);
-            int count = 0;
-            foreach (var expectedToken in expectedTokens)
+            CheckExpectedTokens(lexer,expectedTokens);
+        }
+        
+        [Test]
+        public void TestNextTokenMore()
+        {
+            var input = "!-/*5;\r\n 5 < 10 > 5; 10 == 10; 5 != 4;" +
+                        "if(5 < 10) {return true;} else {return false;}\0";
+            
+            var expectedTokens= new List<Token>()
             {
-                var token = lexer.NextToken();
-                Assert.AreEqual(expectedToken.Literal, token.Literal,
-                    $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
-                Assert.AreEqual(expectedToken.Type, token.Type,
-                    $"Error! Expected Type {expectedToken.Type} , Actual is {token.Type}");
-                count++;
-            }
+                new Token(Constants.Bang,"!"),
+                new Token(Constants.Minus,"-"),
+                new Token(Constants.Slash,"/"),
+                new Token(Constants.Asterisk,"*"),
+                new Token(Constants.Int,"5"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.Int,"5"),
+                new Token(Constants.Lt,"<"),
+                new Token(Constants.Int,"10"),
+                new Token(Constants.Gt,">"),
+                new Token(Constants.Int,"5"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.Int,"10"),
+                new Token(Constants.Eq,"=="),
+                new Token(Constants.Int,"10"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.Int,"5"),
+                new Token(Constants.NotEq,"!="),
+                new Token(Constants.Int,"4"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.If,"if"),
+                new Token(Constants.LParen,"("),
+                new Token(Constants.Int,"5"),
+                new Token(Constants.Lt,"<"),
+                new Token(Constants.Int,"10"),
+                new Token(Constants.RParen,")"),
+                new Token(Constants.LBrace,"{"),
+                new Token(Constants.Return,"return"),
+                new Token(Constants.True,"true"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.RBrace,"}"),
+                new Token(Constants.Else,"else"),
+                new Token(Constants.LBrace,"{"),
+                new Token(Constants.Return,"return"),
+                new Token(Constants.False,"false"),
+                new Token(Constants.Semicolon,";"),
+                new Token(Constants.RBrace,"}"),
+                new Token(Constants.Eof,"EOF"),
+            };
 
-            Assert.AreEqual(count, expectedTokens.Count);
+            Lexer lexer = new Lexer(input);
+            CheckExpectedTokens(lexer,expectedTokens);
         }
     }
 }
