@@ -20,7 +20,7 @@ namespace SharpMonkey
         public class MonkeyProgram : INode
         {
             // 一个program将会有许多个statements组成
-            public List<IStatement> Statements;
+            public List<IStatement> Statements = new List<IStatement>();
 
             public string TokenLiteral()
             {
@@ -35,13 +35,19 @@ namespace SharpMonkey
             }
         }
 
-        public struct Identifier : IExpression
+        public class Identifier : IExpression
         {
             public Token Token;
             public string Value;
             public string TokenLiteral()
             {
                 return Token.Literal;
+            }
+
+            public Identifier(Token token, string value)
+            {
+                Token = token;
+                Value = value;
             }
         }
         public class LetStatement : IStatement
@@ -52,6 +58,10 @@ namespace SharpMonkey
             public Token Token;
             public Identifier Name;
             public IExpression Value;
+            public LetStatement(Token token)
+            {
+                Token = token;
+            }
             public string TokenLiteral()
             {
                 return Token.Literal;

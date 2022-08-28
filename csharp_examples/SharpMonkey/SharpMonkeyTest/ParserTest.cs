@@ -13,6 +13,7 @@ namespace SharpMonkeyTest
 
         void CheckLetStatement(Ast.IStatement statement, string name)
         {
+            Assert.IsNotNull(statement);
             Assert.AreEqual(statement.TokenLiteral(),"let");
             var letStatement = statement as Ast.LetStatement;
             Assert.IsNotNull(letStatement);
@@ -30,16 +31,16 @@ namespace SharpMonkeyTest
 
             var program = parser.ParseProgram();
             Assert.NotNull(program);
-            // Assert.NotNull(program.Statements);
-            // Assert.AreEqual(program.Statements.Count,3);
-            // List<string> expectedIdentifiers = new()
-            // {
-            //     "x","y","foobar"
-            // };
-            // for (int i = 0; i < expectedIdentifiers.Count; i++)
-            // {
-            //     CheckLetStatement(program.Statements[i],expectedIdentifiers[i]);
-            // }
+            Assert.NotNull(program.Statements);
+            Assert.AreEqual(program.Statements.Count,3);
+            List<string> expectedIdentifiers = new()
+            {
+                "x","y","foobar"
+            };
+            for (int i = 0; i < expectedIdentifiers.Count; i++)
+            {
+                CheckLetStatement(program.Statements[i],expectedIdentifiers[i]);
+            }
         }
     }
 
