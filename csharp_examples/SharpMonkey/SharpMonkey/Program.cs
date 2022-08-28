@@ -2,19 +2,17 @@
 
 namespace SharpMonkey
 {
-    public class A
-    {
-        public static bool foo()
-        {
-            Console.Write("foobar");
-            return true;
-        }
-    }
     class Program
-    {
-        static void Main(string[] args)
+    { 
+        static int Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            Console.CancelKeyPress += delegate (object sender, ConsoleCancelEventArgs args) {
+                Environment.Exit(0);
+            };
+            Console.WriteLine("Welcome to monkey");
+            Console.WriteLine("Feel free to type commands");
+            Repl.Start();
+            return 0;
         }
     }
 }
