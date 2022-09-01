@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Text;
 
 namespace SharpMonkey
 {
@@ -7,6 +8,7 @@ namespace SharpMonkey
         public interface INode
         {
             string TokenLiteral();
+            string ToPrintableString(); // for debug use
         }
 
         public interface IStatement : INode
@@ -33,12 +35,24 @@ namespace SharpMonkey
                     return "";
                 }
             }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                foreach (var s in Statements)
+                {
+                    outBuilder.AppendLine(s.ToPrintableString());
+                }
+
+                return outBuilder.ToString();
+            }
         }
 
         public class Identifier : IExpression
         {
             public Token Token;
             public string Value;
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -49,7 +63,13 @@ namespace SharpMonkey
                 Token = token;
                 Value = value;
             }
+
+            public string ToPrintableString()
+            {
+                return Value;
+            }
         }
+
         public class LetStatement : IStatement
         {
             // Let <Name> = <Value> // Value is an expression
@@ -58,13 +78,79 @@ namespace SharpMonkey
             public Token Token;
             public Identifier Name;
             public IExpression Value;
+
             public LetStatement(Token token)
             {
                 Token = token;
             }
+
             public string TokenLiteral()
             {
                 return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append($"{TokenLiteral()} {Name.ToPrintableString()} = ");
+                if (Value != null)
+                {
+                    outBuilder.Append($"{Value.ToPrintableString()}");
+                }
+
+                outBuilder.Append(';');
+                return outBuilder.ToString();
+            }
+        }
+
+        public class ReturnStatement : IStatement
+        {
+            public Token Token;
+            public IExpression ReturnValue;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public ReturnStatement(Token token)
+            {
+                Token = token;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append($"{TokenLiteral()} ");
+                if (ReturnValue != null)
+                {
+                    outBuilder.Append($"{ReturnValue.ToPrintableString()}");
+                }
+
+                outBuilder.Append(';');
+                return outBuilder.ToString();
+            }
+        }
+
+        // 脚本语言中支持 x = 5; x + 10; 这种格式，第二句会返回15，它虽然是一个表达式，但是可以构成一个单独的语句(Python也支持类似的语法)
+        public class ExpressionStatement : IStatement
+        {
+            public Token Token; // first token
+            public IExpression Expression; // the whole expression
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                if (Expression != null)
+                {
+                    return Expression.ToPrintableString();
+                }
+
+                return "";
             }
         }
     }

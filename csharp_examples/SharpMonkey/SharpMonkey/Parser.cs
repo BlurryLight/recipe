@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 
 namespace SharpMonkey
 {
@@ -21,21 +22,44 @@ namespace SharpMonkey
             {
                 Dequeue();
             }
+
             base.Enqueue(item);
         }
     }
+
     public class Parser
     {
         private Lexer Lexer;
         private Token _curToken;
+
         private Token _peekToken;
-                                            // there is noway to declare compile-time constant size in C#
+
+        // there is noway to declare compile-time constant size in C#
         private FixedQueue<Token> _context; // parsing context. 在出错的时候打印，打印之前已经解析的token，以判断错误。
+
+        public List<string> Errors;
+
+        private string FormatDebugContext()
+        {
+            StringBuilder msg = new StringBuilder();
+            msg.AppendLine("Parse Error. Context is:");
+            var contextCopy = _context;
+            int Count = contextCopy.Count;
+            for (int i = (contextCopy.Count - 1); i >= 0; i--)
+            {
+                var token = contextCopy.Dequeue();
+                msg.AppendLine($"{Count - i,2}: TokenType: {token.Type,10}, Token Literal: {token.Literal}\n");
+            }
+
+            _context.Clear();
+            return msg.ToString();
+        }
 
         public Parser(Lexer lexer)
         {
             Lexer = lexer;
             _context = new FixedQueue<Token>(16);
+            Errors = new List<string>();
             // 需要调用两次才能让CurToken指向第一个Token
             NextToken();
             NextToken();
@@ -45,9 +69,12 @@ namespace SharpMonkey
         {
             _curToken = _peekToken;
             _peekToken = Lexer.NextToken();
-            
+
             //debug
-            _context.Enqueue(_curToken);
+            if (_curToken != null)
+            {
+                _context.Enqueue(_curToken);
+            }
         }
 
         /// <summary>
@@ -62,7 +89,19 @@ namespace SharpMonkey
                 NextToken();
                 return true;
             }
-            return false;
+            else
+            {
+                PeekError(t);
+                return false;
+            }
+        }
+
+        private void PeekError(TokenType t)
+        {
+            StringBuilder msg = new StringBuilder();
+            msg.AppendLine($"Expected Next Token to be {t}, but got {_peekToken.Type} instead!");
+            msg.AppendLine(FormatDebugContext());
+            Errors.Add(msg.ToString());
         }
 
         private Ast.IStatement ParseLetStatement()
@@ -75,15 +114,29 @@ namespace SharpMonkey
                 return null;
             }
 
-            statement.Name = new Ast.Identifier(token: _curToken,value: _curToken.Literal);
-            
+            statement.Name = new Ast.Identifier(token: _curToken, value: _curToken.Literal);
+
             if (!ExpectPeek(Constants.Assign))
             {
                 return null;
             }
-            
+
             // TODO: handle expression
-            while(_curToken.Type == Constants.Semicolon)
+            while (_curToken.Type != Constants.Semicolon)
+            {
+                NextToken();
+            }
+
+            return statement;
+        }
+
+
+        private Ast.IStatement ParseReturnStatement()
+        {
+            var statement = new Ast.ReturnStatement(_curToken);
+            NextToken();
+            // TODO: handle expression
+            while (_curToken.Type != Constants.Semicolon)
             {
                 NextToken();
             }
@@ -95,13 +148,15 @@ namespace SharpMonkey
         {
             switch (_curToken.Type)
             {
-                
                 case Constants.Let:
                     return ParseLetStatement();
+                case Constants.Return:
+                    return ParseReturnStatement();
                 default:
                     return null;
             }
         }
+
         public Ast.MonkeyProgram ParseProgram()
         {
             var program = new Ast.MonkeyProgram();
@@ -112,6 +167,7 @@ namespace SharpMonkey
                 {
                     program.Statements.Add(statement);
                 }
+
                 this.NextToken();
             }
 

@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using SharpMonkey;
 namespace SharpMonkeyTest
@@ -32,7 +34,7 @@ namespace SharpMonkeyTest
             var program = parser.ParseProgram();
             Assert.NotNull(program);
             Assert.NotNull(program.Statements);
-            Assert.AreEqual(program.Statements.Count,3);
+            Assert.AreEqual(3,program.Statements.Count);
             List<string> expectedIdentifiers = new()
             {
                 "x","y","foobar"
@@ -41,6 +43,59 @@ namespace SharpMonkeyTest
             {
                 CheckLetStatement(program.Statements[i],expectedIdentifiers[i]);
             }
+        }
+        [Test]
+        public void TestLetStatementsErrors()
+        {
+            var input = "let x 5;\r\n let  = 10;\r\n let 838 383;\0";
+            
+            Lexer lexer = new (input);
+            Parser parser = new Parser(lexer);
+
+            var program = parser.ParseProgram();
+            Assert.AreEqual(3,parser.Errors.Count );
+            foreach (var msg in parser.Errors)
+            {
+                Console.WriteLine(msg);
+            }
+        }
+
+        [Test]
+        public void TestReturnStatements()
+        {
+            var input = "return 5;\r\n return 10;\r\n return 993 3322;\0";
+            Lexer lexer = new (input);
+            Parser parser = new Parser(lexer);
+            
+            var program = parser.ParseProgram();
+            Assert.AreEqual(3,program.Statements.Count);
+            foreach (var statement in program.Statements)
+            {
+                Assert.AreEqual("return",statement.TokenLiteral());
+            }
+        }
+        
+        [Test]
+        public void TestToPrintString()
+        {
+            var program = new Ast.MonkeyProgram();
+
+            var letToken = new Token(Constants.Let, "let");
+            
+            var myVarToken = new Token(Constants.Ident, "myVar");
+            var leftIdentifier = new Ast.Identifier(myVarToken, "myVar");
+            
+            var anotherVar= new Token(Constants.Ident, "anotherVar");
+            var rightIdentifier = new Ast.Identifier(anotherVar, "anotherVar");
+            
+            var letStatement = new Ast.LetStatement(letToken)
+            {
+                Name = leftIdentifier,
+                Value = rightIdentifier // 这就是为什么Identifier需要是IExpression的子类，因为它可以出现在等号右边作为表达式
+            };
+            program.Statements.Add(letStatement);
+            
+            Assert.AreEqual("let myVar = anotherVar;",program.ToPrintableString().TrimEnd());
         }
     }
 
