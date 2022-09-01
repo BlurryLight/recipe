@@ -6,6 +6,8 @@ using System.Text;
 namespace SharpMonkey
 {
     using TokenType = String;
+    using PrefixParseFunc = Func<Ast.IExpression>;
+    using InfixParseFunc = Func<Ast.IExpression,Ast.IExpression>;
 
     public class FixedQueue<T> : Queue<T>
     {
@@ -38,6 +40,20 @@ namespace SharpMonkey
         private FixedQueue<Token> _context; // parsing context. 在出错的时候打印，打印之前已经解析的token，以判断错误。
 
         public List<string> Errors;
+
+        private Dictionary<TokenType, PrefixParseFunc> _prefixParseFuncMap = new();
+        // 对于infix表达式，需要传入左侧的表达式。
+        private Dictionary<TokenType, InfixParseFunc> _infixParseFuncMap = new();
+
+        private void RegisterPrefixParseFunc(TokenType tokenType, in PrefixParseFunc fn)
+        {
+            _prefixParseFuncMap[tokenType] = fn;
+        }
+        
+        private void RegisterInfixParseFunc(TokenType tokenType, in InfixParseFunc fn)
+        {
+            _infixParseFuncMap[tokenType] = fn;
+        }
 
         private string FormatDebugContext()
         {
@@ -173,5 +189,7 @@ namespace SharpMonkey
 
             return program;
         }
+        
+
     }
 }
