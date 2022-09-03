@@ -29,6 +29,21 @@ namespace SharpMonkey
         }
     }
 
+    /// <summary>
+    /// 优先级由低到高， 一个例子 a == b * c + !x 会被解析为 a == ( (b * c) + (!x))
+    /// </summary>
+    enum Priority : int
+    {
+        _ = 0,
+        Lowest,
+        Equals, // == 
+        LessGreater, // > or <
+        Sum, // +
+        Product, // *
+        Prefix, // -x or !x
+        Call // a + func(b)
+    }
+
     public class Parser
     {
         private Lexer Lexer;
@@ -70,6 +85,7 @@ namespace SharpMonkey
             _context.Clear();
             return msg.ToString();
         }
+        
 
         public Parser(Lexer lexer)
         {
@@ -79,6 +95,10 @@ namespace SharpMonkey
             // 需要调用两次才能让CurToken指向第一个Token
             NextToken();
             NextToken();
+            
+            // register function
+            RegisterPrefixParseFunc(Constants.Ident,this.ParseIdentifier);
+            RegisterPrefixParseFunc(Constants.Int,this.ParseInteger);
         }
 
         public void NextToken()
@@ -169,15 +189,53 @@ namespace SharpMonkey
                 case Constants.Return:
                     return ParseReturnStatement();
                 default:
-                    return null;
+                    return ParseExpressionStatement();
             }
         }
 
+        private Ast.ExpressionStatement ParseExpressionStatement()
+        {
+            var stmt = new Ast.ExpressionStatement(_curToken)
+            {
+                Expression = ParseExpression(0)
+            };
+            
+            // 表达式内不应该包含分号，分号要扔掉
+            if (_peekToken.Type == Constants.Semicolon)
+            {
+                NextToken();
+            }
+            return stmt;
+        }
+
+        private Ast.IExpression ParseExpression(int Precedence)
+        {
+            if (_prefixParseFuncMap.TryGetValue(_curToken.Type, out PrefixParseFunc prefixFunc))
+            {
+                return prefixFunc();
+            }
+
+            return null;
+        }
+
+        private Ast.IExpression ParseIdentifier()
+        {
+            var expression = new Ast.Identifier(_curToken, _curToken.Literal);
+            return expression;
+        }
+        
+        private Ast.IExpression ParseInteger()
+        {
+            var expression = new Ast.Integerliteral(_curToken, _curToken.Literal);
+            return expression;
+        }
         public Ast.MonkeyProgram ParseProgram()
         {
             var program = new Ast.MonkeyProgram();
             while (_curToken.Type != Constants.Eof)
             {
+                // 这里有个设计上的考虑，是碰见错误就停止，还是继续。
+                // 有的时候前面的错误可能导致后面的parse全是错的
                 var statement = ParseStatement();
                 if (statement != null)
                 {

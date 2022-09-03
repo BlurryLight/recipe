@@ -97,6 +97,43 @@ namespace SharpMonkeyTest
             
             Assert.AreEqual("let myVar = anotherVar;",program.ToPrintableString().TrimEnd());
         }
+
+        [Test]
+        public void TestIdentifierExpression()
+        {
+            // 测试类似于 foobar;这类的最简单的表达式
+            var input = "foobar;\r\n";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+            
+            Assert.AreEqual(0,p.Errors.Count);
+            Assert.AreEqual(1,program.Statements.Count); // 这一句构成一个ExpressionStatement
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var identifier = stmt.Expression as Ast.Identifier;
+            Assert.NotNull(identifier);
+            Assert.AreEqual("foobar",identifier.Value);
+            Assert.AreEqual("foobar",identifier.TokenLiteral());
+        }
+        
+        [Test]
+        public void TestIntegerExpression()
+        {
+            var input = "5;\r\n";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+            
+            Assert.AreEqual(0,p.Errors.Count);
+            Assert.AreEqual(1,program.Statements.Count); 
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var identifier = stmt.Expression as Ast.Integerliteral;
+            Assert.NotNull(identifier);
+            Assert.AreEqual(5,identifier.Value);
+            Assert.AreEqual("5",identifier.TokenLiteral());
+        }
     }
 
 }

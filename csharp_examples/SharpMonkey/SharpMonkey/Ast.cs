@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace SharpMonkey
@@ -32,7 +33,7 @@ namespace SharpMonkey
                 }
                 else
                 {
-                    return "";
+                    return "Empty Program";
                 }
             }
 
@@ -48,27 +49,6 @@ namespace SharpMonkey
             }
         }
 
-        public class Identifier : IExpression
-        {
-            public Token Token;
-            public string Value;
-
-            public string TokenLiteral()
-            {
-                return Token.Literal;
-            }
-
-            public Identifier(Token token, string value)
-            {
-                Token = token;
-                Value = value;
-            }
-
-            public string ToPrintableString()
-            {
-                return Value;
-            }
-        }
 
         public class LetStatement : IStatement
         {
@@ -138,6 +118,11 @@ namespace SharpMonkey
             public Token Token; // first token
             public IExpression Expression; // the whole expression
 
+            public ExpressionStatement(Token token)
+            {
+                Token = token;
+            }
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -154,5 +139,48 @@ namespace SharpMonkey
             }
         }
 
+        public class Identifier : IExpression
+        {
+            public Token Token;
+            public string Value; // 这个value值应该等于Token.Literal
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public Identifier(Token token, string value)
+            {
+                Token = token;
+                Value = value;
+            }
+
+            public string ToPrintableString()
+            {
+                return Value;
+            }
+        }
+        
+        public class Integerliteral : IExpression
+        {
+            public Token Token;
+            public long Value;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public Integerliteral(Token token, string value)
+            {
+                Token = token;
+                Value = Int64.Parse(value);
+            }
+
+            public string ToPrintableString()
+            {
+                return TokenLiteral();
+            }
+        }
     }
 }
