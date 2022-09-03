@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace SharpMonkey
@@ -99,6 +100,8 @@ namespace SharpMonkey
             // register function
             RegisterPrefixParseFunc(Constants.Ident,this.ParseIdentifier);
             RegisterPrefixParseFunc(Constants.Int,this.ParseInteger);
+            RegisterPrefixParseFunc(Constants.Minus,this.ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.Bang,ParsePrefixExpression);
         }
 
         public void NextToken()
@@ -132,12 +135,17 @@ namespace SharpMonkey
             }
         }
 
+        private void AppendError(string msg)
+        {
+            StringBuilder outWriter = new StringBuilder();
+            outWriter.AppendLine(msg);
+            outWriter.AppendLine(FormatDebugContext());
+            Errors.Add(outWriter.ToString());
+        }
+
         private void PeekError(TokenType t)
         {
-            StringBuilder msg = new StringBuilder();
-            msg.AppendLine($"Expected Next Token to be {t}, but got {_peekToken.Type} instead!");
-            msg.AppendLine(FormatDebugContext());
-            Errors.Add(msg.ToString());
+            AppendError($"Expected Next Token to be {t}, but got {_peekToken.Type} instead!");
         }
 
         private Ast.IStatement ParseLetStatement()
@@ -197,7 +205,7 @@ namespace SharpMonkey
         {
             var stmt = new Ast.ExpressionStatement(_curToken)
             {
-                Expression = ParseExpression(0)
+                Expression = ParseExpression(Priority.Lowest)
             };
             
             // 表达式内不应该包含分号，分号要扔掉
@@ -208,13 +216,14 @@ namespace SharpMonkey
             return stmt;
         }
 
-        private Ast.IExpression ParseExpression(int Precedence)
+        private Ast.IExpression ParseExpression(Priority Precedence)
         {
             if (_prefixParseFuncMap.TryGetValue(_curToken.Type, out PrefixParseFunc prefixFunc))
             {
                 return prefixFunc();
             }
 
+            AppendError($"No valid Parse Func for type {_curToken.Type} Found");
             return null;
         }
 
@@ -226,7 +235,17 @@ namespace SharpMonkey
         
         private Ast.IExpression ParseInteger()
         {
-            var expression = new Ast.Integerliteral(_curToken, _curToken.Literal);
+            var expression = new Ast.IntegerLiteral(_curToken, _curToken.Literal);
+            return expression;
+        }
+        
+        private Ast.IExpression ParsePrefixExpression()
+        {
+            var expression = new Ast.PrefixExpression(_curToken, _curToken.Literal);
+            NextToken();
+            // 对于 -5 这样的表达式，首先解析 TOKEN("-"),随后移动Token指针到5,然后再次递归调用ParseExpression,此时会转而调用ParseInteger
+            // 以完成解析
+            expression.Right = ParseExpression(Priority.Prefix);
             return expression;
         }
         public Ast.MonkeyProgram ParseProgram()

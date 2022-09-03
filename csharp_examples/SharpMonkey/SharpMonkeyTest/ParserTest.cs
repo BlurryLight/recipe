@@ -13,7 +13,15 @@ namespace SharpMonkeyTest
         {
         }
 
-        void CheckLetStatement(Ast.IStatement statement, string name)
+        private void CheckParserErrors(in Parser p)
+        {
+            foreach (var msg in p.Errors)
+            {
+                Console.WriteLine(msg);
+            }
+        }
+
+        private void CheckLetStatement(Ast.IStatement statement, string name)
         {
             Assert.IsNotNull(statement);
             Assert.AreEqual(statement.TokenLiteral(),"let");
@@ -21,6 +29,13 @@ namespace SharpMonkeyTest
             Assert.IsNotNull(letStatement);
             Assert.AreEqual(letStatement.Name.TokenLiteral(),name);
             Assert.AreEqual(letStatement.Name.Value,name);
+        }
+
+        private void CheckIntegerLiteral(Ast.IExpression exp, long value)
+        {
+            var numExp = exp as Ast.IntegerLiteral;
+            Assert.IsNotNull(numExp);
+            Assert.AreEqual(value,numExp.Value);
         }
 
         [Test]
@@ -53,11 +68,9 @@ namespace SharpMonkeyTest
             Parser parser = new Parser(lexer);
 
             var program = parser.ParseProgram();
-            Assert.AreEqual(3,parser.Errors.Count );
-            foreach (var msg in parser.Errors)
-            {
-                Console.WriteLine(msg);
-            }
+            CheckParserErrors(parser);
+            // 以上不合法的语句可能有多种解析报错方式，但是至少有3个错误
+            Assert.GreaterOrEqual(parser.Errors.Count ,3);
         }
 
         [Test]
@@ -129,11 +142,40 @@ namespace SharpMonkeyTest
             Assert.AreEqual(1,program.Statements.Count); 
             var stmt = program.Statements[0] as Ast.ExpressionStatement;
             Assert.NotNull(stmt);
-            var identifier = stmt.Expression as Ast.Integerliteral;
+            var identifier = stmt.Expression as Ast.IntegerLiteral;
             Assert.NotNull(identifier);
             Assert.AreEqual(5,identifier.Value);
             Assert.AreEqual("5",identifier.TokenLiteral());
         }
+        
+        
+        [Test]
+        public void TestPrefixExpression()
+        {
+            // named tuple
+            var testTable = new List<(string Input, string PrefixOp, long IntegerValue,string DebugFormat)>
+            {
+                new ("!5;", "!", 5,"(!5)"),
+                new ("-15;", "-", 15,"(-15)"),
+            };
+            foreach (var item in testTable)
+            {
+                var l = new Lexer(item.Input);
+                var p = new Parser(l);
+                var program = p.ParseProgram();
+                CheckParserErrors(p);
+                Assert.AreEqual(0,p.Errors.Count);
+                Assert.AreEqual(1,program.Statements.Count); 
+                var stmt = program.Statements[0] as Ast.ExpressionStatement;
+                Assert.NotNull(stmt);
+                var exp = stmt.Expression as Ast.PrefixExpression;
+                Assert.NotNull(exp);
+                Assert.AreEqual(item.PrefixOp,exp.Operator);
+                CheckIntegerLiteral(exp.Right,item.IntegerValue);
+                Assert.AreEqual(exp.ToPrintableString(),item.DebugFormat);
+            }
+        }
+        
     }
 
 }

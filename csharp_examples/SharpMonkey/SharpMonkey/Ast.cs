@@ -161,7 +161,7 @@ namespace SharpMonkey
             }
         }
         
-        public class Integerliteral : IExpression
+        public class IntegerLiteral : IExpression
         {
             public Token Token;
             public long Value;
@@ -171,7 +171,7 @@ namespace SharpMonkey
                 return Token.Literal;
             }
 
-            public Integerliteral(Token token, string value)
+            public IntegerLiteral(Token token, string value)
             {
                 Token = token;
                 Value = Int64.Parse(value);
@@ -180,6 +180,35 @@ namespace SharpMonkey
             public string ToPrintableString()
             {
                 return TokenLiteral();
+            }
+        }
+        
+        public class PrefixExpression : IExpression
+        {
+            // 形如 !a; 其钟Token是!, Right是a, Operator是!
+            public Token Token; 
+            public string Operator;
+            public IExpression Right;
+            
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public PrefixExpression(Token token, string op)
+            {
+                Token = token;
+                Operator = op;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder  = new StringBuilder();
+                outBuilder.Append('(');
+                outBuilder.Append(Operator);
+                outBuilder.Append(Right.ToPrintableString());
+                outBuilder.Append(')');
+                return outBuilder.ToString();
             }
         }
     }
