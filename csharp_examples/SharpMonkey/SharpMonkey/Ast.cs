@@ -160,7 +160,7 @@ namespace SharpMonkey
                 return Value;
             }
         }
-        
+
         public class IntegerLiteral : IExpression
         {
             public Token Token;
@@ -182,14 +182,14 @@ namespace SharpMonkey
                 return TokenLiteral();
             }
         }
-        
+
         public class PrefixExpression : IExpression
         {
             // 形如 !a; 其钟Token是!, Right是a, Operator是!
-            public Token Token; 
+            public Token Token;
             public string Operator;
             public IExpression Right;
-            
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -203,9 +203,41 @@ namespace SharpMonkey
 
             public string ToPrintableString()
             {
-                StringBuilder outBuilder  = new StringBuilder();
+                StringBuilder outBuilder = new StringBuilder();
                 outBuilder.Append('(');
                 outBuilder.Append(Operator);
+                outBuilder.Append(Right.ToPrintableString());
+                outBuilder.Append(')');
+                return outBuilder.ToString();
+            }
+        }
+
+        public class InfixExpression : IExpression
+        {
+            // <left> <operator> <right>
+            public Token Token;
+            public IExpression Left;
+            public string Operator;
+            public IExpression Right;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public InfixExpression(Token token, string op, Ast.IExpression left)
+            {
+                Token = token;
+                Operator = op;
+                Left = left;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append('(');
+                outBuilder.Append(Left.ToPrintableString());
+                outBuilder.Append(" " + Operator + " ");
                 outBuilder.Append(Right.ToPrintableString());
                 outBuilder.Append(')');
                 return outBuilder.ToString();

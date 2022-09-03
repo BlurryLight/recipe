@@ -5,7 +5,7 @@ namespace SharpMonkey
     public class Repl
     {
         // for file
-    // foreach (string line in File.ReadAllLines(fileName))
+        // foreach (string line in File.ReadAllLines(fileName))
         private const string Prompt = ">>";
 
         public static void Start()

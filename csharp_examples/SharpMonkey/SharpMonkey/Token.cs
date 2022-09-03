@@ -23,6 +23,8 @@ namespace SharpMonkey
         public const string Gt = ">";
         public const string Eq = "==";
         public const string NotEq = "!=";
+        public const string Increment = "++";
+        public const string Decrement = "--";
 
         public const string Comma = ",";
         public const string Semicolon = ";";
@@ -59,14 +61,15 @@ namespace SharpMonkey
             {
                 return res;
             }
+
             return Ident;
         }
     }
 
 
-    public class  Token
+    public class Token
     {
-        public TokenType Type;  // 用枚举可能更加紧凑，但是String更方便调试
+        public TokenType Type; // 用枚举可能更加紧凑，但是String更方便调试
         public String Literal;
 
         public Token()
@@ -74,7 +77,8 @@ namespace SharpMonkey
             Type = Constants.Illegal;
             Literal = "INIT";
         }
-        public Token(TokenType type,string literal)
+
+        public Token(TokenType type, string literal)
         {
             Type = type;
             Literal = literal;

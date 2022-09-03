@@ -8,7 +8,7 @@ namespace SharpMonkey
 {
     using TokenType = String;
     using PrefixParseFunc = Func<Ast.IExpression>;
-    using InfixParseFunc = Func<Ast.IExpression,Ast.IExpression>;
+    using InfixParseFunc = Func<Ast.IExpression, Ast.IExpression>;
 
     public class FixedQueue<T> : Queue<T>
     {
@@ -58,14 +58,47 @@ namespace SharpMonkey
         public List<string> Errors;
 
         private Dictionary<TokenType, PrefixParseFunc> _prefixParseFuncMap = new();
+
         // 对于infix表达式，需要传入左侧的表达式。
         private Dictionary<TokenType, InfixParseFunc> _infixParseFuncMap = new();
+
+        private static readonly Dictionary<TokenType, Priority> Precedences = new()
+        {
+            {Constants.Eq, Priority.Equals},
+            {Constants.NotEq, Priority.Equals},
+            {Constants.Lt, Priority.LessGreater},
+            {Constants.Gt, Priority.LessGreater},
+            {Constants.Plus, Priority.Sum},
+            {Constants.Minus, Priority.Sum},
+            {Constants.Slash, Priority.Product},
+            {Constants.Asterisk, Priority.Product},
+        };
+
+        private Priority PeekPrecedence()
+        {
+            if (Precedences.TryGetValue(_peekToken.Type, out Priority priority))
+            {
+                return priority;
+            }
+
+            return Priority.Lowest;
+        }
+
+        private Priority CurPrecedence()
+        {
+            if (Precedences.TryGetValue(_curToken.Type, out Priority priority))
+            {
+                return priority;
+            }
+
+            return Priority.Lowest;
+        }
 
         private void RegisterPrefixParseFunc(TokenType tokenType, in PrefixParseFunc fn)
         {
             _prefixParseFuncMap[tokenType] = fn;
         }
-        
+
         private void RegisterInfixParseFunc(TokenType tokenType, in InfixParseFunc fn)
         {
             _infixParseFuncMap[tokenType] = fn;
@@ -86,7 +119,7 @@ namespace SharpMonkey
             _context.Clear();
             return msg.ToString();
         }
-        
+
 
         public Parser(Lexer lexer)
         {
@@ -96,12 +129,24 @@ namespace SharpMonkey
             // 需要调用两次才能让CurToken指向第一个Token
             NextToken();
             NextToken();
-            
+
             // register function
-            RegisterPrefixParseFunc(Constants.Ident,this.ParseIdentifier);
-            RegisterPrefixParseFunc(Constants.Int,this.ParseInteger);
-            RegisterPrefixParseFunc(Constants.Minus,this.ParsePrefixExpression);
-            RegisterPrefixParseFunc(Constants.Bang,ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.Ident, ParseIdentifier);
+            RegisterPrefixParseFunc(Constants.Int, ParseInteger);
+            RegisterPrefixParseFunc(Constants.Minus, ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.Bang, ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.Increment, ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.Decrement, ParsePrefixExpression);
+
+            // register infix function
+            RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Minus, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Asterisk, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Slash, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Eq, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.NotEq, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Lt, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
         }
 
         public void NextToken()
@@ -207,24 +252,56 @@ namespace SharpMonkey
             {
                 Expression = ParseExpression(Priority.Lowest)
             };
-            
+
             // 表达式内不应该包含分号，分号要扔掉
             if (_peekToken.Type == Constants.Semicolon)
             {
                 NextToken();
             }
+
             return stmt;
         }
 
-        private Ast.IExpression ParseExpression(Priority Precedence)
+        private Ast.IExpression ParseExpression(Priority precedence)
         {
-            if (_prefixParseFuncMap.TryGetValue(_curToken.Type, out PrefixParseFunc prefixFunc))
+            if (!_prefixParseFuncMap.TryGetValue(_curToken.Type, out var prefixFunc))
             {
-                return prefixFunc();
+                AppendError($"No valid Prefix Parse Func for type {_curToken.Type} Found");
+                return null;
             }
 
-            AppendError($"No valid Parse Func for type {_curToken.Type} Found");
-            return null;
+            var leftExp = prefixFunc();
+            // 这里分情况
+            // 1.  <exp>; 这种情况，直接返回exp
+            // 2. <exp1> + <exp2> 首先先解析exp1，然后解析到+号时意识到这是一个infix的表达式，最后返回一个infix的 exp
+            // 3. <exp1> + <exp2> * <exp3> 在parse +号时候会递归调用Parse expression 从而解析exp2，在解析exp2时又会再往后看，发现是*
+            // 由于*的优先级大于+号，所以又会递归调用infix parse,最后返回的是  (exp1 + (exp2 * exp3))
+
+            // 普拉特解析法的递归扫描整个表达式，递归停止的条件是遇见分号或者遇见优先级低于自己的符号。
+            // a + b + c 
+            // 第一层优先级Lowest
+            // parse到(a + b)停止 （内层不会走循环，因为是连续的同优先级的）
+            // 然后while循环还没结束，此时leftExp = (a + b) , precedence 为lowest
+            // 会再parse一个 ((a + b) + c)
+
+
+            // 另外一种直观的理解为，一个操作符的优先级可以代表一种吸附力
+            // -1 + 3  => ((-1) + 3)
+            // 因为 prefix minus的优先级较高，所以1被(-)吸过去。
+            // 这决定了 1这个token，究竟是属于 Prefix - 的右表达式， 还是 +号的左表达式
+
+            while (_peekToken.Type != Constants.Semicolon && precedence < PeekPrecedence())
+            {
+                if (!_infixParseFuncMap.TryGetValue(_peekToken.Type, out InfixParseFunc infixFunc))
+                {
+                    return leftExp;
+                }
+
+                NextToken();
+                leftExp = infixFunc(leftExp);
+            }
+
+            return leftExp;
         }
 
         private Ast.IExpression ParseIdentifier()
@@ -232,13 +309,13 @@ namespace SharpMonkey
             var expression = new Ast.Identifier(_curToken, _curToken.Literal);
             return expression;
         }
-        
+
         private Ast.IExpression ParseInteger()
         {
             var expression = new Ast.IntegerLiteral(_curToken, _curToken.Literal);
             return expression;
         }
-        
+
         private Ast.IExpression ParsePrefixExpression()
         {
             var expression = new Ast.PrefixExpression(_curToken, _curToken.Literal);
@@ -248,6 +325,17 @@ namespace SharpMonkey
             expression.Right = ParseExpression(Priority.Prefix);
             return expression;
         }
+
+        private Ast.IExpression ParseInfixExpression(Ast.IExpression left)
+        {
+            var exp = new Ast.InfixExpression(_curToken, _curToken.Literal, left);
+            // 当调用到这个函数的时候，_CurToken指向一个infix operator
+            var precedence = CurPrecedence(); // 提取这个operator的优先级
+            NextToken(); //移动到下一个 Expression
+            exp.Right = ParseExpression(precedence);
+            return exp;
+        }
+
         public Ast.MonkeyProgram ParseProgram()
         {
             var program = new Ast.MonkeyProgram();
@@ -266,7 +354,5 @@ namespace SharpMonkey
 
             return program;
         }
-        
-
     }
 }

@@ -69,10 +69,10 @@ namespace SharpMonkey
                     token = TryMakeTwoCharToken('=', Constants.Eq, Constants.Assign);
                     break;
                 case '+':
-                    token = new Token(Constants.Plus, CurCh.ToString());
+                    token = TryMakeTwoCharToken('+', Constants.Increment, Constants.Plus);
                     break;
                 case '-':
-                    token = new Token(Constants.Minus, CurCh.ToString());
+                    token = TryMakeTwoCharToken('-', Constants.Decrement, Constants.Minus);
                     break;
                 case '*':
                     token = new Token(Constants.Asterisk, CurCh.ToString());
