@@ -52,7 +52,7 @@ namespace SharpMonkeyTest
         [Test]
         public void TestNextTokenIdentifiers()
         {
-            var input = "let five = 5;\r\n let ten = 10\r\n" +
+            var input = "let five = true ? 5 : 4;\r\n let ten = 10\r\n" +
                         "   let add = fn(x,y) {x + y;};" +
                         " let result = add(--five,++ten);\0";
 
@@ -61,7 +61,11 @@ namespace SharpMonkeyTest
                 new Token(Constants.Let, "let"),
                 new Token(Constants.Ident, "five"),
                 new Token(Constants.Assign, "="),
+                new Token(Constants.True, "true"),
+                new Token(Constants.QuestionMark, "?"),
                 new Token(Constants.Int, "5"),
+                new Token(Constants.Colon, ":"),
+                new Token(Constants.Int, "4"),
                 new Token(Constants.Semicolon, ";"),
                 new Token(Constants.Let, "let"),
                 new Token(Constants.Ident, "ten"),

@@ -83,6 +83,12 @@ namespace SharpMonkey
                 case ';':
                     token = new Token(Constants.Semicolon, CurCh.ToString());
                     break;
+                case ':':
+                    token = new Token(Constants.Colon, CurCh.ToString());
+                    break;
+                case '?':
+                    token = new Token(Constants.QuestionMark, CurCh.ToString());
+                    break;
                 case ',':
                     token = new Token(Constants.Comma, CurCh.ToString());
                     break;

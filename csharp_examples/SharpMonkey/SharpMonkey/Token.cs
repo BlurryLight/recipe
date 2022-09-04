@@ -27,6 +27,8 @@ namespace SharpMonkey
         public const string Decrement = "--";
 
         public const string Comma = ",";
+        public const string QuestionMark = "?";
+        public const string Colon= ":";
         public const string Semicolon = ";";
 
         public const string LParen = "(";

@@ -222,7 +222,9 @@ namespace SharpMonkeyTest
                 new("-a * b;", "((-a) * b)"),
                 new("!-a;", "(!(-a))"),
                 new("!++a;", "(!(++a))"),
-                new("!--a;", "(!(--a))"), // currently we only support prefix incre/decrement
+                new("!--a;", "(!(--a))"), 
+                new("!a--;", "(!(a--))"), 
+                new("!a++;", "(!(a++))"), 
                 new("a + b + c;", "((a + b) + c)"),
                 new("a + b - c;", "((a + b) - c)"),
                 new("a + b * c;", "(a + (b * c))"),
@@ -231,6 +233,10 @@ namespace SharpMonkeyTest
                 new("a * b != b / c;", "((a * b) != (b / c))"),
                 new("a * b == b / c;", "((a * b) == (b / c))"),
                 new("a * b == b / c * d * 3;", "((a * b) == (((b / c) * d) * 3))"),
+                new("a ? b : c;", "(a ? b : c)"),
+                new("a ? ++b : --c;", "(a ? (++b) : (--c))"),
+                new("!a ? ++b * 2 : --c;", "((!a) ? ((++b) * 2) : (--c))"),
+                new("!a ? ++b / 2 : --!c == 1;", "((!a) ? ((++b) / 2) : ((--(!c)) == 1))"),
             };
             foreach (var item in testTable)
             {

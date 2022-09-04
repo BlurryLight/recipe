@@ -37,11 +37,13 @@ namespace SharpMonkey
     {
         _ = 0,
         Lowest,
+        Condition,
         Equals, // == 
         LessGreater, // > or <
         Sum, // +
         Product, // *
         Prefix, // -x or !x
+        Postfix, // a++
         Call // a + func(b)
     }
 
@@ -60,6 +62,7 @@ namespace SharpMonkey
         private Dictionary<TokenType, PrefixParseFunc> _prefixParseFuncMap = new();
 
         // 对于infix表达式，需要传入左侧的表达式。
+        // postfix也可以放在infix里一起解析了
         private Dictionary<TokenType, InfixParseFunc> _infixParseFuncMap = new();
 
         private static readonly Dictionary<TokenType, Priority> Precedences = new()
@@ -72,6 +75,11 @@ namespace SharpMonkey
             {Constants.Minus, Priority.Sum},
             {Constants.Slash, Priority.Product},
             {Constants.Asterisk, Priority.Product},
+            
+            {Constants.Increment, Priority.Postfix},
+            {Constants.Decrement, Priority.Postfix},
+            
+            {Constants.QuestionMark, Priority.Condition},
         };
 
         private Priority PeekPrecedence()
@@ -147,6 +155,12 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.NotEq, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Lt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.QuestionMark, ParseInfixExpression);
+            
+            RegisterInfixParseFunc(Constants.Increment, ParsePostfixExpression);
+            RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);
+            
+            RegisterInfixParseFunc(Constants.QuestionMark, ParseConditionalExpression);
         }
 
         public void NextToken()
@@ -333,6 +347,26 @@ namespace SharpMonkey
             var precedence = CurPrecedence(); // 提取这个operator的优先级
             NextToken(); //移动到下一个 Expression
             exp.Right = ParseExpression(precedence);
+            return exp;
+        }
+        
+        private Ast.IExpression ParseConditionalExpression(Ast.IExpression left)
+        {
+            // a ? b : c
+            // 进入时curToken指向?
+            var exp = new Ast.ConditionalExpression(_curToken,left);
+            var precedence = CurPrecedence(); // 提取这个operator的优先级
+            NextToken(); // 移动curToken到 b
+            exp.ThenArm = ParseExpression(precedence);
+            NextToken(); // consume colon
+            NextToken(); // 移动curToken到c
+            exp.ElseArm= ParseExpression(precedence);
+            return exp;
+        }
+        
+        private Ast.IExpression ParsePostfixExpression(Ast.IExpression left)
+        {
+            var exp = new Ast.PostfixExpression(_curToken, _curToken.Literal, left);
             return exp;
         }
 

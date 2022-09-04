@@ -212,6 +212,69 @@ namespace SharpMonkey
             }
         }
 
+        /// <summary>
+        /// expression like "a++"
+        /// </summary>
+        public class PostfixExpression: IExpression
+        {
+            public Token Token;
+            public IExpression Left;
+            public string Operator;
+
+            public PostfixExpression(Token token, string op,IExpression left)
+            {
+                Token = token;
+                Operator = op;
+                Left = left;
+            }
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append('(');
+                outBuilder.Append(Left.ToPrintableString());
+                outBuilder.Append(Operator);
+                outBuilder.Append(')');
+                return outBuilder.ToString();
+            }
+        }
+
+        /// <summary>
+        /// expression like "<condition> ? <then> : <else> "
+        /// </summary>
+        public class ConditionalExpression: IExpression
+        {
+            public Token Token;
+            public IExpression Condition;
+            public IExpression ThenArm;
+            public IExpression ElseArm;
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public ConditionalExpression(Token token, IExpression condition)
+            {
+                Token = token;
+                Condition = condition;
+            }
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append('(');
+                outBuilder.Append(Condition.ToPrintableString());
+                outBuilder.Append(" ? ");
+                outBuilder.Append(ThenArm.ToPrintableString());
+                outBuilder.Append(" : ");
+                outBuilder.Append(ElseArm.ToPrintableString());
+                outBuilder.Append(')');
+                return outBuilder.ToString();
+            }
+        }
         public class InfixExpression : IExpression
         {
             // <left> <operator> <right>
