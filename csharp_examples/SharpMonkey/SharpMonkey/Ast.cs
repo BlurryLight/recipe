@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace SharpMonkey
@@ -275,6 +276,7 @@ namespace SharpMonkey
                 return outBuilder.ToString();
             }
         }
+        
         public class InfixExpression : IExpression
         {
             // <left> <operator> <right>
@@ -303,6 +305,75 @@ namespace SharpMonkey
                 outBuilder.Append(" " + Operator + " ");
                 outBuilder.Append(Right.ToPrintableString());
                 outBuilder.Append(')');
+                return outBuilder.ToString();
+            }
+        }
+
+        public class BooleanLiteral: IExpression
+        {
+            public Token Token;
+            public bool Value;
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public BooleanLiteral(Token token, string value)
+            {
+                Token = token;
+                Debug.Assert(value == "true" || value == "false");
+                Value = (value == "true");
+            }
+            public string ToPrintableString()
+            {
+                return TokenLiteral();
+            }
+        }
+
+        public class BlockStatement : IStatement
+        {
+            public Token Token; // {
+            public List<IStatement> Statements; // 由一系列的ExpressionStatement和 Let/Return语句组成
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                foreach (var stmt in Statements)
+                {
+                    outBuilder.Append(stmt.ToPrintableString());
+                }
+                return outBuilder.ToString();
+            }
+        }
+
+        public class IfExpression : IExpression
+        {
+            // if <condition> { <Consequence> } else {<alter>}
+            public Token Token; // if
+            public IExpression Condition;
+            public BlockStatement Consequence;
+            public BlockStatement Alternative; // nullable
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append("if");
+                outBuilder.Append(Condition.ToPrintableString());
+                outBuilder.Append(' ');
+                outBuilder.Append(Consequence.ToPrintableString());
+                if (Alternative != null)
+                {
+                    outBuilder.Append("else ");
+                    outBuilder.Append(Alternative.ToPrintableString());
+                }
                 return outBuilder.ToString();
             }
         }

@@ -145,6 +145,9 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.Bang, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.Increment, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.Decrement, ParsePrefixExpression);
+            RegisterPrefixParseFunc(Constants.True, ParseBoolean);
+            RegisterPrefixParseFunc(Constants.False, ParseBoolean);
+            RegisterPrefixParseFunc(Constants.LParen, ParseGroupedExpression);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -323,6 +326,13 @@ namespace SharpMonkey
             var expression = new Ast.Identifier(_curToken, _curToken.Literal);
             return expression;
         }
+        
+            
+        private Ast.IExpression ParseBoolean()
+        {
+            var expression = new Ast.BooleanLiteral(_curToken, _curToken.Literal);
+            return expression;
+        }
 
         private Ast.IExpression ParseInteger()
         {
@@ -367,6 +377,21 @@ namespace SharpMonkey
         private Ast.IExpression ParsePostfixExpression(Ast.IExpression left)
         {
             var exp = new Ast.PostfixExpression(_curToken, _curToken.Literal, left);
+            return exp;
+        }
+
+        private Ast.IExpression ParseGroupedExpression()
+        {
+            // 目前_CurToken在 '('上
+            NextToken(); // 往前移动一个token
+            
+            // BlackMagic: 把左括号的优先级设置为最低，那么自然而言括号内部的表达式就能聚合在一起成为一个整体
+            // 如果括号内部是一个`infix operator`或者是`prefix op`，那么其stringify的时候这个op会自动加一个括号
+            var exp = ParseExpression(Priority.Lowest);
+            if (!ExpectPeek(Constants.RParen))
+            {
+                return null;
+            }
             return exp;
         }
 

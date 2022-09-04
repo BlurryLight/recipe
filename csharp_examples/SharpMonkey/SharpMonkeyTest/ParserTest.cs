@@ -36,6 +36,57 @@ namespace SharpMonkeyTest
             var numExp = exp as Ast.IntegerLiteral;
             Assert.IsNotNull(numExp);
             Assert.AreEqual(value, numExp.Value);
+            Assert.AreEqual(value.ToString(), numExp.TokenLiteral());
+        }
+
+        private void CheckIdentifier(Ast.IExpression exp, string value)
+        {
+            var ident = exp as Ast.Identifier;
+            Assert.IsNotNull(ident);
+            Assert.AreEqual(value, ident.Value);
+            Assert.AreEqual(value, ident.TokenLiteral());
+        }
+
+        private void CheckBooleanLiteral(Ast.IExpression exp, bool value)
+        {
+            var ident = exp as Ast.BooleanLiteral;
+            Assert.IsNotNull(ident);
+            Assert.AreEqual(value, ident.Value);
+            string expectedBool = value ? "true" : "false";
+            Assert.AreEqual(expectedBool, ident.TokenLiteral());
+            Assert.AreEqual(expectedBool, ident.ToPrintableString());
+        }
+
+        // more general version
+        private void CheckExpression(Ast.IExpression exp, Object val)
+        {
+            switch (val)
+            {
+                case string value:
+                    CheckIdentifier(exp, value);
+                    break;
+                case long value:
+                    CheckIntegerLiteral(exp, value);
+                    break;
+                case int value:
+                    CheckIntegerLiteral(exp, value);
+                    break;
+                case bool value:
+                    CheckBooleanLiteral(exp, value);
+                    break;
+                default:
+                    Assert.Fail($"{val.GetType().Name} is not supported in CheckExpression");
+                    break;
+            }
+        }
+
+        private void CheckInfixExpression(Ast.IExpression infixExp, Object left, string op, Object right)
+        {
+            var exp = infixExp as Ast.InfixExpression;
+            Assert.IsNotNull(exp);
+            Assert.AreEqual(op, exp.Operator);
+            CheckExpression(exp.Left, left);
+            CheckExpression(exp.Right, right);
         }
 
         [Test]
@@ -127,8 +178,7 @@ namespace SharpMonkeyTest
             Assert.NotNull(stmt);
             var identifier = stmt.Expression as Ast.Identifier;
             Assert.NotNull(identifier);
-            Assert.AreEqual("foobar", identifier.Value);
-            Assert.AreEqual("foobar", identifier.TokenLiteral());
+            CheckIdentifier(identifier, "foobar");
         }
 
         [Test]
@@ -145,8 +195,7 @@ namespace SharpMonkeyTest
             Assert.NotNull(stmt);
             var identifier = stmt.Expression as Ast.IntegerLiteral;
             Assert.NotNull(identifier);
-            Assert.AreEqual(5, identifier.Value);
-            Assert.AreEqual("5", identifier.TokenLiteral());
+            CheckIntegerLiteral(identifier, 5);
         }
 
 
@@ -154,10 +203,12 @@ namespace SharpMonkeyTest
         public void TestPrefixExpression()
         {
             // named tuple
-            var testTable = new List<(string Input, string PrefixOp, long IntegerValue, string DebugFormat)>
+            var testTable = new List<(string Input, string PrefixOp, Object value, string DebugFormat)>
             {
                 new("!5;", "!", 5, "(!5)"),
                 new("-15;", "-", 15, "(-15)"),
+                new("!true;", "!", true, "(!true)"),
+                new("!false;", "!", false, "(!false)"),
             };
             foreach (var item in testTable)
             {
@@ -172,7 +223,7 @@ namespace SharpMonkeyTest
                 var exp = stmt.Expression as Ast.PrefixExpression;
                 Assert.NotNull(exp);
                 Assert.AreEqual(item.PrefixOp, exp.Operator);
-                CheckIntegerLiteral(exp.Right, item.IntegerValue);
+                CheckExpression(exp.Right, item.value);
                 Assert.AreEqual(exp.ToPrintableString(), item.DebugFormat);
             }
         }
@@ -204,12 +255,8 @@ namespace SharpMonkeyTest
                 Assert.AreEqual(1, program.Statements.Count);
                 var stmt = program.Statements[0] as Ast.ExpressionStatement;
                 Assert.NotNull(stmt);
-                var exp = stmt.Expression as Ast.InfixExpression;
-                Assert.NotNull(exp);
-                CheckIntegerLiteral(exp.Left, item.LeftValue);
-                Assert.AreEqual(item.Operator, exp.Operator);
-                CheckIntegerLiteral(exp.Right, item.RightValue);
-                Assert.AreEqual(exp.ToPrintableString(), item.DebugFormat);
+                CheckInfixExpression(stmt.Expression, item.LeftValue, item.Operator, item.RightValue);
+                Assert.AreEqual(stmt.ToPrintableString(), item.DebugFormat);
             }
         }
 
@@ -222,9 +269,9 @@ namespace SharpMonkeyTest
                 new("-a * b;", "((-a) * b)"),
                 new("!-a;", "(!(-a))"),
                 new("!++a;", "(!(++a))"),
-                new("!--a;", "(!(--a))"), 
-                new("!a--;", "(!(a--))"), 
-                new("!a++;", "(!(a++))"), 
+                new("!--a;", "(!(--a))"),
+                new("!a--;", "(!(a--))"),
+                new("!a++;", "(!(a++))"),
                 new("a + b + c;", "((a + b) + c)"),
                 new("a + b - c;", "((a + b) - c)"),
                 new("a + b * c;", "(a + (b * c))"),
@@ -237,6 +284,14 @@ namespace SharpMonkeyTest
                 new("a ? ++b : --c;", "(a ? (++b) : (--c))"),
                 new("!a ? ++b * 2 : --c;", "((!a) ? ((++b) * 2) : (--c))"),
                 new("!a ? ++b / 2 : --!c == 1;", "((!a) ? ((++b) / 2) : ((--(!c)) == 1))"),
+                new("a * b == true;", "((a * b) == true)"),
+                new("a * b != false;", "((a * b) != false)"),
+                //parens
+                new("a * (b + c);", "(a * (b + c))"),
+                new("!(true == true);", "(!(true == true))"),
+                new("(5 + 5) * 2;", "((5 + 5) * 2)"),
+                new("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+                new("1 + (2);", "(1 + 2)"),
             };
             foreach (var item in testTable)
             {
@@ -250,6 +305,57 @@ namespace SharpMonkeyTest
                 Assert.NotNull(stmt);
                 Assert.AreEqual(stmt.ToPrintableString(), item.DebugFormat);
             }
+        }
+
+        [Test]
+        public void TestBooleanExpression()
+        {
+            var testTable = new List<(string Input, bool val)>
+            {
+                new("true;", true),
+                new("false;", false),
+            };
+            foreach (var item in testTable)
+            {
+                var l = new Lexer(item.Input);
+                var p = new Parser(l);
+                var program = p.ParseProgram();
+
+                Assert.AreEqual(0, p.Errors.Count);
+                Assert.AreEqual(1, program.Statements.Count);
+
+                var stmt = program.Statements[0] as Ast.ExpressionStatement;
+                Assert.NotNull(stmt);
+                CheckExpression(stmt.Expression, item.val);
+            }
+        }
+
+        [Test]
+        public void TestIfExpression()
+        {
+            var input = "if (x < y) { return 5;} else { false; } ";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.IfExpression;
+            Assert.NotNull(exp);
+            CheckInfixExpression(exp.Condition, "x", "<", "y");
+            var thenStmt = exp.Consequence.Statements[0] as Ast.ReturnStatement;
+            Assert.NotNull(thenStmt);
+            Assert.AreEqual("return", thenStmt.TokenLiteral());
+            CheckIdentifier(thenStmt.ReturnValue, "x");
+
+            var alterStmt = exp.Alternative.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(alterStmt);
+            var alterBoolean = alterStmt.Expression as Ast.BooleanLiteral;
+            CheckBooleanLiteral(alterBoolean, false);
         }
     }
 }
