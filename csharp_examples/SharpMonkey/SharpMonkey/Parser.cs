@@ -75,10 +75,10 @@ namespace SharpMonkey
             {Constants.Minus, Priority.Sum},
             {Constants.Slash, Priority.Product},
             {Constants.Asterisk, Priority.Product},
-            
+
             {Constants.Increment, Priority.Postfix},
             {Constants.Decrement, Priority.Postfix},
-            
+
             {Constants.QuestionMark, Priority.Condition},
         };
 
@@ -148,6 +148,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.True, ParseBoolean);
             RegisterPrefixParseFunc(Constants.False, ParseBoolean);
             RegisterPrefixParseFunc(Constants.LParen, ParseGroupedExpression);
+            RegisterPrefixParseFunc(Constants.If, ParseIfExpression);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -159,10 +160,10 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.Lt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.QuestionMark, ParseInfixExpression);
-            
+
             RegisterInfixParseFunc(Constants.Increment, ParsePostfixExpression);
             RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);
-            
+
             RegisterInfixParseFunc(Constants.QuestionMark, ParseConditionalExpression);
         }
 
@@ -241,12 +242,18 @@ namespace SharpMonkey
         {
             var statement = new Ast.ReturnStatement(_curToken);
             NextToken();
-            // TODO: handle expression
-            while (_curToken.Type != Constants.Semicolon)
+            // 支持  return 5; /  return; 这样的写法
+            if (_curToken.Type == Constants.Semicolon)
+            {
+                return statement;
+            }
+            
+            statement.ReturnValue = ParseExpression(Priority.Lowest);
+            NextToken();
+            if (_peekToken.Type == Constants.Semicolon)
             {
                 NextToken();
             }
-
             return statement;
         }
 
@@ -326,8 +333,8 @@ namespace SharpMonkey
             var expression = new Ast.Identifier(_curToken, _curToken.Literal);
             return expression;
         }
-        
-            
+
+
         private Ast.IExpression ParseBoolean()
         {
             var expression = new Ast.BooleanLiteral(_curToken, _curToken.Literal);
@@ -359,21 +366,21 @@ namespace SharpMonkey
             exp.Right = ParseExpression(precedence);
             return exp;
         }
-        
+
         private Ast.IExpression ParseConditionalExpression(Ast.IExpression left)
         {
             // a ? b : c
             // 进入时curToken指向?
-            var exp = new Ast.ConditionalExpression(_curToken,left);
+            var exp = new Ast.ConditionalExpression(_curToken, left);
             var precedence = CurPrecedence(); // 提取这个operator的优先级
             NextToken(); // 移动curToken到 b
             exp.ThenArm = ParseExpression(precedence);
             NextToken(); // consume colon
             NextToken(); // 移动curToken到c
-            exp.ElseArm= ParseExpression(precedence);
+            exp.ElseArm = ParseExpression(precedence);
             return exp;
         }
-        
+
         private Ast.IExpression ParsePostfixExpression(Ast.IExpression left)
         {
             var exp = new Ast.PostfixExpression(_curToken, _curToken.Literal, left);
@@ -384,7 +391,7 @@ namespace SharpMonkey
         {
             // 目前_CurToken在 '('上
             NextToken(); // 往前移动一个token
-            
+
             // BlackMagic: 把左括号的优先级设置为最低，那么自然而言括号内部的表达式就能聚合在一起成为一个整体
             // 如果括号内部是一个`infix operator`或者是`prefix op`，那么其stringify的时候这个op会自动加一个括号
             var exp = ParseExpression(Priority.Lowest);
@@ -392,6 +399,61 @@ namespace SharpMonkey
             {
                 return null;
             }
+
+            return exp;
+        }
+
+        private Ast.BlockStatement ParseBlockStatement()
+        {
+            var Block = new Ast.BlockStatement(_curToken);
+            NextToken();
+            while (_curToken.Type != Constants.RBrace && _curToken.Type != Constants.Eof)
+                // 想不到什么情况下会在{}中出现EOF,只有在不合法的输入下才会有这种情况。
+            {
+                var stmt = ParseStatement();
+                if (stmt != null)
+                {
+                    Block.Statements.Add(stmt);
+                }
+                NextToken();
+            }
+
+            if (_curToken.Type == Constants.Eof)
+            {
+                AppendError($"Unexpected EOF appears in ParseBlockStatement!");
+            }
+
+            return Block;
+        }
+
+        private Ast.IExpression ParseIfExpression()
+        {
+            var exp = new Ast.IfExpression(_curToken); // if token
+            if (!ExpectPeek(Constants.LParen))
+            {
+                return null;
+            }
+
+            // 此时cur在 ‘(’上
+            exp.Condition = ParseGroupedExpression();
+            // parse完以后，cur 在)上
+            // 检查下一个TOKEN '{'
+            if (!ExpectPeek(Constants.LBrace))
+            {
+                return null;
+            }
+            exp.Consequence = ParseBlockStatement();
+
+            if (_peekToken.Type == Constants.Else)
+            {
+                NextToken(); // consume else token
+                if (!ExpectPeek(Constants.LBrace))
+                {
+                    return null;
+                }
+                exp.Alternative= ParseBlockStatement();
+            }
+
             return exp;
         }
 

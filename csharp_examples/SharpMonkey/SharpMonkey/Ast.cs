@@ -339,6 +339,12 @@ namespace SharpMonkey
                 return Token.Literal;
             }
 
+            public BlockStatement(Token token)
+            {
+                Token = token;
+                Statements = new List<IStatement>();
+            }
+
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
@@ -360,6 +366,11 @@ namespace SharpMonkey
             public string TokenLiteral()
             {
                 return Token.Literal;
+            }
+
+            public IfExpression(Token token)
+            {
+                Token = token;
             }
 
             public string ToPrintableString()

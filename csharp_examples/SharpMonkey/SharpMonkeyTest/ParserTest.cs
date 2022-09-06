@@ -128,16 +128,56 @@ namespace SharpMonkeyTest
         [Test]
         public void TestReturnStatements()
         {
-            var input = "return 5;\r\n return 10;\r\n return 993 3322;\0";
-            Lexer lexer = new(input);
-            Parser parser = new Parser(lexer);
-
-            var program = parser.ParseProgram();
-            Assert.AreEqual(3, program.Statements.Count);
-            foreach (var statement in program.Statements)
+            var testTable = new List<(string Input, Object value, string DebugFormat)>
             {
-                Assert.AreEqual("return", statement.TokenLiteral());
+                new ("return 5;\r\n",5,"return 5;"),
+                new ("return x;\r\n","x","return x;"),
+                new ("return;\r\n",null,"return ;"),
+            };
+
+            foreach (var item in testTable)
+            {
+                Lexer lexer = new(item.Input);
+                Parser parser = new Parser(lexer);
+
+                var program = parser.ParseProgram();
+                Assert.AreEqual(0, parser.Errors.Count);
+                CheckParserErrors(parser);
+                Assert.AreEqual(1, program.Statements.Count);
+                var stmt = program.Statements[0] as Ast.ReturnStatement;
+                Assert.NotNull(stmt);
+                Assert.AreEqual("return", stmt.TokenLiteral());
+                if (item.value != null)
+                {
+                    CheckExpression(stmt.ReturnValue,item.value);
+                }
+                else
+                {
+                    Assert.IsNull(stmt.ReturnValue);
+                }
+                Assert.AreEqual(stmt.ToPrintableString(), item.DebugFormat);
             }
+
+            {
+                // special case
+                var input = "return x + y;\r\n\0";
+                Lexer lexer = new(input);
+                Parser parser = new Parser(lexer);
+
+                var program = parser.ParseProgram();
+                Assert.AreEqual(0, parser.Errors.Count);
+                CheckParserErrors(parser);
+                Assert.AreEqual(1, program.Statements.Count);
+                var stmt = program.Statements[0] as Ast.ReturnStatement;
+                Assert.NotNull(stmt);
+                Assert.AreEqual("return", stmt.TokenLiteral());
+                var infixExp = stmt.ReturnValue as Ast.InfixExpression;
+                Assert.NotNull(infixExp);
+                CheckExpression(infixExp.Left,"x");
+                CheckExpression(infixExp.Right,"y");
+                Assert.AreEqual("+",infixExp.Operator);
+            }
+
         }
 
         [Test]
@@ -333,7 +373,7 @@ namespace SharpMonkeyTest
         [Test]
         public void TestIfExpression()
         {
-            var input = "if (x < y) { return 5;} else { false; } ";
+            var input = "if (x < y) { return x;} else { false; } ";
             var l = new Lexer(input);
             var p = new Parser(l);
             var program = p.ParseProgram();
