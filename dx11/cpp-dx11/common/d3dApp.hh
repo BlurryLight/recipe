@@ -56,6 +56,7 @@ protected:
 
   std::string WinTitle_ = "D3D11 Example";
   bool vsync_ = true;
+  bool reverse_z_ = false;
   bool AllowMouseMove_ = true;
   ImGuiIO *imgui_io_ = nullptr;
 

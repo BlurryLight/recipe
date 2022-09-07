@@ -50,6 +50,7 @@ public:
         this->reloadShaders();
       }
       ImGui::Checkbox("vsync", &vsync_);
+      ImGui::Checkbox("ReverseZ", &reverse_z_);
       ImGui::End();
     }
   }
@@ -65,6 +66,18 @@ public:
     phi += rotation_speed_ * dt, theta += rotation_speed_ * dt;
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
+    CBuffer_.Proj = DirectX::XMMatrixPerspectiveFovLH(
+        DirectX::XM_PIDIV4, AspectRatio(), 0.1f, 100.0f);
+
+    if (reverse_z_) {
+      DirectX::XMFLOAT4X4 Proj;
+      XMStoreFloat4x4(&Proj, CBuffer_.Proj);
+      // 深度从[0,1] 翻转到[0,-1]再平移[1,0]
+      Proj._33 = -Proj._33;
+      Proj._43 = -Proj._43;
+      Proj._33 += 1.0;
+      CBuffer_.Proj = DirectX::XMLoadFloat4x4(&Proj);
+    }
 
 // Transpose all data
 //在hlsl里使用列主元存储矩阵，因为向量右乘以矩阵，所以一次要取矩阵的一个列
@@ -72,6 +85,7 @@ public:
 //所以在C++里再手动转置一下，抵消上面的一次转置
 #ifndef OPENGL_MATRIX
     CBuffer_.World = DirectX::XMMatrixTranspose(CBuffer_.World);
+    CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 #endif
     // map data
     D3D11_MAPPED_SUBRESOURCE mappedData;
@@ -84,13 +98,15 @@ public:
   void DrawScene() override {
     assert(pd3dDeviceIMContext_);
     assert(pSwapChain_);
+    pd3dDeviceIMContext_->OMSetDepthStencilState(
+        reverse_z_ ? DepthFuncGreater_.Get() : DepthFuncDefault_.Get(), 0);
     float dt = imgui_io_->DeltaTime;
     UpdateScene(dt * 1000.0f);
     static float blue[4] = {0.0f, 0.0f, 0.2f, 1.0f};
     pd3dDeviceIMContext_->ClearRenderTargetView(pRenderTargetView_.Get(), blue);
     pd3dDeviceIMContext_->ClearDepthStencilView(
-        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
-        0);
+        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+        reverse_z_ ? 0.0f : 1.0f, 0);
     pd3dDeviceIMContext_->DrawIndexed(36, 0, 0);
   };
 
@@ -101,6 +117,8 @@ private:
   ComPtr<ID3D11Buffer> pCBuffer_;
   ComPtr<ID3D11VertexShader> pVertexShader_;
   ComPtr<ID3D11PixelShader> pPixelShader_;
+  ComPtr<ID3D11DepthStencilState> DepthFuncGreater_;
+  ComPtr<ID3D11DepthStencilState> DepthFuncDefault_;
   struct MVP {
     DirectX::XMMATRIX World;
     DirectX::XMMATRIX View;
@@ -184,6 +202,7 @@ protected:
   }
   bool InitResource() {
     using namespace DirectX;
+
     VertexPosColor vertices[] = {
         {XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)},
         {XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)},
@@ -206,6 +225,14 @@ protected:
     ZeroMemory(&InitData, sizeof(InitData));
     InitData.pSysMem = vertices;
     HRESULT hr;
+
+    D3D11_DEPTH_STENCIL_DESC dsDesc = CD3D11_DEPTH_STENCIL_DESC(D3D11_DEFAULT);
+    HR(pd3dDevice_->CreateDepthStencilState(&dsDesc,
+                                            DepthFuncDefault_.GetAddressOf()));
+    dsDesc.DepthFunc = D3D11_COMPARISON_GREATER;
+    HR(pd3dDevice_->CreateDepthStencilState(&dsDesc,
+                                            DepthFuncGreater_.GetAddressOf()));
+
     HR(pd3dDevice_->CreateBuffer(&vertexBufferDesc, &InitData,
                                  pVertexBuffer_.GetAddressOf()));
     //索引缓冲区描述
@@ -244,11 +271,8 @@ protected:
     CBuffer_.View = XMMatrixLookAtLH(XMVectorSet(0.0, 0.0, -5.0, 0.0),
                                      XMVectorSet(0.0, 0.0, 0.0, 0.0),
                                      XMVectorSet(0.0, 1.0, 0.0, 0.0));
-    CBuffer_.Proj =
-        XMMatrixPerspectiveFovLH(XM_PIDIV4, AspectRatio(), 0.1f, 100.0f);
 #ifndef OPENGL_MATRIX
     CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
-    CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 #endif
 
     //绑定资源
@@ -272,6 +296,7 @@ protected:
     D3D11SetDebugObjectName(pVertexBuffer_.Get(), "VertexBuffer");
     D3D11SetDebugObjectName(pVertexShader_.Get(), "Trangle_VS");
     D3D11SetDebugObjectName(pPixelShader_.Get(), "Trangle_PS");
+
     return true;
   };
 };
