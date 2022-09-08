@@ -80,6 +80,7 @@ namespace SharpMonkey
             {Constants.Decrement, Priority.Postfix},
 
             {Constants.QuestionMark, Priority.Condition},
+            {Constants.LParen, Priority.Call},
         };
 
         private Priority PeekPrecedence()
@@ -117,11 +118,11 @@ namespace SharpMonkey
             StringBuilder msg = new StringBuilder();
             msg.AppendLine("Parse Error. Context is:");
             var contextCopy = _context;
-            int Count = contextCopy.Count;
+            int count = contextCopy.Count;
             for (int i = (contextCopy.Count - 1); i >= 0; i--)
             {
                 var token = contextCopy.Dequeue();
-                msg.AppendLine($"{Count - i,2}: TokenType: {token.Type,10}, Token Literal: {token.Literal}\n");
+                msg.AppendLine($"{count - i,2}: TokenType: {token.Type,10}, Token Literal: {token.Literal}\n");
             }
 
             _context.Clear();
@@ -149,6 +150,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.False, ParseBoolean);
             RegisterPrefixParseFunc(Constants.LParen, ParseGroupedExpression);
             RegisterPrefixParseFunc(Constants.If, ParseIfExpression);
+            RegisterPrefixParseFunc(Constants.Function, ParseFuncLiteral);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -165,6 +167,8 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);
 
             RegisterInfixParseFunc(Constants.QuestionMark, ParseConditionalExpression);
+            // 出现 <ident>(args,...)这种情况时候，应该判定为函数调用
+            RegisterInfixParseFunc(Constants.LParen, ParseCallExpression);
         }
 
         public void NextToken()
@@ -228,13 +232,9 @@ namespace SharpMonkey
                 return null;
             }
 
-            // TODO: handle expression
-            while (_curToken.Type != Constants.Semicolon)
-            {
-                NextToken();
-            }
-
-            return statement;
+            NextToken(); // move to expression
+            statement.Value = ParseExpression(Priority.Lowest);
+            return !ExpectPeek(Constants.Semicolon) ? null : statement;
         }
 
 
@@ -245,16 +245,12 @@ namespace SharpMonkey
             // 支持  return 5; /  return; 这样的写法
             if (_curToken.Type == Constants.Semicolon)
             {
+                // stmt.Value is null
                 return statement;
             }
             
             statement.ReturnValue = ParseExpression(Priority.Lowest);
-            NextToken();
-            if (_peekToken.Type == Constants.Semicolon)
-            {
-                NextToken();
-            }
-            return statement;
+            return !ExpectPeek(Constants.Semicolon) ? null : statement;
         }
 
         private Ast.IStatement ParseStatement()
@@ -405,7 +401,7 @@ namespace SharpMonkey
 
         private Ast.BlockStatement ParseBlockStatement()
         {
-            var Block = new Ast.BlockStatement(_curToken);
+            var block = new Ast.BlockStatement(_curToken);
             NextToken();
             while (_curToken.Type != Constants.RBrace && _curToken.Type != Constants.Eof)
                 // 想不到什么情况下会在{}中出现EOF,只有在不合法的输入下才会有这种情况。
@@ -413,7 +409,7 @@ namespace SharpMonkey
                 var stmt = ParseStatement();
                 if (stmt != null)
                 {
-                    Block.Statements.Add(stmt);
+                    block.Statements.Add(stmt);
                 }
                 NextToken();
             }
@@ -423,7 +419,7 @@ namespace SharpMonkey
                 AppendError($"Unexpected EOF appears in ParseBlockStatement!");
             }
 
-            return Block;
+            return block;
         }
 
         private Ast.IExpression ParseIfExpression()
@@ -454,6 +450,78 @@ namespace SharpMonkey
                 exp.Alternative= ParseBlockStatement();
             }
 
+            return exp;
+        }
+
+        private List<Ast.Identifier> ParseFunctionParameters()
+        {
+            var idendifiers = new List<Ast.Identifier>();
+            // 参数列表为空的情况
+            if (_peekToken.Type == Constants.RBrace)
+            {
+                NextToken();
+                return idendifiers;
+            }
+            
+            // 移动token到(下一个token，第一个参数
+            // 需要手动处理第一个参数，因为第一个参数后面可能没有逗号,
+            NextToken();
+            idendifiers.Add(ParseIdentifier() as Ast.Identifier);
+
+            while (_peekToken.Type == Constants.Comma)
+            {
+                NextToken(); // 移动到逗号
+                NextToken(); //移动到下一个Identifier
+                idendifiers.Add(ParseIdentifier() as Ast.Identifier);
+            }
+            // 从最后一个逗号出来了,暂时不支持变参函数
+            return !ExpectPeek(Constants.RParen) ? null : idendifiers;
+        }
+        private Ast.IExpression ParseFuncLiteral()
+        {
+            var fn = new Ast.FunctionLiteral(_curToken);
+            if (!ExpectPeek(Constants.LParen))
+            {
+                return null;
+            }
+
+            fn.Parameters = ParseFunctionParameters();
+            // 现在指针在右)上，看下一个token应该是{
+            if (!ExpectPeek(Constants.LBrace))
+            {
+                return null;
+            }
+
+            fn.FuncBody = ParseBlockStatement();
+            return fn;
+        }
+
+        private List<Ast.IExpression> ParseCallArguments()
+        {
+            // 仿照ParseParameters的逻辑
+            var args = new List<Ast.IExpression>();
+            if (_peekToken.Type == Constants.RBrace)
+            {
+                NextToken();
+                return args;
+            }
+            
+            NextToken();
+            args.Add(ParseExpression(Priority.Lowest));
+            while (_peekToken.Type == Constants.Comma)
+            {
+                NextToken(); // 移动到逗号
+                NextToken(); 
+                args.Add(ParseExpression(Priority.Lowest));
+            }
+            return !ExpectPeek(Constants.RParen) ? null : args;
+        }
+        private Ast.IExpression ParseCallExpression(Ast.IExpression left)
+        {
+            var exp = new Ast.CallExpression(_curToken, left as Ast.Identifier)
+            {
+                Arguments = ParseCallArguments()
+            };
             return exp;
         }
 

@@ -92,22 +92,26 @@ namespace SharpMonkeyTest
         [Test]
         public void TestLetStatements()
         {
-            var input = "let x = 5;\r\n let y = 10;\r\n let foobar = 838383;\0";
-
-            Lexer lexer = new(input);
-            Parser parser = new Parser(lexer);
-
-            var program = parser.ParseProgram();
-            Assert.NotNull(program);
-            Assert.NotNull(program.Statements);
-            Assert.AreEqual(3, program.Statements.Count);
-            List<string> expectedIdentifiers = new()
+            var testTable = new List<(string Input, string identifier, Object value)>
             {
-                "x", "y", "foobar"
+                new("let x = 5;\r\n", "x", 5),
+                new("let x = foo;\r\n", "x", "foo"),
+                new("let y = false;\r\n", "y", false)
             };
-            for (int i = 0; i < expectedIdentifiers.Count; i++)
+            foreach (var item in testTable)
             {
-                CheckLetStatement(program.Statements[i], expectedIdentifiers[i]);
+                Lexer lexer = new(item.Input);
+                Parser parser = new Parser(lexer);
+
+                var program = parser.ParseProgram();
+                Assert.NotNull(program);
+                Assert.NotNull(program.Statements);
+                CheckParserErrors(parser);
+                Assert.AreEqual(1, program.Statements.Count);
+                CheckLetStatement(program.Statements[0], item.identifier);
+                var letStmt = program.Statements[0] as Ast.LetStatement;
+                Assert.NotNull(letStmt);
+                CheckExpression(letStmt.Value, item.value);
             }
         }
 
@@ -130,9 +134,9 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<(string Input, Object value, string DebugFormat)>
             {
-                new ("return 5;\r\n",5,"return 5;"),
-                new ("return x;\r\n","x","return x;"),
-                new ("return;\r\n",null,"return ;"),
+                new("return 5;\r\n", 5, "return 5;"),
+                new("return x;\r\n", "x", "return x;"),
+                new("return;\r\n", null, "return ;"),
             };
 
             foreach (var item in testTable)
@@ -149,12 +153,13 @@ namespace SharpMonkeyTest
                 Assert.AreEqual("return", stmt.TokenLiteral());
                 if (item.value != null)
                 {
-                    CheckExpression(stmt.ReturnValue,item.value);
+                    CheckExpression(stmt.ReturnValue, item.value);
                 }
                 else
                 {
                     Assert.IsNull(stmt.ReturnValue);
                 }
+
                 Assert.AreEqual(stmt.ToPrintableString(), item.DebugFormat);
             }
 
@@ -173,11 +178,10 @@ namespace SharpMonkeyTest
                 Assert.AreEqual("return", stmt.TokenLiteral());
                 var infixExp = stmt.ReturnValue as Ast.InfixExpression;
                 Assert.NotNull(infixExp);
-                CheckExpression(infixExp.Left,"x");
-                CheckExpression(infixExp.Right,"y");
-                Assert.AreEqual("+",infixExp.Operator);
+                CheckExpression(infixExp.Left, "x");
+                CheckExpression(infixExp.Right, "y");
+                Assert.AreEqual("+", infixExp.Operator);
             }
-
         }
 
         [Test]
@@ -332,6 +336,10 @@ namespace SharpMonkeyTest
                 new("(5 + 5) * 2;", "((5 + 5) * 2)"),
                 new("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
                 new("1 + (2);", "(1 + 2)"),
+                //calls
+                new("1 + func(2 * b);", "(1 + func((2 * b)))"),
+                new("func(c) + func(2 * b, a);", "(func(c) + func((2 * b), a))"),
+                new("func(c) + func(2 * (b + d), foo(b / 2));", "(func(c) + func((2 * (b + d)), foo((b / 2))))"),
             };
             foreach (var item in testTable)
             {
@@ -396,6 +404,57 @@ namespace SharpMonkeyTest
             Assert.NotNull(alterStmt);
             var alterBoolean = alterStmt.Expression as Ast.BooleanLiteral;
             CheckBooleanLiteral(alterBoolean, false);
+        }
+
+        [Test]
+        public void TestFunctionLiteralParsing()
+        {
+            var Input = "fn(x,y) { x + y;}";
+            var p = new Parser(new Lexer(Input));
+            var program = p.ParseProgram();
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.FunctionLiteral;
+            Assert.NotNull(exp);
+
+            Assert.AreEqual("fn", exp.TokenLiteral());
+            Assert.AreEqual(2, exp.Parameters.Count);
+            CheckIdentifier(exp.Parameters[0], "x");
+            CheckIdentifier(exp.Parameters[1], "y");
+
+            Assert.AreEqual(1, exp.FuncBody.Statements.Count);
+            var bodyStmt = exp.FuncBody.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(bodyStmt);
+            CheckInfixExpression(bodyStmt.Expression, "x", "+", "y");
+        }
+
+        [Test]
+        public void TestCallExpressionParsing()
+        {
+            var Input = "func(1,2*3,4+5);";
+            var p = new Parser(new Lexer(Input));
+            var program = p.ParseProgram();
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.CallExpression;
+            Assert.NotNull(exp);
+
+            CheckIdentifier(exp.Function, "func");
+            Assert.AreEqual("(", exp.TokenLiteral());
+            Assert.AreEqual(3, exp.Arguments.Count);
+
+            CheckExpression(exp.Arguments[0], 1);
+            CheckInfixExpression(exp.Arguments[1], 2, "*", 3);
+            CheckInfixExpression(exp.Arguments[2], 4, "+", 5);
+            Assert.AreEqual("func(1, (2 * 3), (4 + 5))", exp.ToPrintableString());
         }
     }
 }

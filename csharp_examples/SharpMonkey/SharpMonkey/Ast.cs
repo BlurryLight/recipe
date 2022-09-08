@@ -388,5 +388,77 @@ namespace SharpMonkey
                 return outBuilder.ToString();
             }
         }
+        
+        // 函数声明
+        // fn (args...) { statements }
+        public class FunctionLiteral : IExpression
+        {
+            public Token Token; // fn
+            public List<Identifier> Parameters;
+            public BlockStatement FuncBody;
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public FunctionLiteral(Token token)
+            {
+                Token = token;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                List<string> paramStrs = new ();
+                foreach (var p in Parameters)
+                {
+                    paramStrs.Add(p.ToPrintableString());
+                }
+                
+                outBuilder.Append(TokenLiteral());
+                outBuilder.Append('(');
+                outBuilder.Append(string.Join(", ", paramStrs));
+                outBuilder.Append(") ");
+                outBuilder.Append(FuncBody.ToPrintableString());
+                return outBuilder.ToString();
+            }
+        }
+        
+        // 函数调用
+        // <exp>( args...)
+        public class CallExpression : IExpression
+        {
+            public Token Token; // 以(作为词法单元
+            public Identifier Function; // <exp>部分
+            public List<IExpression> Arguments; // <exp>部分, args可以是一个表达式  add(1+2,foo())
+
+            public CallExpression(Token token,Identifier function)
+            {
+                Token = token;
+                Debug.Assert(function != null);
+                Function = function;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                List<string> argStrs = new ();
+                foreach (var p in Arguments)
+                {
+                    argStrs.Add(p.ToPrintableString());
+                }
+                outBuilder.Append(Function.ToPrintableString());
+                outBuilder.Append('(');
+                outBuilder.Append(string.Join(", ", argStrs));
+                outBuilder.Append(')');
+                return outBuilder.ToString();
+                
+            }
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+        }
     }
 }
