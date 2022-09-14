@@ -13,7 +13,7 @@ namespace SharpMonkeyTest
         {
         }
 
-        private void CheckParserErrors(in Parser p)
+        static public void CheckParserErrors(in Parser p)
         {
             foreach (var msg in p.Errors)
             {
