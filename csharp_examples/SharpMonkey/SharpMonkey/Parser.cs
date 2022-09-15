@@ -161,7 +161,6 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.NotEq, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Lt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
-            RegisterInfixParseFunc(Constants.QuestionMark, ParseInfixExpression);
 
             RegisterInfixParseFunc(Constants.Increment, ParsePostfixExpression);
             RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);

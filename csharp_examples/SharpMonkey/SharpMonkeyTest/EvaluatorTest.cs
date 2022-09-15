@@ -55,6 +55,15 @@ namespace SharpMonkeyTest
                 new("100 / (10 * 10);", 1),
                 new("0 / (10 * 10) + -10;", -10),
                 new("-5 - -5", 0),
+                new("++5", 6),
+                new("++(++5)", 7),
+                new("--(++5)", 5),
+                new("--(--5)", 3),
+                new("5--", 5),
+                new("5++", 5),
+                
+                new("true ? 5 : 3", 5),
+                new("!true ? 5 : 3", 3),
             };
             foreach (var item in testTable)
             {
@@ -87,6 +96,10 @@ namespace SharpMonkeyTest
                 new("(1 > 2) != true;", true),
                 new("(1 != 2) != true;", false),
                 new("(2 == 2) == true;", true),
+                new("true ? true : false;", true),
+                new("true ? false : true;", false),
+                new("false ? false : true;", true),
+                new("false ? true : false;", false),
             };
             foreach (var item in testTable)
             {

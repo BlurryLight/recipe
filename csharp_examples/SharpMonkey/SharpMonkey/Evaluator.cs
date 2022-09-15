@@ -43,6 +43,19 @@ namespace SharpMonkey
 
             return new MonkeyInteger(-intObj.Value);
         }
+        
+        //  原地自增，自减
+        public static MonkeyObject EvalSelfPrefixOpExpression(MonkeyObject right,bool increment)
+        {
+            if (right is not MonkeyInteger intObj)
+            {
+                Console.WriteLine($"Invalid (-{right.Inspect()}) Expression");
+                return MonkeyNull.NullObject;
+            }
+
+            intObj.Value += (increment ? 1 : -1);
+            return intObj;
+        }
 
         public static MonkeyObject EvalPrefixExpression(string op, MonkeyObject right)
         {
@@ -52,6 +65,10 @@ namespace SharpMonkey
                     return EvalBangOperatorExpression(right);
                 case "-":
                     return EvalMinusPrefixOpExpression(right);
+                case "++":
+                    return EvalSelfPrefixOpExpression(right,true);
+                case "--":
+                    return EvalSelfPrefixOpExpression(right,false);
                 default:
                     Console.WriteLine($"Prefix {op} has not implemented yet.");
                     return MonkeyNull.NullObject;
@@ -113,6 +130,30 @@ namespace SharpMonkey
             }
         }
 
+        public static MonkeyObject EvalPostfixExpression(string op, ref MonkeyObject left)
+        {
+            if (left is not MonkeyInteger intObj)
+            {
+                Console.WriteLine($"Invalid ({left.Inspect()}{op}) PostFix Expression");
+                return MonkeyNull.NullObject;
+            }
+
+            var oldValue = new MonkeyInteger(intObj.Value);
+            switch (op)
+            {
+              case "++":
+                  intObj.Value++;
+                  break;
+              case "--":
+                  intObj.Value--;
+                  break;
+              default:
+                  Console.WriteLine($"Integer Postfix {op} has not implemented yet.");
+                  break;
+            }
+
+            return oldValue;
+        }
         public static MonkeyObject Eval(Ast.INode node)
         {
             switch (node) // switch on type
@@ -136,6 +177,15 @@ namespace SharpMonkey
                     var left = Eval(exp.Left);
                     var right = Eval(exp.Right);
                     return EvalInfixExpression(exp.Operator, left, right);
+                }
+                case Ast.ConditionalExpression exp:
+                {
+                    return Eval(Eval(exp.Condition) == MonkeyBoolean.TrueObject ? exp.ThenArm : exp.ElseArm);
+                }
+                case Ast.PostfixExpression exp:
+                {
+                    var left = Eval(exp.Left);
+                    return EvalPostfixExpression(exp.Operator, ref left);
                 }
                 default:
                     Console.WriteLine(
