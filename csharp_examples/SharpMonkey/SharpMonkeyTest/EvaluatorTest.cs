@@ -17,7 +17,7 @@ namespace SharpMonkeyTest
             var p = new Parser(new Lexer(input));
             var program = p.ParseProgram();
             ParserTest.CheckParserErrors(p);
-            Assert.AreEqual(0,p.Errors.Count);
+            Assert.AreEqual(0, p.Errors.Count);
             return Evaluator.Eval(program);
         }
 
@@ -25,14 +25,14 @@ namespace SharpMonkeyTest
         {
             var intObj = obj as MonkeyInteger;
             Assert.NotNull(intObj);
-            Assert.AreEqual(intObj.Value,expectedVal);
+            Assert.AreEqual(expectedVal, intObj.Value);
         }
-        
+
         private static void TestBooleanObject(MonkeyObject obj, bool expectedVal)
         {
             var boolObj = obj as MonkeyBoolean;
             Assert.NotNull(boolObj);
-            Assert.AreEqual(boolObj.Value,expectedVal);
+            Assert.AreEqual(expectedVal, boolObj.Value);
         }
 
         [Test]
@@ -40,8 +40,21 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<(string Input, long ExpectedVal)>
             {
-                new("5",5),
-                new("10",10)
+                new("5", 5),
+                new("10", 10),
+                new("-5", -5),
+                new("-0", 0),
+                new("-0", -0),
+                new("5 * 5;", 25),
+                new("5 + 5 + 10;", 20),
+                new("5 - 5;", 0),
+                new("5 - 5 - 5;", -5),
+                new("2 * 10;", 20),
+                new("100 / 10;", 10),
+                new("100 / 10 * 5;", 50),
+                new("100 / (10 * 10);", 1),
+                new("0 / (10 * 10) + -10;", -10),
+                new("-5 - -5", 0),
             };
             foreach (var item in testTable)
             {
@@ -49,14 +62,43 @@ namespace SharpMonkeyTest
                 TestIntegerObject(evaluated, item.ExpectedVal);
             }
         }
-        
+
         [Test]
         public void TestEvalBooleanExpression()
         {
             var testTable = new List<(string Input, bool ExpectedVal)>
             {
-                new("true",true),
-                new("false",false)
+                new("true", true),
+                new("false", false),
+                new("1 < 2;", true),
+                new("1 > 2;", false),
+                new("1 > 1;", false),
+                new("1 == 1;", true),
+                new("1 != 2;", true),
+                new("1 != 1;", false),
+                new("!(1 != 1);", true),
+                new("!(!(1 != 1));", false),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                TestBooleanObject(evaluated, item.ExpectedVal);
+            }
+        }
+
+        [Test]
+        public void TestBangPrefixOperator()
+        {
+            var testTable = new List<(string Input, bool ExpectedVal)>
+            {
+                new("!true", false),
+                new("!false", true),
+                new("!5", false),
+                new("!0", true),
+                new("!!!0", true),
+                new("!1", false),
+                new("!!true", true),
+                new("!!false", false)
             };
             foreach (var item in testTable)
             {

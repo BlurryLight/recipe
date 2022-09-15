@@ -8,6 +8,7 @@ namespace SharpMonkey
         // for file
         // foreach (string line in File.ReadAllLines(fileName))
         private const string Prompt = ">>";
+
         public static void Start()
         {
             string line;
@@ -35,7 +36,12 @@ namespace SharpMonkey
                         Console.WriteLine(msg);
                     }
                 }
-                Console.WriteLine(program.ToPrintableString());
+
+                var evaled = Evaluator.Eval(program);
+                if (evaled != null)
+                {
+                    Console.WriteLine(evaled.Inspect());
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ namespace SharpMonkey
         public const string BooleanObj = "Boolean";
         public const string NullObj = "Null";
     }
+
     public interface MonkeyObject
     {
         ObjectType Type();
@@ -35,14 +36,16 @@ namespace SharpMonkey
             return Value.ToString();
         }
     }
-    
+
     public class MonkeyBoolean : MonkeyObject
     {
         public bool Value;
+
         private MonkeyBoolean(bool val)
         {
             Value = val;
         }
+
         public string Type()
         {
             return ObjType.BooleanObj;
@@ -55,10 +58,19 @@ namespace SharpMonkey
 
         public static MonkeyBoolean FalseObject { get; } = new MonkeyBoolean(false);
         public static MonkeyBoolean TrueObject { get; } = new MonkeyBoolean(true);
+
+        public static MonkeyBoolean GetStaticObject(bool condition)
+        {
+            return condition ? TrueObject : FalseObject;
+        }
     }
-    
+
     public class MonkeyNull : MonkeyObject
     {
+        private MonkeyNull()
+        {
+        }
+
         public string Type()
         {
             return ObjType.NullObj;
@@ -68,6 +80,7 @@ namespace SharpMonkey
         {
             return "Null";
         }
-    }
 
+        public static MonkeyNull NullObject { get; } = new MonkeyNull();
+    }
 }
