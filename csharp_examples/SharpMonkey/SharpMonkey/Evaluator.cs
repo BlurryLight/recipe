@@ -81,20 +81,36 @@ namespace SharpMonkey
                 case "!=":
                     return MonkeyBoolean.GetStaticObject(leftInt.Value != rightInt.Value);
                 default:
-                    Console.WriteLine($"Infix {op} has not implemented yet.");
+                    Console.WriteLine($"Integer Infix {op} has not implemented yet.");
                     return MonkeyNull.NullObject;
             }
         }
 
+        public static MonkeyObject EvalBoolInfixExpression(string op, MonkeyObject left, MonkeyObject right)
+        {
+            switch (op)
+            {
+                case "==":
+                    return MonkeyBoolean.GetStaticObject(left == right);
+                case "!=":
+                    return MonkeyBoolean.GetStaticObject(left != right);
+                default:
+                    Console.WriteLine($"Boolean Infix {op} has not implemented yet.");
+                    return MonkeyNull.NullObject;
+            }
+        }
         public static MonkeyObject EvalInfixExpression(string op, MonkeyObject left, MonkeyObject right)
         {
-            if (left is MonkeyInteger && right is MonkeyInteger)
+            switch (left)
             {
-                return EvalIntegerInfixExpression(op, left, right);
+                case MonkeyInteger when right is MonkeyInteger:
+                    return EvalIntegerInfixExpression(op, left, right);
+                case MonkeyBoolean when right is MonkeyBoolean:
+                    return EvalBoolInfixExpression(op, left, right);
+                default:
+                    Console.WriteLine($"infix {left.Inspect()} {op} {right.Inspect()} has not implemented yet");
+                    return MonkeyNull.NullObject;
             }
-
-            Console.WriteLine($"infix {left.Inspect()} {op} {right.Inspect()} has not implemented yet");
-            return MonkeyNull.NullObject;
         }
 
         public static MonkeyObject Eval(Ast.INode node)

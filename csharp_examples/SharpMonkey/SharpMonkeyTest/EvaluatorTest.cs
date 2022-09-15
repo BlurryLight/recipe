@@ -21,18 +21,18 @@ namespace SharpMonkeyTest
             return Evaluator.Eval(program);
         }
 
-        private static void TestIntegerObject(MonkeyObject obj, long expectedVal)
+        private static void TestIntegerObject(MonkeyObject obj, long expectedVal, string input)
         {
             var intObj = obj as MonkeyInteger;
             Assert.NotNull(intObj);
-            Assert.AreEqual(expectedVal, intObj.Value);
+            Assert.AreEqual(expectedVal, intObj.Value, $"Failed: {input}");
         }
 
-        private static void TestBooleanObject(MonkeyObject obj, bool expectedVal)
+        private static void TestBooleanObject(MonkeyObject obj, bool expectedVal, string input)
         {
             var boolObj = obj as MonkeyBoolean;
             Assert.NotNull(boolObj);
-            Assert.AreEqual(expectedVal, boolObj.Value);
+            Assert.AreEqual(expectedVal, boolObj.Value, $"Failed: {input}");
         }
 
         [Test]
@@ -59,7 +59,7 @@ namespace SharpMonkeyTest
             foreach (var item in testTable)
             {
                 var evaluated = TestEval(item.Input);
-                TestIntegerObject(evaluated, item.ExpectedVal);
+                TestIntegerObject(evaluated, item.ExpectedVal, item.Input);
             }
         }
 
@@ -78,11 +78,20 @@ namespace SharpMonkeyTest
                 new("1 != 1;", false),
                 new("!(1 != 1);", true),
                 new("!(!(1 != 1));", false),
+
+                new("true == true;", true),
+                new("true == false;", false),
+                new("true != false;", true),
+                new("true != true;", false),
+                new("(1 < 2) != true;", false),
+                new("(1 > 2) != true;", true),
+                new("(1 != 2) != true;", false),
+                new("(2 == 2) == true;", true),
             };
             foreach (var item in testTable)
             {
                 var evaluated = TestEval(item.Input);
-                TestBooleanObject(evaluated, item.ExpectedVal);
+                TestBooleanObject(evaluated, item.ExpectedVal, item.Input);
             }
         }
 
@@ -103,7 +112,7 @@ namespace SharpMonkeyTest
             foreach (var item in testTable)
             {
                 var evaluated = TestEval(item.Input);
-                TestBooleanObject(evaluated, item.ExpectedVal);
+                TestBooleanObject(evaluated, item.ExpectedVal, item.Input);
             }
         }
     }
