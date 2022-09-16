@@ -70,6 +70,10 @@ int D3DApp::Run() {
 
     DrawImGUI();
     ImGui::Render();
+    pd3dDeviceIMContext_->OMSetDepthStencilState(
+        reverse_z_ ? DepthFuncGreaterStencilState_.Get()
+                   : DepthFuncDefaultStencilState_.Get(),
+        0);
     DrawScene();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     HRESULT hr;
@@ -254,6 +258,13 @@ bool D3DApp::InitDirect3D() {
   SwapChain.As(&pSwapChain_);
   d3dDevice.As(&pd3dDevice_);
   d3dDeviceIMContext.As(&pd3dDeviceIMContext_);
+
+  D3D11_DEPTH_STENCIL_DESC dsDesc = CD3D11_DEPTH_STENCIL_DESC(D3D11_DEFAULT);
+  HR(pd3dDevice_->CreateDepthStencilState(
+      &dsDesc, DepthFuncDefaultStencilState_.GetAddressOf()));
+  dsDesc.DepthFunc = D3D11_COMPARISON_GREATER;
+  HR(pd3dDevice_->CreateDepthStencilState(
+      &dsDesc, DepthFuncGreaterStencilState_.GetAddressOf()));
 
   // 设置调试对象名
   D3D11SetDebugObjectName(pd3dDeviceIMContext_.Get(), "ImmediateContext");

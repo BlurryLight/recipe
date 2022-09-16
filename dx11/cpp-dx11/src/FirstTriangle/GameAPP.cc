@@ -32,8 +32,8 @@ public:
     static float blue[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     pd3dDeviceIMContext_->ClearRenderTargetView(pRenderTargetView_.Get(), blue);
     pd3dDeviceIMContext_->ClearDepthStencilView(
-        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
-        0);
+        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+        reverse_z_ ? 0.0f : 1.0f, 0);
     pd3dDeviceIMContext_->Draw(3, 0);
   };
 

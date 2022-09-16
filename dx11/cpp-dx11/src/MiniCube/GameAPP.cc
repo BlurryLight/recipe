@@ -66,18 +66,8 @@ public:
     phi += rotation_speed_ * dt, theta += rotation_speed_ * dt;
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
-    CBuffer_.Proj = DirectX::XMMatrixPerspectiveFovLH(
-        DirectX::XM_PIDIV4, AspectRatio(), 0.1f, 100.0f);
-
-    if (reverse_z_) {
-      DirectX::XMFLOAT4X4 Proj;
-      XMStoreFloat4x4(&Proj, CBuffer_.Proj);
-      // 深度从[0,1] 翻转到[0,-1]再平移[1,0]
-      Proj._33 = -Proj._33;
-      Proj._43 = -Proj._43;
-      Proj._33 += 1.0;
-      CBuffer_.Proj = DirectX::XMLoadFloat4x4(&Proj);
-    }
+    CBuffer_.Proj = GetProjectionMatrixFovLH(DirectX::XM_PIDIV4, AspectRatio(),
+                                             0.1f, 100.0f, this->reverse_z_);
 
 // Transpose all data
 //在hlsl里使用列主元存储矩阵，因为向量右乘以矩阵，所以一次要取矩阵的一个列
@@ -98,8 +88,6 @@ public:
   void DrawScene() override {
     assert(pd3dDeviceIMContext_);
     assert(pSwapChain_);
-    pd3dDeviceIMContext_->OMSetDepthStencilState(
-        reverse_z_ ? DepthFuncGreater_.Get() : DepthFuncDefault_.Get(), 0);
     float dt = imgui_io_->DeltaTime;
     UpdateScene(dt * 1000.0f);
     static float blue[4] = {0.0f, 0.0f, 0.2f, 1.0f};
@@ -117,8 +105,6 @@ private:
   ComPtr<ID3D11Buffer> pCBuffer_;
   ComPtr<ID3D11VertexShader> pVertexShader_;
   ComPtr<ID3D11PixelShader> pPixelShader_;
-  ComPtr<ID3D11DepthStencilState> DepthFuncGreater_;
-  ComPtr<ID3D11DepthStencilState> DepthFuncDefault_;
   struct MVP {
     DirectX::XMMATRIX World;
     DirectX::XMMATRIX View;
@@ -131,8 +117,6 @@ protected:
   bool reloadShaders() {
     ComPtr<ID3DBlob> blob;
     HRESULT hr;
-    // SAFE_RELEASE(pVertexShader_);
-    // SAFE_RELEASE(pVertexShader_);
     ComPtr<ID3D11VertexShader> vshader;
     ComPtr<ID3D11PixelShader> pshader;
     // force relaod
@@ -225,13 +209,6 @@ protected:
     ZeroMemory(&InitData, sizeof(InitData));
     InitData.pSysMem = vertices;
     HRESULT hr;
-
-    D3D11_DEPTH_STENCIL_DESC dsDesc = CD3D11_DEPTH_STENCIL_DESC(D3D11_DEFAULT);
-    HR(pd3dDevice_->CreateDepthStencilState(&dsDesc,
-                                            DepthFuncDefault_.GetAddressOf()));
-    dsDesc.DepthFunc = D3D11_COMPARISON_GREATER;
-    HR(pd3dDevice_->CreateDepthStencilState(&dsDesc,
-                                            DepthFuncGreater_.GetAddressOf()));
 
     HR(pd3dDevice_->CreateBuffer(&vertexBufferDesc, &InitData,
                                  pVertexBuffer_.GetAddressOf()));

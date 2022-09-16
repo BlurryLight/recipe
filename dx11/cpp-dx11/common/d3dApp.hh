@@ -51,12 +51,15 @@ protected:
   ComPtr<ID3D11Texture2D> pDepthStencilBuffer_ = nullptr;
   ComPtr<ID3D11RenderTargetView> pRenderTargetView_ = nullptr;
   ComPtr<ID3D11DepthStencilView> pDepthStencilView_ = nullptr;
+
+  ComPtr<ID3D11DepthStencilState> DepthFuncGreaterStencilState_;
+  ComPtr<ID3D11DepthStencilState> DepthFuncDefaultStencilState_;
   D3D11_VIEWPORT ScreenViewport_;
   D3D_FEATURE_LEVEL FeatureLevel_;
 
   std::string WinTitle_ = "D3D11 Example";
   bool vsync_ = true;
-  bool reverse_z_ = false;
+  bool reverse_z_ = true;
   bool AllowMouseMove_ = true;
   ImGuiIO *imgui_io_ = nullptr;
 

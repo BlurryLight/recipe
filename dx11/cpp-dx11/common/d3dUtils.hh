@@ -1,4 +1,5 @@
 #pragma once
+#include <DirectXMath.h>
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
@@ -34,6 +35,7 @@ std::u16string utf8_to_utf16(std::string const &utf8);
 // use windows.h api
 std::string utf16_to_utf8_windows(std::u16string const &s);
 std::u16string utf8_to_utf16_windows(std::string const &utf8);
+
 namespace PD {
 
 void D3D11SetDebugObjectName(ID3D11DeviceChild *resource,
@@ -52,5 +54,7 @@ HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
 
 void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
              const wchar_t *proc);
-
+DirectX::XMMATRIX GetProjectionMatrixFovLH(float fovAngleY, float aspectRatio,
+                                           float nearZ, float farZ,
+                                           bool reverseZ);
 } // namespace PD

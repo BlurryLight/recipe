@@ -144,4 +144,22 @@ void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr,
   std::wcerr << "file:" << file << "line:" << line << ", " << proc << std::endl;
   std::printf("Error Msg: %s", output);
 }
+
+DirectX::XMMATRIX GetProjectionMatrixFovLH(float fovAngleY, float aspectRatio,
+                                           float nearZ, float farZ,
+                                           bool reverseZ) {
+
+  auto ProjMat =
+      DirectX::XMMatrixPerspectiveFovLH(fovAngleY, aspectRatio, nearZ, farZ);
+  if (!reverseZ) {
+    return ProjMat;
+  }
+  DirectX::XMFLOAT4X4 Proj;
+  XMStoreFloat4x4(&Proj, ProjMat);
+  // 深度从[0,1] 翻转到[0,-1]再平移[1,0]
+  Proj._33 = -Proj._33;
+  Proj._43 = -Proj._43;
+  Proj._33 += 1.0;
+  return DirectX::XMLoadFloat4x4(&Proj);
+}
 } // namespace PD
