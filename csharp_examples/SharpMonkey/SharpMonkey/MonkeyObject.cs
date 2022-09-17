@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace SharpMonkey
 {
@@ -9,6 +10,7 @@ namespace SharpMonkey
         public const string IntegerObj = "Integer";
         public const string BooleanObj = "Boolean";
         public const string NullObj = "Null";
+        public const string ReturnObj = "ReturnValue";
     }
 
     public interface MonkeyObject
@@ -95,5 +97,25 @@ namespace SharpMonkey
         }
 
         public static MonkeyNull NullObject { get; } = new MonkeyNull();
+    }
+
+    public class MonkeyReturnValue : MonkeyObject
+    {
+        public MonkeyObject ReturnObj;
+
+        public MonkeyReturnValue(MonkeyObject returnObj)
+        {
+            ReturnObj = returnObj;
+        }
+        public string Type()
+        {
+            return ObjType.ReturnObj;
+        }
+
+        public string Inspect()
+        {
+            Debug.Assert(ReturnObj != null);
+            return $"Return {ReturnObj.Inspect()};";
+        }
     }
 }

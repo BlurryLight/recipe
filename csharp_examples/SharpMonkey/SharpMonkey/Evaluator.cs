@@ -32,16 +32,33 @@ namespace SharpMonkey
         }
     }
 
-    public class Evaluator
+    public static class Evaluator
     {
-        private static MonkeyObject EvalStatements(List<Ast.IStatement> stmts)
+        /// <summary>
+        /// 需要考虑两种情况。 一种是顶层语句，如REPL里直接输入的`return 5;`此类，返回值就是直接是5
+        /// 第二类情况较为复杂
+        /// 比如 if(1){ if(1} return 5;}
+        /// 当执行到内层的return 5,如果返回一个MonkeyInteger,那么外层的Eval就不能知道内层碰见了一个return语句，会理解成 if(1){5;}这样的语句并继续向下执行。
+        /// 内层return需要拥有中断外层语句向下执行的作用。
+        /// 因此把这个return语句层层往上抛
+        ///
+        /// 另外一种可行的做法是在内层执行到return的时候直接抛异常，然后在Eval Ast.Program分支捕获这个异常，返回值通过异常机制拿到，这样直接跳出了内层的eval嵌套调用回到了顶层的Program
+        /// 但是这个需要语言实现异常机制
+        /// </summary>
+        /// <param name="stmts"></param>
+        /// <param name="TopLevel">是否是Program顶层的语句</param>
+        /// <returns></returns>
+        private static MonkeyObject EvalStatements(List<Ast.IStatement> stmts,bool TopLevel)
         {
             MonkeyObject result = null;
             foreach (var statement in stmts)
             {
                 result = Eval(statement);
+                if (result is MonkeyReturnValue resultRef)
+                {
+                    return TopLevel ? resultRef.ReturnObj : result;
+                }
             }
-
             return result;
         }
 
@@ -216,7 +233,7 @@ namespace SharpMonkey
             switch (node) // switch on type
             {
                 case Ast.MonkeyProgram program:
-                    return EvalStatements(program.Statements);
+                    return EvalStatements(program.Statements,true);
                 case Ast.ExpressionStatement stmt:
                     return Eval(stmt.Expression);
                 case Ast.IntegerLiteral val:
@@ -232,15 +249,13 @@ namespace SharpMonkey
                 case Ast.InfixExpression exp:
                 {
                     var left = Eval(exp.Left);
-                    MonkeyObject right = null;
+                    MonkeyObject right = MonkeyNull.NullObject;
                     // 处理短路原则
                     if (exp.Operator == "&&")
                     {
                         // 如果 (a && b)中a不合法，则b不会被执行
                         if (!EvaluatorHelper.IsTrueObject(left))
                             return EvalInfixExpression(exp.Operator, left, MonkeyNull.NullObject);
-                        right = Eval(exp.Right);
-                        return EvalInfixExpression(exp.Operator, left, right);
                     }
                     right = Eval(exp.Right);
                     return EvalInfixExpression(exp.Operator, left, right);
@@ -256,11 +271,20 @@ namespace SharpMonkey
                 }
                 case Ast.BlockStatement exp:
                 {
-                    return EvalStatements(exp.Statements);
+                    return EvalStatements(exp.Statements,false);
                 }
                 case Ast.IfExpression exp:
                 {
                     return EvalIfExpression(exp);
+                }
+                case Ast.ReturnStatement exp:
+                {
+                    MonkeyObject returnVal = MonkeyNull.NullObject;
+                    if (exp.ReturnValue != null)
+                    {
+                        returnVal = Eval(exp.ReturnValue);
+                    }
+                    return new MonkeyReturnValue(returnVal);
                 }
                 default:
                     Console.WriteLine(

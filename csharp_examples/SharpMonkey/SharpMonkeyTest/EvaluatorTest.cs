@@ -157,5 +157,38 @@ namespace SharpMonkeyTest
                     Assert.AreEqual(evaluated, MonkeyNull.NullObject);
             }
         }
+        
+        [Test]
+        public void TestReturnExpressions()
+        {
+            var testTable = new List<(string Input, long? ExpectedVal)>
+            {
+                new("return 5;", 5),
+                new("return 10;9;", 10),
+                new("return 1 < 2 ? 10 : 0;a + b;", 10),
+                new("return 2 * 5;a + b;", 10),
+                new("return;", null),
+                new("if(1){return 5;}", 5),
+                new("if(0){return 5;}else{return -5;}", -5),
+                new(@"if(2 > 1){
+                        if(true)
+                        {
+                            return 1;
+                        }
+                      }
+                    return 10;",1),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                if (item.ExpectedVal != null)
+                {
+                    var returnVal = (MonkeyInteger) evaluated;
+                    TestIntegerObject(returnVal,item.ExpectedVal.Value,item.Input);
+                }
+                else
+                    Assert.AreEqual(evaluated, MonkeyNull.NullObject);
+            }
+        }
     }
 }
