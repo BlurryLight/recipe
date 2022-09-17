@@ -64,6 +64,10 @@ namespace SharpMonkeyTest
                 
                 new("true ? 5 : 3", 5),
                 new("!true ? 5 : 3", 3),
+                new("1? 5 : 3", 5),
+                new("0? 5 : 3", 3),
+                new("0? 5 : 3", 3),
+                new("(0 && (a + b))? 5 : 3", 3),
             };
             foreach (var item in testTable)
             {
@@ -87,7 +91,7 @@ namespace SharpMonkeyTest
                 new("1 != 1;", false),
                 new("!(1 != 1);", true),
                 new("!(!(1 != 1));", false),
-
+                
                 new("true == true;", true),
                 new("true == false;", false),
                 new("true != false;", true),
@@ -104,7 +108,7 @@ namespace SharpMonkeyTest
                 new("true && true", true),
                 new("true || false", true),
                 new("false || false && true", false),
-                new("0 && a + b || c + d", false),
+                new("0 && (a + b || c + d)", false),
                 new("1 && (1 + 2) || false", true),
             };
             foreach (var item in testTable)
@@ -154,7 +158,7 @@ namespace SharpMonkeyTest
                 if (item.ExpectedVal != null)
                     TestIntegerObject(evaluated, item.ExpectedVal.Value, item.Input);
                 else
-                    Assert.AreEqual(evaluated, MonkeyNull.NullObject);
+                    Assert.AreEqual( MonkeyNull.NullObject,evaluated);
             }
         }
         
@@ -187,7 +191,29 @@ namespace SharpMonkeyTest
                     TestIntegerObject(returnVal,item.ExpectedVal.Value,item.Input);
                 }
                 else
-                    Assert.AreEqual(evaluated, MonkeyNull.NullObject);
+                    Assert.AreEqual( MonkeyNull.NullObject,evaluated);
+            }
+        }
+        
+        [Test]
+        public void TestErrorMessages()
+        {
+            var testTable = new List<(string Input, string ExpectedMsg)>
+            {
+                new("5 + true", "Error: type mismatch: Integer + Boolean;"),
+                new("5 + true;5;", "Error: type mismatch: Integer + Boolean;"),
+                new("-true;", "Error: unsupported prefix: -Boolean;"),
+                new("--true;", "Error: unsupported prefix: --Boolean;"),
+                new("++true;", "Error: unsupported prefix: ++Boolean;"),
+                new("true + false;", "Error: unsupported infix: Boolean + Boolean;"),
+                new("if(10 > 1) {true + false;};", "Error: unsupported infix: Boolean + Boolean;"),
+                new("if(10 > 1) {if(1){true + false;}} return 1;", "Error: unsupported infix: Boolean + Boolean;"),
+                new("5;true + false;true;","Error: unsupported infix: Boolean + Boolean;"),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                Assert.AreEqual(item.ExpectedMsg, evaluated.Inspect());
             }
         }
     }

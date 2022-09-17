@@ -20,6 +20,8 @@ namespace SharpMonkey
                     return obj == MonkeyBoolean.TrueObject;
                 case MonkeyInteger obj:
                     return obj.Value != 0;
+                case MonkeyError :
+                    return false;
                 default:
                     return true;
             }
@@ -30,6 +32,7 @@ namespace SharpMonkey
             if (monkeyObject is not MonkeyNull) return false;
             return monkeyObject == MonkeyNull.NullObject;
         }
+        
     }
 
     public static class Evaluator
@@ -54,9 +57,12 @@ namespace SharpMonkey
             foreach (var statement in stmts)
             {
                 result = Eval(statement);
-                if (result is MonkeyReturnValue resultRef)
+                switch (result)
                 {
-                    return TopLevel ? resultRef.ReturnObj : result;
+                    case MonkeyReturnValue resultRef:
+                        return TopLevel ? resultRef.ReturnObj : result;
+                    case MonkeyError:
+                        return result;
                 }
             }
             return result;
@@ -83,8 +89,7 @@ namespace SharpMonkey
         {
             if (right is not MonkeyInteger intObj)
             {
-                Console.WriteLine($"Invalid (-{right.Inspect()}) Expression");
-                return MonkeyNull.NullObject;
+                return new MonkeyError($"unsupported prefix: -{right.Type()}");
             }
 
             return new MonkeyInteger(-intObj.Value);
@@ -95,8 +100,7 @@ namespace SharpMonkey
         {
             if (right is not MonkeyInteger intObj)
             {
-                Console.WriteLine($"Invalid (-{right.Inspect()}) Expression");
-                return MonkeyNull.NullObject;
+                return new MonkeyError($"unsupported prefix: {(increment ? "++": "--") }{right.Type()}");
             }
 
             intObj.Value += (increment ? 1 : -1);
@@ -116,8 +120,7 @@ namespace SharpMonkey
                 case "--":
                     return EvalSelfPrefixOpExpression(right, false);
                 default:
-                    Console.WriteLine($"Prefix {op} has not implemented yet.");
-                    return MonkeyNull.NullObject;
+                    return new MonkeyError($"unsupported prefix: {op}{right.Type()}");
             }
         }
 
@@ -144,8 +147,7 @@ namespace SharpMonkey
                 case "!=":
                     return MonkeyBoolean.GetStaticObject(leftInt.Value != rightInt.Value);
                 default:
-                    Console.WriteLine($"Integer Infix {op} has not implemented yet.");
-                    return MonkeyNull.NullObject;
+                    return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
             }
         }
 
@@ -164,8 +166,7 @@ namespace SharpMonkey
                 case "||":
                     return MonkeyBoolean.GetStaticObject(leftBoolean.Value || rightBoolean.Value);
                 default:
-                    Console.WriteLine($"Boolean Infix {op} has not implemented yet.");
-                    return MonkeyNull.NullObject;
+                    return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
             }
         }
 
@@ -179,20 +180,23 @@ namespace SharpMonkey
             {
                 return EvalIntegerInfixExpression(op, left, right);
             }
-            if (left is MonkeyBoolean || right is MonkeyBoolean)
+            if (left is MonkeyBoolean && right is MonkeyBoolean)
             {
                 return EvalBoolInfixExpression(op, left, right);
             }
-            Console.WriteLine($"infix {left.Inspect()} {op} {right.Inspect()} has not implemented yet");
-            return MonkeyNull.NullObject;
+            if (left.Type() != right.Type())
+            {
+                return new MonkeyError($"type mismatch: {left.Type()} {op} {right.Type()}");
+            }
+
+            return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
         }
 
         private static MonkeyObject EvalPostfixExpression(string op, ref MonkeyObject left)
         {
             if (left is not MonkeyInteger intObj)
             {
-                Console.WriteLine($"Invalid ({left.Inspect()}{op}) PostFix Expression");
-                return MonkeyNull.NullObject;
+                return new MonkeyError($"unsupported postfix: {left.Type()}{op}");
             }
 
             var oldValue = new MonkeyInteger(intObj.Value);
@@ -205,8 +209,7 @@ namespace SharpMonkey
                     intObj.Value--;
                     break;
                 default:
-                    Console.WriteLine($"Integer Postfix {op} has not implemented yet.");
-                    break;
+                    return new MonkeyError($"unsupported postfix: {left.Type()}{op}");
             }
 
             return oldValue;
@@ -249,6 +252,7 @@ namespace SharpMonkey
                 case Ast.InfixExpression exp:
                 {
                     var left = Eval(exp.Left);
+                    if (left is MonkeyError) return left;
                     MonkeyObject right = MonkeyNull.NullObject;
                     // 处理短路原则
                     if (exp.Operator == "&&")
@@ -258,15 +262,19 @@ namespace SharpMonkey
                             return EvalInfixExpression(exp.Operator, left, MonkeyNull.NullObject);
                     }
                     right = Eval(exp.Right);
+                    if (right is MonkeyError) return right;
                     return EvalInfixExpression(exp.Operator, left, right);
                 }
                 case Ast.ConditionalExpression exp:
                 {
-                    return Eval(Eval(exp.Condition) == MonkeyBoolean.TrueObject ? exp.ThenArm : exp.ElseArm);
+                    var condition = Eval(exp.Condition);
+                    if (condition is MonkeyError) return condition;
+                    return Eval( EvaluatorHelper.IsTrueObject(condition) ? exp.ThenArm : exp.ElseArm);
                 }
                 case Ast.PostfixExpression exp:
                 {
                     var left = Eval(exp.Left);
+                    if (left is MonkeyError) return left;
                     return EvalPostfixExpression(exp.Operator, ref left);
                 }
                 case Ast.BlockStatement exp:
@@ -287,9 +295,9 @@ namespace SharpMonkey
                     return new MonkeyReturnValue(returnVal);
                 }
                 default:
-                    Console.WriteLine(
+                    var msg = (
                         $"Eval Node '{node.GetType().FullName} {node.ToPrintableString()}' has not implemented yet.");
-                    return MonkeyNull.NullObject;
+                    return new MonkeyError(msg);
             }
         }
     }

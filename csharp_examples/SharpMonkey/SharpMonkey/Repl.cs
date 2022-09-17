@@ -38,8 +38,8 @@ namespace SharpMonkey
                 }
 
                 var evaled = Evaluator.Eval(program);
-                System.Diagnostics.Debug.Assert(evaled != null);
-                Console.WriteLine(evaled.Inspect());
+                if(evaled != null)
+                    Console.WriteLine(evaled.Inspect());
             }
         }
     }

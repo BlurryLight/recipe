@@ -11,6 +11,7 @@ namespace SharpMonkey
         public const string BooleanObj = "Boolean";
         public const string NullObj = "Null";
         public const string ReturnObj = "ReturnValue";
+        public const string ErrorObj = "Error";
     }
 
     public interface MonkeyObject
@@ -116,6 +117,25 @@ namespace SharpMonkey
         {
             Debug.Assert(ReturnObj != null);
             return $"Return {ReturnObj.Inspect()};";
+        }
+    }
+    
+    public class MonkeyError : MonkeyObject
+    {
+        public string Msg;
+
+        public MonkeyError(string msg)
+        {
+            Msg = msg;
+        }
+        public string Type()
+        {
+            return ObjType.ReturnObj;
+        }
+
+        public string Inspect()
+        {
+            return $"Error: {Msg};";
         }
     }
 }
