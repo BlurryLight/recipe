@@ -56,6 +56,19 @@ namespace SharpMonkey
             return Value.ToString();
         }
 
+        public static MonkeyBoolean ImplicitConvertFrom(MonkeyObject obj)
+        {
+            switch (obj)
+            {
+                case MonkeyNull _:
+                    return FalseObject;
+                case MonkeyBoolean booleanObj:
+                    return booleanObj;
+                default:
+                    return TrueObject;
+            } 
+        }
+
         public static MonkeyBoolean FalseObject { get; } = new MonkeyBoolean(false);
         public static MonkeyBoolean TrueObject { get; } = new MonkeyBoolean(true);
 

@@ -58,6 +58,21 @@ namespace SharpMonkey
 
             return token;
         }
+        
+        private Token MakeTwoCharTokenOrThrow(char expectedNextChar, TokenType tokenType)
+        {
+            Token token = null;
+            if (PeekNextChar() != expectedNextChar)
+            {
+                string msg = ($"Tokenizer expects {expectedNextChar} but meets {PeekNextChar()}! CurrentChar is {CurCh}");
+                throw new Exception(msg);
+            }
+            var preChar = CurCh;
+            ReadChar();
+            token = new Token(tokenType, preChar.ToString() + CurCh);
+
+            return token;
+        }
 
         public Token NextToken()
         {
@@ -112,6 +127,12 @@ namespace SharpMonkey
                     break;
                 case '>':
                     token = new Token(Constants.Gt, CurCh.ToString());
+                    break;
+                case '&':
+                    token = MakeTwoCharTokenOrThrow('&', Constants.And);
+                    break;
+                case '|':
+                    token = MakeTwoCharTokenOrThrow('|', Constants.Or);
                     break;
                 case '\0':
                     token = new Token(Constants.Eof, "EOF");

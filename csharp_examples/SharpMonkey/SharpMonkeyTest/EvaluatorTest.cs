@@ -100,6 +100,12 @@ namespace SharpMonkeyTest
                 new("true ? false : true;", false),
                 new("false ? false : true;", true),
                 new("false ? true : false;", false),
+                new("true && false", false),
+                new("true && true", true),
+                new("true || false", true),
+                new("false || false && true", false),
+                new("0 && a + b || c + d", false),
+                new("1 && (1 + 2) || false", true),
             };
             foreach (var item in testTable)
             {
@@ -126,6 +132,29 @@ namespace SharpMonkeyTest
             {
                 var evaluated = TestEval(item.Input);
                 TestBooleanObject(evaluated, item.ExpectedVal, item.Input);
+            }
+        }
+        
+
+        [Test]
+        public void TestIfElseExpressions()
+        {
+            var testTable = new List<(string Input, long? ExpectedVal)>
+            {
+                new("if( false ) {10} else{5}",5),
+                new("if( true) {10}",10),
+                new("if( 10 < 5 ) {10} else{ -5;}",-5),
+                new("if( 0 == 1 ) {10} else{ 20;}",20),
+                new("if( 1 > 0 ) {10} else{ 20;}",10),
+                new("if( 1 < 0 ) {10}",null),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                if (item.ExpectedVal != null)
+                    TestIntegerObject(evaluated, item.ExpectedVal.Value, item.Input);
+                else
+                    Assert.AreEqual(evaluated, MonkeyNull.NullObject);
             }
         }
     }

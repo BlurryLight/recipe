@@ -340,6 +340,12 @@ namespace SharpMonkeyTest
                 new("1 + func(2 * b);", "(1 + func((2 * b)))"),
                 new("func(c) + func(2 * b, a);", "(func(c) + func((2 * b), a))"),
                 new("func(c) + func(2 * (b + d), foo(b / 2));", "(func(c) + func((2 * (b + d)), foo((b / 2))))"),
+                //logic and/or
+                new("a && b;", "(a && b)"),
+                new("a && b || c;", "((a && b) || c)"),
+                new("a && b && c;", "((a && b) && c)"),
+                new("a && (b || c) && c;", "((a && (b || c)) && c)"),
+                new("a > b && c < d;", "((a > b) && (c < d))"),
             };
             foreach (var item in testTable)
             {
@@ -381,7 +387,7 @@ namespace SharpMonkeyTest
         [Test]
         public void TestIfExpression()
         {
-            var input = "if (x < y) { return x;} else { false; } ";
+            var input = "if (x < y && c > d) { return x;} else { false; } ";
             var l = new Lexer(input);
             var p = new Parser(l);
             var program = p.ParseProgram();
@@ -394,7 +400,10 @@ namespace SharpMonkeyTest
             Assert.NotNull(stmt);
             var exp = stmt.Expression as Ast.IfExpression;
             Assert.NotNull(exp);
-            CheckInfixExpression(exp.Condition, "x", "<", "y");
+            var complexCondition = (Ast.InfixExpression)exp.Condition;
+            CheckInfixExpression(complexCondition.Left, "x", "<", "y");
+            CheckInfixExpression(complexCondition.Right, "c", ">", "d");
+            Assert.AreEqual("&&",complexCondition.Operator);
             var thenStmt = exp.Consequence.Statements[0] as Ast.ReturnStatement;
             Assert.NotNull(thenStmt);
             Assert.AreEqual("return", thenStmt.TokenLiteral());

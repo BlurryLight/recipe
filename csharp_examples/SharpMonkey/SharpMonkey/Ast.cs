@@ -376,14 +376,10 @@ namespace SharpMonkey
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
-                outBuilder.Append("if");
-                outBuilder.Append(Condition.ToPrintableString());
-                outBuilder.Append(' ');
-                outBuilder.Append(Consequence.ToPrintableString());
+                outBuilder.Append($"if( {Condition.ToPrintableString()} ) {{ {Consequence.ToPrintableString()} }} ");
                 if (Alternative != null)
                 {
-                    outBuilder.Append("else ");
-                    outBuilder.Append(Alternative.ToPrintableString());
+                    outBuilder.Append($"else {{ {Alternative.ToPrintableString()} }}");
                 }
                 return outBuilder.ToString();
             }

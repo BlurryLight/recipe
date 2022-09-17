@@ -38,6 +38,7 @@ namespace SharpMonkey
         _ = 0,
         Lowest,
         Condition,
+        And, // && ||
         Equals, // == 
         LessGreater, // > or <
         Sum, // +
@@ -80,6 +81,8 @@ namespace SharpMonkey
             {Constants.Decrement, Priority.Postfix},
 
             {Constants.QuestionMark, Priority.Condition},
+            {Constants.And, Priority.And},
+            {Constants.Or, Priority.And},
             {Constants.LParen, Priority.Call},
         };
 
@@ -161,6 +164,8 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.NotEq, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Lt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.And, ParseInfixExpression);
+            RegisterInfixParseFunc(Constants.Or, ParseInfixExpression);
 
             RegisterInfixParseFunc(Constants.Increment, ParsePostfixExpression);
             RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);
