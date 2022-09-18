@@ -400,10 +400,10 @@ namespace SharpMonkeyTest
             Assert.NotNull(stmt);
             var exp = stmt.Expression as Ast.IfExpression;
             Assert.NotNull(exp);
-            var complexCondition = (Ast.InfixExpression)exp.Condition;
+            var complexCondition = (Ast.InfixExpression) exp.Condition;
             CheckInfixExpression(complexCondition.Left, "x", "<", "y");
             CheckInfixExpression(complexCondition.Right, "c", ">", "d");
-            Assert.AreEqual("&&",complexCondition.Operator);
+            Assert.AreEqual("&&", complexCondition.Operator);
             var thenStmt = exp.Consequence.Statements[0] as Ast.ReturnStatement;
             Assert.NotNull(thenStmt);
             Assert.AreEqual("return", thenStmt.TokenLiteral());
@@ -413,6 +413,26 @@ namespace SharpMonkeyTest
             Assert.NotNull(alterStmt);
             var alterBoolean = alterStmt.Expression as Ast.BooleanLiteral;
             CheckBooleanLiteral(alterBoolean, false);
+        }
+
+        [Test]
+        public void TestFunctionLiteralParsingSimple()
+        {
+            var Input = "fn() {}";
+            var p = new Parser(new Lexer(Input));
+            var program = p.ParseProgram();
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.FunctionLiteral;
+            Assert.NotNull(exp);
+
+            Assert.AreEqual("fn", exp.TokenLiteral());
+            Assert.AreEqual(0, exp.Parameters.Count);
+            Assert.AreEqual(0, exp.FuncBody.Statements.Count);
         }
 
         [Test]
@@ -465,7 +485,7 @@ namespace SharpMonkeyTest
             CheckInfixExpression(exp.Arguments[2], 4, "+", 5);
             Assert.AreEqual("func(1, (2 * 3), (4 + 5))", exp.ToPrintableString());
         }
-        
+
         [Test]
         public void TestWhileExpression()
         {

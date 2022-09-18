@@ -455,14 +455,17 @@ namespace SharpMonkey
         }
 
         // 函数调用
-        // <exp>( args...)
+        // 两种形式
+        // let func = fn(...){...}; func(); 
+        // fn(...){...}();
+        // 括号的左边可能是一个Identifier,也可能是一个FuncLiteral
         public class CallExpression : IExpression
         {
             public Token Token; // 以(作为词法单元
-            public Identifier Function; // <exp>部分
-            public List<IExpression> Arguments; // <exp>部分, args可以是一个表达式  add(1+2,foo())
+            public IExpression Function; 
+            public List<IExpression> Arguments; // args可以是一个表达式  add(1+2,foo())
 
-            public CallExpression(Token token, Identifier function)
+            public CallExpression(Token token, IExpression function)
             {
                 Token = token;
                 Debug.Assert(function != null);

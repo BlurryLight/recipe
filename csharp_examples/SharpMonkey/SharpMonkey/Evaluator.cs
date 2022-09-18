@@ -262,6 +262,30 @@ namespace SharpMonkey
 
             return value;
         }
+        
+        /// <summary>
+        /// 对参数列表的所有表达式求值
+        /// </summary>
+        /// <param name="exps"></param>
+        /// <param name="env"></param>
+        /// <returns>如果过程有错误，返回一个Error,否则返回所有求值后的参数</returns>
+        private static List<MonkeyObject> EvalExpressions(List<Ast.IExpression> exps, Environment env)
+        {
+            List<MonkeyObject> objs = new List<MonkeyObject>();
+            foreach (var exp in exps)
+            {
+                var evaluated = Eval(exp, env);
+                if (evaluated is MonkeyError)
+                {
+                    objs.Clear();
+                    objs.Add(evaluated);
+                    return objs;
+                }
+                objs.Add(evaluated);
+            }
+
+            return objs;
+        }
 
         public static MonkeyObject Eval(Ast.INode node, Environment env)
         {
@@ -352,6 +376,20 @@ namespace SharpMonkey
                     env.Set(exp.Name.Value, val);
                     return null; // x = 1;  assign语句没有返回值
                 }
+                case Ast.FunctionLiteral exp:
+                {
+                    var funcObj = new MonkeyFuncLiteral(exp.Parameters, exp.FuncBody, env);
+                    return funcObj;
+                }
+                case Ast.CallExpression exp:
+                {
+                    var evalObj = Eval(exp.Function,env); // must be MonkeyFuncLiteral
+                    if (evalObj is MonkeyError) return evalObj;
+                    var funcObj = (MonkeyFuncLiteral) evalObj;
+                    var args = EvalExpressions(exp.Arguments,env);
+                    if (args.Count == 1 && args[0] is MonkeyError) return args[0];
+                    return ApplyFunction(funcObj,args);
+                }
                 case null:
                     return new MonkeyError("Invalid expressions appear during parsing.");
                 default:
@@ -359,6 +397,25 @@ namespace SharpMonkey
                         $"Eval Node '{node.GetType().FullName} {node.ToPrintableString()}' has not implemented yet.");
                     return new MonkeyError(msg);
             }
+        }
+
+        private static MonkeyObject ApplyFunction(MonkeyFuncLiteral funcObj, List<MonkeyObject> args)
+        {
+            var funcEnv = new Environment(funcObj.Env);
+            for (int i = 0; i < funcObj.Params.Count; i++)
+            {
+                // 把每个param 和 arg在当前作用域下对应起来
+                funcEnv.Set(funcObj.Params[i].Value, args[i]);
+            }
+
+            var evaluated = Eval(funcObj.Body, funcEnv);
+            //如果在内层碰见了return语句，return的结果被包裹在return语句内，把return的结果解包
+            if (evaluated is MonkeyReturnValue returnValue)
+            {
+                return returnValue.ReturnObj;
+            }
+            //如果是个表达式，比如 func(){5;}()这样的，那么直接取得结果就可以了
+            return evaluated;
         }
     }
 }

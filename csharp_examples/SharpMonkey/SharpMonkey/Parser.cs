@@ -484,28 +484,28 @@ namespace SharpMonkey
 
         private List<Ast.Identifier> ParseFunctionParameters()
         {
-            var idendifiers = new List<Ast.Identifier>();
+            var identifiers = new List<Ast.Identifier>();
             // 参数列表为空的情况
-            if (_peekToken.Type == Constants.RBrace)
+            if (_peekToken.Type == Constants.RParen)
             {
                 NextToken();
-                return idendifiers;
+                return identifiers;
             }
 
             // 移动token到(下一个token，第一个参数
             // 需要手动处理第一个参数，因为第一个参数后面可能没有逗号,
             NextToken();
-            idendifiers.Add(ParseIdentifier() as Ast.Identifier);
+            identifiers.Add(ParseIdentifier() as Ast.Identifier);
 
             while (_peekToken.Type == Constants.Comma)
             {
                 NextToken(); // 移动到逗号
                 NextToken(); //移动到下一个Identifier
-                idendifiers.Add(ParseIdentifier() as Ast.Identifier);
+                identifiers.Add(ParseIdentifier() as Ast.Identifier);
             }
 
             // 从最后一个逗号出来了,暂时不支持变参函数
-            return !ExpectPeek(Constants.RParen) ? null : idendifiers;
+            return !ExpectPeek(Constants.RParen) ? null : identifiers;
         }
 
         private Ast.IExpression ParseFuncLiteral()
@@ -515,8 +515,8 @@ namespace SharpMonkey
             {
                 return null;
             }
-
             fn.Parameters = ParseFunctionParameters();
+            
             // 现在指针在右)上，看下一个token应该是{
             if (!ExpectPeek(Constants.LBrace))
             {
@@ -531,7 +531,7 @@ namespace SharpMonkey
         {
             // 仿照ParseParameters的逻辑
             var args = new List<Ast.IExpression>();
-            if (_peekToken.Type == Constants.RBrace)
+            if (_peekToken.Type == Constants.RParen)
             {
                 NextToken();
                 return args;
@@ -551,7 +551,7 @@ namespace SharpMonkey
 
         private Ast.IExpression ParseCallExpression(Ast.IExpression left)
         {
-            var exp = new Ast.CallExpression(_curToken, left as Ast.Identifier)
+            var exp = new Ast.CallExpression(_curToken, left)
             {
                 Arguments = ParseCallArguments()
             };

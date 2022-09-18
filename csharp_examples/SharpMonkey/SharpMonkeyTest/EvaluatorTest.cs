@@ -255,5 +255,44 @@ namespace SharpMonkeyTest
                 TestIntegerObject(evaluated, item.expectedVal, item.Input);
             }
         }
+
+        [Test]
+        public void TestFuncLiteralObject()
+        {
+            var input = "fn(x) { x + 2;}";
+            var evaluated = TestEval(input);
+            Assert.IsTrue(evaluated is MonkeyFuncLiteral);
+            var funcObj = (MonkeyFuncLiteral)evaluated;
+            Assert.AreEqual(1,funcObj.Params.Count);
+            Assert.AreEqual("x",funcObj.Params[0].ToPrintableString());
+            Assert.AreEqual("(x + 2)",funcObj.Body.ToPrintableString());
+        }
+        
+        [Test]
+        public void TestFuncCall()
+        {
+            var testTable = new List<(string Input, long expectedVal)>
+            {
+                new ("let identity = fn(x){x;}; identity(5);",5),
+                new ("let identity = fn(x){ return x;}; identity(5);",5),
+                new ("let double = fn(x){ return x * 2;}; double(5);",10),
+                new ("let add= fn(x,y){ return x +y;}; add(5,5);",10),
+                new ("let add= fn(x,y){ return x +y;}; add(5 + 5,add(5,-5));",10),
+                new ("fn(x){x*x}(5);",25), // lambda
+                new ("fn(){5;}();",5), 
+                // 闭包，调用newFunc返回一个新的函数。新的函数能够访问旧的函数的参数。
+                // 原理是因为addFive的环境的outer是newFunc的环境，捕获了addFive作用域外的变量
+                // 这个在lua里叫做上值
+                new ("let newFunc = fn(x){ return fn(y){x + y;};};let addFive = newFunc(5);addFive(10);",15), 
+                // 函数是第一类值(因为MonkeyFuncliteral也属于MonkeyObject，所以可以作为参数传递)
+                new ("let add= fn(x,y){ return x+y;};let newFunc = fn(x,y,func){return func(x,y);};newFunc(5,5,add);",10), 
+                new ("let sub= fn(x,y){ return x-y;};let newFunc = fn(x,y,func){return func(x,y);};newFunc(5,5,sub);",0), 
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                TestIntegerObject(evaluated,item.expectedVal,item.Input);
+            }
+        }
     }
 }

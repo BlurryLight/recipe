@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 
 namespace SharpMonkey
 {
@@ -12,6 +14,7 @@ namespace SharpMonkey
         public const string NullObj = "Null";
         public const string ReturnObj = "ReturnValue";
         public const string ErrorObj = "Error";
+        public const string FuncObj = "Function";
     }
 
     public interface MonkeyObject
@@ -130,12 +133,44 @@ namespace SharpMonkey
         }
         public string Type()
         {
-            return ObjType.ReturnObj;
+            return ObjType.ErrorObj;
         }
 
         public string Inspect()
         {
             return $"Error: {Msg};";
+        }
+    }
+
+    public class MonkeyFuncLiteral : MonkeyObject
+    {
+        public List<Ast.Identifier> Params;
+        public Ast.BlockStatement Body;
+        public Environment Env;
+
+        public MonkeyFuncLiteral(List<Ast.Identifier> parameters, Ast.BlockStatement body, Environment env)
+        {
+            Params = parameters;
+            Body = body;
+            Env = env;
+        }
+
+        public string Type()
+        {
+            return ObjType.FuncObj;
+        }
+
+        public string Inspect()
+        {
+            StringBuilder outBuilder = new StringBuilder();
+            List<string> paramStrs = new();
+            foreach (var p in Params)
+            {
+                paramStrs.Add(p.ToPrintableString());
+            }
+
+            outBuilder.Append($"fn({string.Join(", ", paramStrs)}) {{ {Body.ToPrintableString()} }}");
+            return outBuilder.ToString();
         }
     }
 }
