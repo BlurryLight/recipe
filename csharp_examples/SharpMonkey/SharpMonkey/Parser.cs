@@ -156,6 +156,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.LParen, ParseGroupedExpression);
             RegisterPrefixParseFunc(Constants.If, ParseIfExpression);
             RegisterPrefixParseFunc(Constants.Function, ParseFuncLiteral);
+            RegisterPrefixParseFunc(Constants.While, ParseWhileExpression);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -462,6 +463,22 @@ namespace SharpMonkey
                 exp.Alternative = ParseBlockStatement();
             }
 
+            return exp;
+        }
+        
+        private Ast.IExpression ParseWhileExpression()
+        {
+            var exp = new Ast.WhileExpression(_curToken); // while token
+            if (!ExpectPeek(Constants.LParen))
+            {
+                return null;
+            }
+            exp.Condition = ParseGroupedExpression();
+            if (!ExpectPeek(Constants.LBrace))
+            {
+                return null;
+            }
+            exp.Body = ParseBlockStatement();
             return exp;
         }
 

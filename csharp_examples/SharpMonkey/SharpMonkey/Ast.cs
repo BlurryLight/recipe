@@ -363,6 +363,30 @@ namespace SharpMonkey
             }
         }
 
+        public class WhileExpression : IExpression
+        {
+            // while <condition> { BlockBody }
+            public Token Token; // while
+            public IExpression Condition;
+            public BlockStatement Body;
+            
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public WhileExpression(Token token)
+            {
+                Token = token;
+            }
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append($"while( {Condition.ToPrintableString()} ) {{ {Body.ToPrintableString()} }} ");
+                return outBuilder.ToString();
+            }
+        }
+
         public class IfExpression : IExpression
         {
             // if <condition> { <Consequence> } else {<alter>}

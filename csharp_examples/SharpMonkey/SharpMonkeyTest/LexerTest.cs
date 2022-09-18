@@ -110,7 +110,8 @@ namespace SharpMonkeyTest
         public void TestNextTokenMore()
         {
             var input = "!-/*5;\r\n 5 < 10 > 5; 10 == 10; 5 != 4;" +
-                        "if(5 < 10 && 1 || 0) {return true;} else {return false;}\0";
+                        "if(5 < 10 && 1 || 0) {return true;} else {return false;}"+
+                        "while(1){}\0";
 
             var expectedTokens = new List<Token>()
             {
@@ -154,6 +155,12 @@ namespace SharpMonkeyTest
                 new Token(Constants.Return, "return"),
                 new Token(Constants.False, "false"),
                 new Token(Constants.Semicolon, ";"),
+                new Token(Constants.RBrace, "}"),
+                new Token(Constants.While, "while"),
+                new Token(Constants.LParen, "("),
+                new Token(Constants.Int, "1"),
+                new Token(Constants.RParen, ")"),
+                new Token(Constants.LBrace, "{"),
                 new Token(Constants.RBrace, "}"),
                 new Token(Constants.Eof, "EOF"),
             };

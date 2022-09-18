@@ -240,5 +240,20 @@ namespace SharpMonkeyTest
                 TestIntegerObject(evaluated, item.expectedVal, item.Input);
             }
         }
+        
+        [Test]
+        public void TestWhileExpression()
+        {
+            var testTable = new List<(string Input, long expectedVal)>
+            {
+                new ("let a = 1;while(a < 5){a++;};a;",5),
+                new ("let a = 1;while(true){ a++;if(a > 5) {return 100;}};",100),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                TestIntegerObject(evaluated, item.expectedVal, item.Input);
+            }
+        }
     }
 }

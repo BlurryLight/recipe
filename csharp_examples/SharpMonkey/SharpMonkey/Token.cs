@@ -47,6 +47,7 @@ namespace SharpMonkey
         public const string If = "IF";
         public const string Else = "ELSE";
         public const string Return = "RETURN";
+        public const string While = "WHILE";
 
         // In C# there is noway to declare an compile-time constant Dictionary
         public static readonly Dictionary<string, TokenType> Keywords = new()
@@ -57,7 +58,8 @@ namespace SharpMonkey
             {"false", False},
             {"if", If},
             {"else", Else},
-            {"return", Return}
+            {"return", Return},
+            {"while", While}
         };
 
         public static TokenType LookupIdent(string identifier)

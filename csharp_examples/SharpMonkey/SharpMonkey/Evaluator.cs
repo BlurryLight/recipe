@@ -218,6 +218,23 @@ namespace SharpMonkey
             return oldValue;
         }
 
+        private static MonkeyObject EvalWhileExpression(Ast.WhileExpression exp, Environment env)
+        {
+            MonkeyObject result = null;
+            while (true)
+            {
+                var condition = Eval(exp.Condition, env);
+                if (condition is MonkeyError) return condition;
+                if (!EvaluatorHelper.IsTrueObject(condition)) break;
+                result = Eval(exp.Body, env);
+                if (result is MonkeyReturnValue) //  如果循环体内部碰见了return语句，跳出循环
+                {
+                    return result;
+                }
+            }
+
+            return null;
+        }
         private static MonkeyObject EvalIfExpression(Ast.IfExpression exp, Environment env)
         {
             var condition = Eval(exp.Condition, env);
@@ -311,6 +328,10 @@ namespace SharpMonkey
                     }
 
                     return new MonkeyReturnValue(returnVal);
+                }
+                case Ast.WhileExpression exp:
+                {
+                    return EvalWhileExpression(exp, env);
                 }
                 case Ast.LetStatement stmt:
                 {

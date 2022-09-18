@@ -465,5 +465,28 @@ namespace SharpMonkeyTest
             CheckInfixExpression(exp.Arguments[2], 4, "+", 5);
             Assert.AreEqual("func(1, (2 * 3), (4 + 5))", exp.ToPrintableString());
         }
+        
+        [Test]
+        public void TestWhileExpression()
+        {
+            var input = "while(a < b){return x;}";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.WhileExpression;
+            Assert.NotNull(exp);
+            CheckInfixExpression(exp.Condition, "a", "<", "b");
+            var thenStmt = exp.Body.Statements[0] as Ast.ReturnStatement;
+            Assert.NotNull(thenStmt);
+            Assert.AreEqual("return", thenStmt.TokenLiteral());
+            CheckIdentifier(thenStmt.ReturnValue, "x");
+        }
     }
 }
