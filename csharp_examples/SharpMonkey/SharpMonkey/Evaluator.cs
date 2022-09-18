@@ -20,19 +20,18 @@ namespace SharpMonkey
                     return obj == MonkeyBoolean.TrueObject;
                 case MonkeyInteger obj:
                     return obj.Value != 0;
-                case MonkeyError :
+                case MonkeyError:
                     return false;
                 default:
                     return true;
             }
         }
-        
+
         public static bool IsNullObject(MonkeyObject monkeyObject)
         {
             if (monkeyObject is not MonkeyNull) return false;
             return monkeyObject == MonkeyNull.NullObject;
         }
-        
     }
 
     public static class Evaluator
@@ -51,12 +50,12 @@ namespace SharpMonkey
         /// <param name="stmts"></param>
         /// <param name="TopLevel">是否是Program顶层的语句</param>
         /// <returns></returns>
-        private static MonkeyObject EvalStatements(List<Ast.IStatement> stmts,bool TopLevel)
+        private static MonkeyObject EvalStatements(List<Ast.IStatement> stmts, bool TopLevel, Environment env)
         {
             MonkeyObject result = null;
             foreach (var statement in stmts)
             {
-                result = Eval(statement);
+                result = Eval(statement, env);
                 switch (result)
                 {
                     case MonkeyReturnValue resultRef:
@@ -65,6 +64,7 @@ namespace SharpMonkey
                         return result;
                 }
             }
+
             return result;
         }
 
@@ -100,7 +100,7 @@ namespace SharpMonkey
         {
             if (right is not MonkeyInteger intObj)
             {
-                return new MonkeyError($"unsupported prefix: {(increment ? "++": "--") }{right.Type()}");
+                return new MonkeyError($"unsupported prefix: {(increment ? "++" : "--")}{right.Type()}");
             }
 
             intObj.Value += (increment ? 1 : -1);
@@ -176,14 +176,17 @@ namespace SharpMonkey
             {
                 return EvalBoolInfixExpression(op, left, right);
             }
+
             if (left is MonkeyInteger && right is MonkeyInteger)
             {
                 return EvalIntegerInfixExpression(op, left, right);
             }
+
             if (left is MonkeyBoolean && right is MonkeyBoolean)
             {
                 return EvalBoolInfixExpression(op, left, right);
             }
+
             if (left.Type() != right.Type())
             {
                 return new MonkeyError($"type mismatch: {left.Type()} {op} {right.Type()}");
@@ -215,30 +218,42 @@ namespace SharpMonkey
             return oldValue;
         }
 
-        private static MonkeyObject EvalIfExpression(Ast.IfExpression exp)
+        private static MonkeyObject EvalIfExpression(Ast.IfExpression exp, Environment env)
         {
-            var condition = Eval(exp.Condition);
+            var condition = Eval(exp.Condition, env);
+            if (condition is MonkeyError) return condition;
             if (EvaluatorHelper.IsTrueObject(condition))
             {
-                return Eval(exp.Consequence);
+                return Eval(exp.Consequence, env);
             }
 
             if (exp.Alternative != null)
             {
-                return Eval(exp.Alternative);
+                return Eval(exp.Alternative, env);
             }
 
             return MonkeyNull.NullObject;
         }
 
-        public static MonkeyObject Eval(Ast.INode node)
+        private static MonkeyObject EvalIdentifier(Ast.Identifier exp, Environment env)
+        {
+            var value = env.Get(exp.Value);
+            if (value is null)
+            {
+                return new MonkeyError($"identifier not found: {exp.Value}");
+            }
+
+            return value;
+        }
+
+        public static MonkeyObject Eval(Ast.INode node, Environment env)
         {
             switch (node) // switch on type
             {
                 case Ast.MonkeyProgram program:
-                    return EvalStatements(program.Statements,true);
+                    return EvalStatements(program.Statements, true, env);
                 case Ast.ExpressionStatement stmt:
-                    return Eval(stmt.Expression);
+                    return Eval(stmt.Expression, env);
                 case Ast.IntegerLiteral val:
                     return new MonkeyInteger(val.Value);
                 case Ast.BooleanLiteral val:
@@ -246,12 +261,12 @@ namespace SharpMonkey
                     return val.Value ? MonkeyBoolean.TrueObject : MonkeyBoolean.FalseObject;
                 case Ast.PrefixExpression exp:
                 {
-                    var right = Eval(exp.Right);
+                    var right = Eval(exp.Right, env);
                     return EvalPrefixExpression(exp.Operator, right);
                 }
                 case Ast.InfixExpression exp:
                 {
-                    var left = Eval(exp.Left);
+                    var left = Eval(exp.Left, env);
                     if (left is MonkeyError) return left;
                     MonkeyObject right = MonkeyNull.NullObject;
                     // 处理短路原则
@@ -261,39 +276,63 @@ namespace SharpMonkey
                         if (!EvaluatorHelper.IsTrueObject(left))
                             return EvalInfixExpression(exp.Operator, left, MonkeyNull.NullObject);
                     }
-                    right = Eval(exp.Right);
+
+                    right = Eval(exp.Right, env);
                     if (right is MonkeyError) return right;
                     return EvalInfixExpression(exp.Operator, left, right);
                 }
                 case Ast.ConditionalExpression exp:
                 {
-                    var condition = Eval(exp.Condition);
+                    var condition = Eval(exp.Condition, env);
                     if (condition is MonkeyError) return condition;
-                    return Eval( EvaluatorHelper.IsTrueObject(condition) ? exp.ThenArm : exp.ElseArm);
+                    return Eval(EvaluatorHelper.IsTrueObject(condition) ? exp.ThenArm : exp.ElseArm, env);
                 }
                 case Ast.PostfixExpression exp:
                 {
-                    var left = Eval(exp.Left);
+                    var left = Eval(exp.Left, env);
                     if (left is MonkeyError) return left;
                     return EvalPostfixExpression(exp.Operator, ref left);
                 }
                 case Ast.BlockStatement exp:
                 {
-                    return EvalStatements(exp.Statements,false);
+                    return EvalStatements(exp.Statements, false, env);
                 }
                 case Ast.IfExpression exp:
                 {
-                    return EvalIfExpression(exp);
+                    return EvalIfExpression(exp, env);
                 }
-                case Ast.ReturnStatement exp:
+                case Ast.ReturnStatement stmt:
                 {
                     MonkeyObject returnVal = MonkeyNull.NullObject;
-                    if (exp.ReturnValue != null)
+                    if (stmt.ReturnValue != null)
                     {
-                        returnVal = Eval(exp.ReturnValue);
+                        returnVal = Eval(stmt.ReturnValue, env);
+                        if (returnVal is MonkeyError) return returnVal;
                     }
+
                     return new MonkeyReturnValue(returnVal);
                 }
+                case Ast.LetStatement stmt:
+                {
+                    var val = Eval(stmt.Value, env);
+                    if (val is MonkeyError) return val;
+                    env.Set(stmt.Name.Value, val);
+                    return null; // let x = 1; 没有返回值
+                }
+                case Ast.Identifier exp:
+                {
+                    return EvalIdentifier(exp, env);
+                }
+                case Ast.AssignExpression exp:
+                {
+                    var namedObj = EvalIdentifier(exp.Name, env);
+                    if (namedObj is MonkeyError) return namedObj;
+                    var val = Eval(exp.Value, env);
+                    env.Set(exp.Name.Value, val);
+                    return null; // x = 1;  assign语句没有返回值
+                }
+                case null:
+                    return new MonkeyError("Invalid expressions appear during parsing.");
                 default:
                     var msg = (
                         $"Eval Node '{node.GetType().FullName} {node.ToPrintableString()}' has not implemented yet.");

@@ -58,15 +58,17 @@ namespace SharpMonkey
 
             return token;
         }
-        
+
         private Token MakeTwoCharTokenOrThrow(char expectedNextChar, TokenType tokenType)
         {
             Token token = null;
             if (PeekNextChar() != expectedNextChar)
             {
-                string msg = ($"Tokenizer expects {expectedNextChar} but meets {PeekNextChar()}! CurrentChar is {CurCh}");
+                string msg =
+                    ($"Tokenizer expects {expectedNextChar} but meets {PeekNextChar()}! CurrentChar is {CurCh}");
                 throw new Exception(msg);
             }
+
             var preChar = CurCh;
             ReadChar();
             token = new Token(tokenType, preChar.ToString() + CurCh);

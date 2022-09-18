@@ -216,18 +216,19 @@ namespace SharpMonkey
         /// <summary>
         /// expression like "a++"
         /// </summary>
-        public class PostfixExpression: IExpression
+        public class PostfixExpression : IExpression
         {
             public Token Token;
             public IExpression Left;
             public string Operator;
 
-            public PostfixExpression(Token token, string op,IExpression left)
+            public PostfixExpression(Token token, string op, IExpression left)
             {
                 Token = token;
                 Operator = op;
                 Left = left;
             }
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -247,12 +248,13 @@ namespace SharpMonkey
         /// <summary>
         /// expression like "<condition> ? <then> : <else> "
         /// </summary>
-        public class ConditionalExpression: IExpression
+        public class ConditionalExpression : IExpression
         {
             public Token Token;
             public IExpression Condition;
             public IExpression ThenArm;
             public IExpression ElseArm;
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -263,6 +265,7 @@ namespace SharpMonkey
                 Token = token;
                 Condition = condition;
             }
+
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
@@ -276,7 +279,7 @@ namespace SharpMonkey
                 return outBuilder.ToString();
             }
         }
-        
+
         public class InfixExpression : IExpression
         {
             // <left> <operator> <right>
@@ -309,10 +312,11 @@ namespace SharpMonkey
             }
         }
 
-        public class BooleanLiteral: IExpression
+        public class BooleanLiteral : IExpression
         {
             public Token Token;
             public bool Value;
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -324,6 +328,7 @@ namespace SharpMonkey
                 Debug.Assert(value == "true" || value == "false");
                 Value = (value == "true");
             }
+
             public string ToPrintableString()
             {
                 return TokenLiteral();
@@ -334,6 +339,7 @@ namespace SharpMonkey
         {
             public Token Token; // {
             public List<IStatement> Statements; // 由一系列的ExpressionStatement和 Let/Return语句组成
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -352,6 +358,7 @@ namespace SharpMonkey
                 {
                     outBuilder.Append(stmt.ToPrintableString());
                 }
+
                 return outBuilder.ToString();
             }
         }
@@ -363,6 +370,7 @@ namespace SharpMonkey
             public IExpression Condition;
             public BlockStatement Consequence;
             public BlockStatement Alternative; // nullable
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -381,10 +389,11 @@ namespace SharpMonkey
                 {
                     outBuilder.Append($"else {{ {Alternative.ToPrintableString()} }}");
                 }
+
                 return outBuilder.ToString();
             }
         }
-        
+
         // 函数声明
         // fn (args...) { statements }
         public class FunctionLiteral : IExpression
@@ -392,6 +401,7 @@ namespace SharpMonkey
             public Token Token; // fn
             public List<Identifier> Parameters;
             public BlockStatement FuncBody;
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -405,12 +415,12 @@ namespace SharpMonkey
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
-                List<string> paramStrs = new ();
+                List<string> paramStrs = new();
                 foreach (var p in Parameters)
                 {
                     paramStrs.Add(p.ToPrintableString());
                 }
-                
+
                 outBuilder.Append(TokenLiteral());
                 outBuilder.Append('(');
                 outBuilder.Append(string.Join(", ", paramStrs));
@@ -419,7 +429,7 @@ namespace SharpMonkey
                 return outBuilder.ToString();
             }
         }
-        
+
         // 函数调用
         // <exp>( args...)
         public class CallExpression : IExpression
@@ -428,7 +438,7 @@ namespace SharpMonkey
             public Identifier Function; // <exp>部分
             public List<IExpression> Arguments; // <exp>部分, args可以是一个表达式  add(1+2,foo())
 
-            public CallExpression(Token token,Identifier function)
+            public CallExpression(Token token, Identifier function)
             {
                 Token = token;
                 Debug.Assert(function != null);
@@ -438,17 +448,44 @@ namespace SharpMonkey
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
-                List<string> argStrs = new ();
+                List<string> argStrs = new();
                 foreach (var p in Arguments)
                 {
                     argStrs.Add(p.ToPrintableString());
                 }
+
                 outBuilder.Append(Function.ToPrintableString());
                 outBuilder.Append('(');
                 outBuilder.Append(string.Join(", ", argStrs));
                 outBuilder.Append(')');
                 return outBuilder.ToString();
-                
+            }
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+        }
+
+        // <ident> = <expression>
+        public class AssignExpression : IExpression
+        {
+            public Token Token; // 以=作为词法单元
+            public Identifier Name; // <ident>部分
+            public IExpression Value; // <exp>部分
+
+            public AssignExpression(Token token, Identifier name)
+            {
+                Token = token;
+                Debug.Assert(name != null);
+                Name = name;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append($"{Name.ToPrintableString()} = {Value.ToPrintableString()}");
+                return outBuilder.ToString();
             }
 
             public string TokenLiteral()

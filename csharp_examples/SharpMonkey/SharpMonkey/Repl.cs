@@ -11,11 +11,11 @@ namespace SharpMonkey
 
         public static void Start()
         {
-            string line;
+            Environment env = new Environment();
             while (true)
             {
                 Console.Write(Prompt);
-                line = Console.ReadLine();
+                var line = Console.ReadLine();
                 if (line == null)
                     break;
                 Lexer lexer = new Lexer(line);
@@ -37,8 +37,8 @@ namespace SharpMonkey
                     }
                 }
 
-                var evaled = Evaluator.Eval(program);
-                if(evaled != null)
+                var evaled = Evaluator.Eval(program, env);
+                if (evaled != null)
                     Console.WriteLine(evaled.Inspect());
             }
         }

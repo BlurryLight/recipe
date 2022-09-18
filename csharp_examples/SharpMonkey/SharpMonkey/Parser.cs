@@ -12,7 +12,7 @@ namespace SharpMonkey
 
     public class FixedQueue<T> : Queue<T>
     {
-        public int Limit { get; init; } // set only once 
+        private int Limit { get; init; } // set only once 
 
         public FixedQueue(int limit) : base(limit)
         {
@@ -37,6 +37,7 @@ namespace SharpMonkey
     {
         _ = 0,
         Lowest,
+        Assign, // =
         Condition,
         And, // && ||
         Equals, // == 
@@ -84,6 +85,7 @@ namespace SharpMonkey
             {Constants.And, Priority.And},
             {Constants.Or, Priority.And},
             {Constants.LParen, Priority.Call},
+            {Constants.Assign, Priority.Assign},
         };
 
         private Priority PeekPrecedence()
@@ -166,6 +168,9 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.Gt, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.And, ParseInfixExpression);
             RegisterInfixParseFunc(Constants.Or, ParseInfixExpression);
+
+            // 也许可以用ParseInfixExpression处理，但是单独领出来一个函数可以做更多的校验
+            RegisterInfixParseFunc(Constants.Assign, ParseAssignExpression);
 
             RegisterInfixParseFunc(Constants.Increment, ParsePostfixExpression);
             RegisterInfixParseFunc(Constants.Decrement, ParsePostfixExpression);
@@ -252,7 +257,7 @@ namespace SharpMonkey
                 // stmt.Value is null
                 return statement;
             }
-            
+
             statement.ReturnValue = ParseExpression(Priority.Lowest);
             return !ExpectPeek(Constants.Semicolon) ? null : statement;
         }
@@ -415,6 +420,7 @@ namespace SharpMonkey
                 {
                     block.Statements.Add(stmt);
                 }
+
                 NextToken();
             }
 
@@ -442,6 +448,7 @@ namespace SharpMonkey
             {
                 return null;
             }
+
             exp.Consequence = ParseBlockStatement();
 
             if (_peekToken.Type == Constants.Else)
@@ -451,7 +458,8 @@ namespace SharpMonkey
                 {
                     return null;
                 }
-                exp.Alternative= ParseBlockStatement();
+
+                exp.Alternative = ParseBlockStatement();
             }
 
             return exp;
@@ -466,7 +474,7 @@ namespace SharpMonkey
                 NextToken();
                 return idendifiers;
             }
-            
+
             // 移动token到(下一个token，第一个参数
             // 需要手动处理第一个参数，因为第一个参数后面可能没有逗号,
             NextToken();
@@ -478,9 +486,11 @@ namespace SharpMonkey
                 NextToken(); //移动到下一个Identifier
                 idendifiers.Add(ParseIdentifier() as Ast.Identifier);
             }
+
             // 从最后一个逗号出来了,暂时不支持变参函数
             return !ExpectPeek(Constants.RParen) ? null : idendifiers;
         }
+
         private Ast.IExpression ParseFuncLiteral()
         {
             var fn = new Ast.FunctionLiteral(_curToken);
@@ -509,23 +519,41 @@ namespace SharpMonkey
                 NextToken();
                 return args;
             }
-            
+
             NextToken();
             args.Add(ParseExpression(Priority.Lowest));
             while (_peekToken.Type == Constants.Comma)
             {
                 NextToken(); // 移动到逗号
-                NextToken(); 
+                NextToken();
                 args.Add(ParseExpression(Priority.Lowest));
             }
+
             return !ExpectPeek(Constants.RParen) ? null : args;
         }
+
         private Ast.IExpression ParseCallExpression(Ast.IExpression left)
         {
             var exp = new Ast.CallExpression(_curToken, left as Ast.Identifier)
             {
                 Arguments = ParseCallArguments()
             };
+            return exp;
+        }
+
+        private Ast.IExpression ParseAssignExpression(Ast.IExpression left)
+        {
+            var leftIdent = left as Ast.Identifier;
+            if (leftIdent == null)
+            {
+                AppendError($"Assign left must be identifier!");
+                return null;
+            }
+
+            var exp = new Ast.AssignExpression(_curToken, leftIdent);
+            // 从 = token移动到下一个token
+            NextToken();
+            exp.Value = ParseExpression(Priority.Lowest);
             return exp;
         }
 
