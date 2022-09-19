@@ -7,7 +7,6 @@ VertexOut VS(VertexIn vIn) {
   float4 posW = mul(posL, g_World);
   float4 posV = mul(posW, g_View);
   vOut.posH = mul(posV, g_Proj);
-  vOut.color =
-      (float4(vIn.normal, 1.0f) + 1.0f) / 2.0f; // 这里alpha通道的值默认为1.0
+  vOut.normal = mul(float4(vIn.normal, 1.0), g_WorldInverseTranspose);
   return vOut;
 }

@@ -78,12 +78,14 @@ public:
     phi += rotation_speed_ * dt, theta += rotation_speed_ * dt;
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
-
-    // Transpose all data
-    //在hlsl里使用列主元存储矩阵，因为向量右乘以矩阵，所以一次要取矩阵的一个列
-    //在C++里矩阵是行主元，从行主元到列主元相当于经过了一次转置
-    //所以在C++里再手动转置一下，抵消上面的一次转置
+    CBuffer_.Proj = GetProjectionMatrixFovLH(DirectX::XM_PIDIV4, AspectRatio(),
+                                             0.1f, 100.0f, reverse_z_);
+    CBuffer_.WorldInverseTranspose = DirectX::XMMatrixInverse(
+        nullptr, DirectX::XMMatrixTranspose(CBuffer_.World));
+    CBuffer_.WorldInverseTranspose =
+        DirectX::XMMatrixTranspose(CBuffer_.WorldInverseTranspose);
     CBuffer_.World = DirectX::XMMatrixTranspose(CBuffer_.World);
+    CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
     // map data
     D3D11_MAPPED_SUBRESOURCE mappedData;
     HRESULT hr = S_OK;
@@ -100,8 +102,8 @@ public:
     static float blue[4] = {0.0f, 0.0f, 0.2f, 1.0f};
     pd3dDeviceIMContext_->ClearRenderTargetView(pRenderTargetView_.Get(), blue);
     pd3dDeviceIMContext_->ClearDepthStencilView(
-        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f,
-        0);
+        pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+        reverse_z_ ? 0.0f : 1.0f, 0);
     // for (const auto &shape : shapes_) {
     //   shape->draw(pd3dDeviceIMContext_.Get());
     // }
@@ -116,6 +118,7 @@ private:
   ComPtr<ID3D11PixelShader> pPixelShader_;
   struct MVP {
     DirectX::XMMATRIX World;
+    DirectX::XMMATRIX WorldInverseTranspose;
     DirectX::XMMATRIX View;
     DirectX::XMMATRIX Proj;
   };
@@ -130,8 +133,6 @@ protected:
   bool reloadShaders() {
     ComPtr<ID3DBlob> blob;
     HRESULT hr;
-    // SAFE_RELEASE(pVertexShader_);
-    // SAFE_RELEASE(pVertexShader_);
     ComPtr<ID3D11VertexShader> vshader;
     ComPtr<ID3D11PixelShader> pshader;
     // force relaod
@@ -200,9 +201,8 @@ protected:
                                        pd3dDeviceIMContext_.Get());
     auto mesh = cube_.get();
 
-    Model *model =
-        new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
-                  path_manager_.find_path(L"bunny_中文路径测试.obj"));
+    Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
+                             path_manager_.find_path(L"bunny.obj"));
     models_.push_back(std::unique_ptr<Model>(model));
     HRESULT hr;
     // 申请cbuffer
@@ -218,10 +218,7 @@ protected:
     CBuffer_.View = XMMatrixLookAtLH(XMVectorSet(0.0, 0.0, -5.0, 0.0),
                                      XMVectorSet(0.0, 0.0, 0.0, 0.0),
                                      XMVectorSet(0.0, 1.0, 0.0, 0.0));
-    CBuffer_.Proj =
-        XMMatrixPerspectiveFovLH(XM_PIDIV4, AspectRatio(), 0.1f, 100.0f);
     CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
-    CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 
     // 设置图元类型，设定输入布局
     pd3dDeviceIMContext_->IASetPrimitiveTopology(
