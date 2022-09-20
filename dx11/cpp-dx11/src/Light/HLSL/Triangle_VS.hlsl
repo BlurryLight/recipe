@@ -7,6 +7,7 @@ VertexOut VS(VertexIn vIn) {
   float4 posW = mul(posL, g_World);
   float4 posV = mul(posW, g_View);
   vOut.posH = mul(posV, g_Proj);
-  vOut.normal = mul(float4(vIn.normal, 1.0), g_WorldInverseTranspose);
+  vOut.posW = posW.xyz;
+  vOut.normalW = mul(float4(vIn.normal, 1.0), g_WorldInverseTranspose).xyz;
   return vOut;
 }

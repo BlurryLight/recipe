@@ -8,6 +8,8 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <include/light.hh>
+#include <include/material.hh>
 #include <resource_path_searcher.h>
 #include <shapes.hh>
 #include <vertexLayout.hh>
@@ -86,6 +88,8 @@ public:
         DirectX::XMMatrixTranspose(CBuffer_.WorldInverseTranspose);
     CBuffer_.World = DirectX::XMMatrixTranspose(CBuffer_.World);
     CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
+
+    light_cbuffer_.CamPosW = DirectX::XMFLOAT3(0, 0, -5);
     // map data
     D3D11_MAPPED_SUBRESOURCE mappedData;
     HRESULT hr = S_OK;
@@ -93,6 +97,11 @@ public:
                                  &mappedData));
     std::memcpy(mappedData.pData, &CBuffer_, sizeof CBuffer_);
     pd3dDeviceIMContext_->Unmap(pCBuffer_.Get(), 0);
+
+    HR(pd3dDeviceIMContext_->Map(pLightCBuffer_.Get(), 0,
+                                 D3D11_MAP_WRITE_DISCARD, 0, &mappedData));
+    std::memcpy(mappedData.pData, &light_cbuffer_, sizeof light_cbuffer_);
+    pd3dDeviceIMContext_->Unmap(pLightCBuffer_.Get(), 0);
   };
   void DrawScene() override {
     assert(pd3dDeviceIMContext_);
@@ -114,6 +123,7 @@ public:
 private:
   ComPtr<ID3D11InputLayout> pVertexLayout_;
   ComPtr<ID3D11Buffer> pCBuffer_;
+  ComPtr<ID3D11Buffer> pLightCBuffer_;
   ComPtr<ID3D11VertexShader> pVertexShader_;
   ComPtr<ID3D11PixelShader> pPixelShader_;
   struct MVP {
@@ -122,7 +132,15 @@ private:
     DirectX::XMMATRIX View;
     DirectX::XMMATRIX Proj;
   };
+
+  struct LightCBuffer {
+    DirectionalLight Light;
+    PhongMaterial PhongMat;
+    DirectX::XMFLOAT3 CamPosW;
+    float pading;
+  };
   MVP CBuffer_;
+  LightCBuffer light_cbuffer_;
   float rotation_speed_ = 0.0001f;
   std::vector<std::unique_ptr<Model>> models_;
   std::unique_ptr<CubeMesh> cube_;
@@ -214,11 +232,22 @@ protected:
     CBufferDesc.ByteWidth = sizeof(MVP);
     HR(pd3dDevice_->CreateBuffer(&CBufferDesc, nullptr,
                                  pCBuffer_.GetAddressOf()));
+    CBufferDesc.ByteWidth = sizeof(LightCBuffer);
+    HR(pd3dDevice_->CreateBuffer(&CBufferDesc, nullptr,
+                                 pLightCBuffer_.GetAddressOf()));
+
     CBuffer_.World = XMMatrixIdentity();
     CBuffer_.View = XMMatrixLookAtLH(XMVectorSet(0.0, 0.0, -5.0, 0.0),
                                      XMVectorSet(0.0, 0.0, 0.0, 0.0),
                                      XMVectorSet(0.0, 1.0, 0.0, 0.0));
     CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
+
+    // set mat
+    light_cbuffer_.PhongMat.ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1);
+    light_cbuffer_.PhongMat.specular = XMFLOAT4(0.7f, 0, 0, 16);
+    light_cbuffer_.PhongMat.diffuse = XMFLOAT4(0.5, 0, 0, 1);
+    light_cbuffer_.Light.direction = XMFLOAT3(0, -1, -1);
+    light_cbuffer_.Light.color = XMFLOAT4(1, 1, 1, 1);
 
     // 设置图元类型，设定输入布局
     pd3dDeviceIMContext_->IASetPrimitiveTopology(
@@ -226,7 +255,9 @@ protected:
     pd3dDeviceIMContext_->IASetInputLayout(pVertexLayout_.Get());
     // 将着色器绑定到渲染管线
     pd3dDeviceIMContext_->VSSetShader(pVertexShader_.Get(), nullptr, 0);
-    pd3dDeviceIMContext_->VSSetConstantBuffers(0, 1, pCBuffer_.GetAddressOf());
+    pd3dDeviceIMContext_->VSSetConstantBuffers(1, 1, pCBuffer_.GetAddressOf());
+    pd3dDeviceIMContext_->PSSetConstantBuffers(0, 1,
+                                               pLightCBuffer_.GetAddressOf());
     pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
 
     D3D11SetDebugObjectName(pVertexLayout_.Get(), "VertexPosColorLayout");
