@@ -15,15 +15,36 @@ namespace SharpMonkey
         public const string ReturnObj = "ReturnValue";
         public const string ErrorObj = "Error";
         public const string FuncObj = "Function";
+        public const string StringObj = "String";
     }
 
-    public interface MonkeyObject
+    public interface IMonkeyObject
     {
         ObjectType Type();
         string Inspect(); // for debug
     }
 
-    public class MonkeyInteger : MonkeyObject
+    public class MonkeyString : IMonkeyObject
+    {
+        public string Value;
+
+        public MonkeyString(string value)
+        {
+            Value = value;
+        }
+
+        public string Type()
+        {
+            return ObjType.StringObj;
+        }
+
+        public string Inspect()
+        {
+            return $"\"{Value}\"";
+        }
+    }
+
+    public class MonkeyInteger : IMonkeyObject
     {
         public Int64 Value;
 
@@ -43,7 +64,7 @@ namespace SharpMonkey
         }
     }
 
-    public class MonkeyBoolean : MonkeyObject
+    public class MonkeyBoolean : IMonkeyObject
     {
         public bool Value;
 
@@ -62,7 +83,7 @@ namespace SharpMonkey
             return Value.ToString();
         }
 
-        public static MonkeyBoolean ImplicitConvertFrom(MonkeyObject obj)
+        public static MonkeyBoolean ImplicitConvertFrom(IMonkeyObject obj)
         {
             switch (obj)
             {
@@ -72,7 +93,7 @@ namespace SharpMonkey
                     return booleanObj;
                 default:
                     return TrueObject;
-            } 
+            }
         }
 
         public static MonkeyBoolean FalseObject { get; } = new MonkeyBoolean(false);
@@ -84,7 +105,7 @@ namespace SharpMonkey
         }
     }
 
-    public class MonkeyNull : MonkeyObject
+    public class MonkeyNull : IMonkeyObject
     {
         private MonkeyNull()
         {
@@ -103,14 +124,15 @@ namespace SharpMonkey
         public static MonkeyNull NullObject { get; } = new MonkeyNull();
     }
 
-    public class MonkeyReturnValue : MonkeyObject
+    public class MonkeyReturnValue : IMonkeyObject
     {
-        public MonkeyObject ReturnObj;
+        public IMonkeyObject ReturnObj;
 
-        public MonkeyReturnValue(MonkeyObject returnObj)
+        public MonkeyReturnValue(IMonkeyObject returnObj)
         {
             ReturnObj = returnObj;
         }
+
         public string Type()
         {
             return ObjType.ReturnObj;
@@ -122,8 +144,8 @@ namespace SharpMonkey
             return $"Return {ReturnObj.Inspect()};";
         }
     }
-    
-    public class MonkeyError : MonkeyObject
+
+    public class MonkeyError : IMonkeyObject
     {
         public string Msg;
 
@@ -131,6 +153,7 @@ namespace SharpMonkey
         {
             Msg = msg;
         }
+
         public string Type()
         {
             return ObjType.ErrorObj;
@@ -142,7 +165,7 @@ namespace SharpMonkey
         }
     }
 
-    public class MonkeyFuncLiteral : MonkeyObject
+    public class MonkeyFuncLiteral : IMonkeyObject
     {
         public List<Ast.Identifier> Params;
         public Ast.BlockStatement Body;

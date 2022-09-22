@@ -312,6 +312,28 @@ namespace SharpMonkey
             }
         }
 
+        public class StringLiteral : IExpression
+        {
+            public Token Token;
+            public string Value;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                return $"\"{TokenLiteral()}\"";
+            }
+
+            public StringLiteral(Token token, string value)
+            {
+                Token = token;
+                Value = value;
+            }
+        }
+
         public class BooleanLiteral : IExpression
         {
             public Token Token;
@@ -325,7 +347,7 @@ namespace SharpMonkey
             public BooleanLiteral(Token token, string value)
             {
                 Token = token;
-                Debug.Assert(value == "true" || value == "false");
+                Debug.Assert(value is "true" or "false");
                 Value = (value == "true");
             }
 
@@ -369,7 +391,7 @@ namespace SharpMonkey
             public Token Token; // while
             public IExpression Condition;
             public BlockStatement Body;
-            
+
             public string TokenLiteral()
             {
                 return Token.Literal;
@@ -379,6 +401,7 @@ namespace SharpMonkey
             {
                 Token = token;
             }
+
             public string ToPrintableString()
             {
                 StringBuilder outBuilder = new StringBuilder();
@@ -462,7 +485,7 @@ namespace SharpMonkey
         public class CallExpression : IExpression
         {
             public Token Token; // 以(作为词法单元
-            public IExpression Function; 
+            public IExpression Function;
             public List<IExpression> Arguments; // args可以是一个表达式  add(1+2,foo())
 
             public CallExpression(Token token, IExpression function)

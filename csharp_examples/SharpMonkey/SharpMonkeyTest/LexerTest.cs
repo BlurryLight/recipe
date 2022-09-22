@@ -18,10 +18,10 @@ namespace SharpMonkeyTest
             foreach (var expectedToken in expectedTokens)
             {
                 var token = lexer.NextToken();
-                Assert.AreEqual(expectedToken.Literal, token.Literal,
-                    $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
                 Assert.AreEqual(expectedToken.Type, token.Type,
                     $"Error! Expected Type {expectedToken.Type} , Actual is {token.Type}");
+                Assert.AreEqual(expectedToken.Literal, token.Literal,
+                    $"Error! Expected Literal {expectedToken.Literal} , Actual is {token.Literal}");
                 count++;
             }
 
@@ -110,7 +110,7 @@ namespace SharpMonkeyTest
         public void TestNextTokenMore()
         {
             var input = "!-/*5;\r\n 5 < 10 > 5; 10 == 10; 5 != 4;" +
-                        "if(5 < 10 && 1 || 0) {return true;} else {return false;}"+
+                        "if(5 < 10 && 1 || 0) {return true;} else {return false;}" +
                         "while(1){}\0";
 
             var expectedTokens = new List<Token>()
@@ -162,6 +162,31 @@ namespace SharpMonkeyTest
                 new Token(Constants.RParen, ")"),
                 new Token(Constants.LBrace, "{"),
                 new Token(Constants.RBrace, "}"),
+                new Token(Constants.Eof, "EOF"),
+            };
+
+            Lexer lexer = new Lexer(input);
+            CheckExpectedTokens(lexer, expectedTokens);
+        }
+
+        [Test]
+        public void TestStringTokens()
+        {
+            var input = " \"foobar\"; \"foo你好 bar\"; \"1\"; \"\"; \"\t\n\r\"\0";
+            var expectedTokens = new List<Token>()
+            {
+                new Token(Constants.String, "foobar"),
+                new Token(Constants.Semicolon, ";"),
+
+                new Token(Constants.String, "foo你好 bar"),
+                new Token(Constants.Semicolon, ";"),
+
+                new Token(Constants.String, "1"),
+                new Token(Constants.Semicolon, ";"),
+
+                new Token(Constants.String, ""),
+                new Token(Constants.Semicolon, ";"),
+                new Token(Constants.String, "\t\n\r"),
                 new Token(Constants.Eof, "EOF"),
             };
 

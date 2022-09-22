@@ -146,6 +146,7 @@ namespace SharpMonkey
 
             // register function
             RegisterPrefixParseFunc(Constants.Ident, ParseIdentifier);
+            RegisterPrefixParseFunc(Constants.String, ParseString);
             RegisterPrefixParseFunc(Constants.Int, ParseInteger);
             RegisterPrefixParseFunc(Constants.Minus, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.Bang, ParsePrefixExpression);
@@ -180,6 +181,7 @@ namespace SharpMonkey
             // 出现 <ident>(args,...)这种情况时候，应该判定为函数调用
             RegisterInfixParseFunc(Constants.LParen, ParseCallExpression);
         }
+
 
         public void NextToken()
         {
@@ -340,6 +342,11 @@ namespace SharpMonkey
             return expression;
         }
 
+        private Ast.IExpression ParseString()
+        {
+            var expression = new Ast.StringLiteral(_curToken, _curToken.Literal);
+            return expression;
+        }
 
         private Ast.IExpression ParseBoolean()
         {
@@ -465,7 +472,7 @@ namespace SharpMonkey
 
             return exp;
         }
-        
+
         private Ast.IExpression ParseWhileExpression()
         {
             var exp = new Ast.WhileExpression(_curToken); // while token
@@ -473,11 +480,13 @@ namespace SharpMonkey
             {
                 return null;
             }
+
             exp.Condition = ParseGroupedExpression();
             if (!ExpectPeek(Constants.LBrace))
             {
                 return null;
             }
+
             exp.Body = ParseBlockStatement();
             return exp;
         }
@@ -515,8 +524,9 @@ namespace SharpMonkey
             {
                 return null;
             }
+
             fn.Parameters = ParseFunctionParameters();
-            
+
             // 现在指针在右)上，看下一个token应该是{
             if (!ExpectPeek(Constants.LBrace))
             {

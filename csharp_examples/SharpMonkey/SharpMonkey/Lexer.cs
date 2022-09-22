@@ -139,6 +139,11 @@ namespace SharpMonkey
                 case '\0':
                     token = new Token(Constants.Eof, "EOF");
                     break;
+                case '"':
+                {
+                    token = new Token(Constants.String, ReadString());
+                    break;
+                }
                 default:
                     if (IsAsciiLetter(CurCh))
                     {
@@ -165,6 +170,20 @@ namespace SharpMonkey
             return token;
         }
 
+        private string ReadString()
+        {
+            // curPos is "
+            var pos = this.CurPos + 1;
+            do
+            {
+                // 至少前进一格，如果读取到下一个"，则代表这是一个空串
+                ReadChar();
+            } while (CurCh != '"' && CurCh != '\0');
+
+            // 循环结束后，CurPos指向右侧的"
+            return InputContent.Substring(pos, CurPos - pos);
+        }
+
         private string ReadIdentifier()
         {
             var pos = this.CurPos;
@@ -187,6 +206,9 @@ namespace SharpMonkey
             return InputContent.Substring(pos, CurPos - pos);
         }
 
+        /// <summary>
+        /// 读取ReadPos所在的字符，并把ReadPos前进一格
+        /// </summary>
         private void ReadChar()
         {
             if (ReadPos >= InputContent.Length)

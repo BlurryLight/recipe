@@ -6,22 +6,24 @@ namespace SharpMonkey
     // 代表作用域，有一个Outer变量指向外层的作用域
     public class Environment
     {
-        private Dictionary<string, MonkeyObject> Bindings = null;
+        private Dictionary<string, IMonkeyObject> Bindings = null;
         public Environment? Outer;
+
         public Environment()
         {
-            Bindings = new Dictionary<string, MonkeyObject>();
+            Bindings = new Dictionary<string, IMonkeyObject>();
             Outer = null;
         }
+
         public Environment(Environment outer)
         {
-            Bindings = new Dictionary<string, MonkeyObject>();
+            Bindings = new Dictionary<string, IMonkeyObject>();
             Outer = outer;
         }
 
-        public MonkeyObject? Get(string valName)
+        public IMonkeyObject? Get(string valName)
         {
-            var value =  Bindings.TryGetValue(valName, out var obj) ? obj : null;
+            var value = Bindings.TryGetValue(valName, out var obj) ? obj : null;
             if (value == null && Outer != null)
             {
                 value = Outer.Get(valName);
@@ -30,7 +32,7 @@ namespace SharpMonkey
             return value;
         }
 
-        public MonkeyObject Set(string valName, MonkeyObject val)
+        public IMonkeyObject Set(string valName, IMonkeyObject val)
         {
             Bindings[valName] = val;
             return val;

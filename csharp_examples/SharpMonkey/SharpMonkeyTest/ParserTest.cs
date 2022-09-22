@@ -385,6 +385,33 @@ namespace SharpMonkeyTest
         }
 
         [Test]
+        public void TestStringLiteralParsingSimple()
+        {
+            var Input = "\"foobar你好\";\"\";";
+            var p = new Parser(new Lexer(Input));
+            var program = p.ParseProgram();
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(2, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.StringLiteral;
+            Assert.NotNull(exp);
+
+            Assert.AreEqual("foobar你好", exp.TokenLiteral());
+            Assert.AreEqual("\"foobar你好\"", exp.ToPrintableString());
+
+            stmt = program.Statements[1] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            exp = stmt.Expression as Ast.StringLiteral;
+            Assert.NotNull(exp);
+
+            Assert.AreEqual("", exp.TokenLiteral());
+            Assert.AreEqual("\"\"", exp.ToPrintableString());
+        }
+
+        [Test]
         public void TestIfExpression()
         {
             var input = "if (x < y && c > d) { return x;} else { false; } ";
@@ -434,6 +461,7 @@ namespace SharpMonkeyTest
             Assert.AreEqual(0, exp.Parameters.Count);
             Assert.AreEqual(0, exp.FuncBody.Statements.Count);
         }
+
 
         [Test]
         public void TestFunctionLiteralParsing()

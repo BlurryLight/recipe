@@ -28,16 +28,18 @@ namespace SharpMonkey
 
         public const string Comma = ",";
         public const string QuestionMark = "?";
-        public const string Colon= ":";
+        public const string Colon = ":";
         public const string Semicolon = ";";
 
         public const string LParen = "(";
         public const string RParen = ")";
         public const string LBrace = "{";
         public const string RBrace = "}";
-        
+
         public const string And = "&&";
         public const string Or = "||";
+
+        public const string String = "String";
 
         // language keywords
         public const string Function = "FUNCTION";

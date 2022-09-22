@@ -10,7 +10,7 @@ namespace SharpMonkey
         /// </summary>
         /// <param name="monkeyObject"></param>
         /// <returns></returns>
-        public static bool IsTrueObject(MonkeyObject monkeyObject)
+        public static bool IsTrueObject(IMonkeyObject monkeyObject)
         {
             switch (monkeyObject)
             {
@@ -27,7 +27,7 @@ namespace SharpMonkey
             }
         }
 
-        public static bool IsNullObject(MonkeyObject monkeyObject)
+        public static bool IsNullObject(IMonkeyObject monkeyObject)
         {
             if (monkeyObject is not MonkeyNull) return false;
             return monkeyObject == MonkeyNull.NullObject;
@@ -50,9 +50,9 @@ namespace SharpMonkey
         /// <param name="stmts"></param>
         /// <param name="TopLevel">是否是Program顶层的语句</param>
         /// <returns></returns>
-        private static MonkeyObject EvalStatements(List<Ast.IStatement> stmts, bool TopLevel, Environment env)
+        private static IMonkeyObject EvalStatements(List<Ast.IStatement> stmts, bool TopLevel, Environment env)
         {
-            MonkeyObject result = null;
+            IMonkeyObject result = null;
             foreach (var statement in stmts)
             {
                 result = Eval(statement, env);
@@ -68,7 +68,7 @@ namespace SharpMonkey
             return result;
         }
 
-        private static MonkeyObject EvalBangOperatorExpression(MonkeyObject right)
+        private static IMonkeyObject EvalBangOperatorExpression(IMonkeyObject right)
         {
             // 如果传入的是null,表达式是(!null),返回true
             switch (right)
@@ -85,7 +85,7 @@ namespace SharpMonkey
             }
         }
 
-        private static MonkeyObject EvalMinusPrefixOpExpression(MonkeyObject right)
+        private static IMonkeyObject EvalMinusPrefixOpExpression(IMonkeyObject right)
         {
             if (right is not MonkeyInteger intObj)
             {
@@ -96,7 +96,7 @@ namespace SharpMonkey
         }
 
         //  原地自增，自减
-        private static MonkeyObject EvalSelfPrefixOpExpression(MonkeyObject right, bool increment)
+        private static IMonkeyObject EvalSelfPrefixOpExpression(IMonkeyObject right, bool increment)
         {
             if (right is not MonkeyInteger intObj)
             {
@@ -107,7 +107,7 @@ namespace SharpMonkey
             return intObj;
         }
 
-        private static MonkeyObject EvalPrefixExpression(string op, MonkeyObject right)
+        private static IMonkeyObject EvalPrefixExpression(string op, IMonkeyObject right)
         {
             switch (op)
             {
@@ -124,7 +124,7 @@ namespace SharpMonkey
             }
         }
 
-        private static MonkeyObject EvalIntegerInfixExpression(string op, MonkeyObject left, MonkeyObject right)
+        private static IMonkeyObject EvalIntegerInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
             var leftInt = (MonkeyInteger) left;
             var rightInt = (MonkeyInteger) right;
@@ -151,7 +151,7 @@ namespace SharpMonkey
             }
         }
 
-        private static MonkeyObject EvalBoolInfixExpression(string op, MonkeyObject left, MonkeyObject right)
+        private static IMonkeyObject EvalBoolInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
             var leftBoolean = MonkeyBoolean.ImplicitConvertFrom(left);
             var rightBoolean = MonkeyBoolean.ImplicitConvertFrom(right);
@@ -170,7 +170,7 @@ namespace SharpMonkey
             }
         }
 
-        private static MonkeyObject EvalInfixExpression(string op, MonkeyObject left, MonkeyObject right)
+        private static IMonkeyObject EvalInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
             if (op is "&&" or "||")
             {
@@ -195,7 +195,7 @@ namespace SharpMonkey
             return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
         }
 
-        private static MonkeyObject EvalPostfixExpression(string op, ref MonkeyObject left)
+        private static IMonkeyObject EvalPostfixExpression(string op, ref IMonkeyObject left)
         {
             if (left is not MonkeyInteger intObj)
             {
@@ -218,9 +218,9 @@ namespace SharpMonkey
             return oldValue;
         }
 
-        private static MonkeyObject EvalWhileExpression(Ast.WhileExpression exp, Environment env)
+        private static IMonkeyObject EvalWhileExpression(Ast.WhileExpression exp, Environment env)
         {
-            MonkeyObject result = null;
+            IMonkeyObject result = null;
             while (true)
             {
                 var condition = Eval(exp.Condition, env);
@@ -235,7 +235,8 @@ namespace SharpMonkey
 
             return null;
         }
-        private static MonkeyObject EvalIfExpression(Ast.IfExpression exp, Environment env)
+
+        private static IMonkeyObject EvalIfExpression(Ast.IfExpression exp, Environment env)
         {
             var condition = Eval(exp.Condition, env);
             if (condition is MonkeyError) return condition;
@@ -252,7 +253,7 @@ namespace SharpMonkey
             return MonkeyNull.NullObject;
         }
 
-        private static MonkeyObject EvalIdentifier(Ast.Identifier exp, Environment env)
+        private static IMonkeyObject EvalIdentifier(Ast.Identifier exp, Environment env)
         {
             var value = env.Get(exp.Value);
             if (value is null)
@@ -262,16 +263,16 @@ namespace SharpMonkey
 
             return value;
         }
-        
+
         /// <summary>
         /// 对参数列表的所有表达式求值
         /// </summary>
         /// <param name="exps"></param>
         /// <param name="env"></param>
         /// <returns>如果过程有错误，返回一个Error,否则返回所有求值后的参数</returns>
-        private static List<MonkeyObject> EvalExpressions(List<Ast.IExpression> exps, Environment env)
+        private static List<IMonkeyObject> EvalExpressions(List<Ast.IExpression> exps, Environment env)
         {
-            List<MonkeyObject> objs = new List<MonkeyObject>();
+            List<IMonkeyObject> objs = new List<IMonkeyObject>();
             foreach (var exp in exps)
             {
                 var evaluated = Eval(exp, env);
@@ -281,13 +282,14 @@ namespace SharpMonkey
                     objs.Add(evaluated);
                     return objs;
                 }
+
                 objs.Add(evaluated);
             }
 
             return objs;
         }
 
-        public static MonkeyObject Eval(Ast.INode node, Environment env)
+        public static IMonkeyObject Eval(Ast.INode node, Environment env)
         {
             switch (node) // switch on type
             {
@@ -297,6 +299,8 @@ namespace SharpMonkey
                     return Eval(stmt.Expression, env);
                 case Ast.IntegerLiteral val:
                     return new MonkeyInteger(val.Value);
+                case Ast.StringLiteral val:
+                    return new MonkeyString(val.Value);
                 case Ast.BooleanLiteral val:
                     // a small optimization. will never create new Boolean object
                     return val.Value ? MonkeyBoolean.TrueObject : MonkeyBoolean.FalseObject;
@@ -309,7 +313,7 @@ namespace SharpMonkey
                 {
                     var left = Eval(exp.Left, env);
                     if (left is MonkeyError) return left;
-                    MonkeyObject right = MonkeyNull.NullObject;
+                    IMonkeyObject right = MonkeyNull.NullObject;
                     // 处理短路原则
                     if (exp.Operator == "&&")
                     {
@@ -344,7 +348,7 @@ namespace SharpMonkey
                 }
                 case Ast.ReturnStatement stmt:
                 {
-                    MonkeyObject returnVal = MonkeyNull.NullObject;
+                    IMonkeyObject returnVal = MonkeyNull.NullObject;
                     if (stmt.ReturnValue != null)
                     {
                         returnVal = Eval(stmt.ReturnValue, env);
@@ -383,12 +387,12 @@ namespace SharpMonkey
                 }
                 case Ast.CallExpression exp:
                 {
-                    var evalObj = Eval(exp.Function,env); // must be MonkeyFuncLiteral
+                    var evalObj = Eval(exp.Function, env); // must be MonkeyFuncLiteral
                     if (evalObj is MonkeyError) return evalObj;
                     var funcObj = (MonkeyFuncLiteral) evalObj;
-                    var args = EvalExpressions(exp.Arguments,env);
+                    var args = EvalExpressions(exp.Arguments, env);
                     if (args.Count == 1 && args[0] is MonkeyError) return args[0];
-                    return ApplyFunction(funcObj,args);
+                    return ApplyFunction(funcObj, args);
                 }
                 case null:
                     return new MonkeyError("Invalid expressions appear during parsing.");
@@ -399,7 +403,7 @@ namespace SharpMonkey
             }
         }
 
-        private static MonkeyObject ApplyFunction(MonkeyFuncLiteral funcObj, List<MonkeyObject> args)
+        private static IMonkeyObject ApplyFunction(MonkeyFuncLiteral funcObj, List<IMonkeyObject> args)
         {
             var funcEnv = new Environment(funcObj.Env);
             for (int i = 0; i < funcObj.Params.Count; i++)
@@ -414,6 +418,7 @@ namespace SharpMonkey
             {
                 return returnValue.ReturnObj;
             }
+
             //如果是个表达式，比如 func(){5;}()这样的，那么直接取得结果就可以了
             return evaluated;
         }
