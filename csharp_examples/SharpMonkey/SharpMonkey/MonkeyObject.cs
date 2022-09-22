@@ -43,6 +43,29 @@ namespace SharpMonkey
             return $"\"{Value}\"";
         }
     }
+    
+    public class MonkeyDouble : IMonkeyObject
+    {
+        public double Value;
+
+        public MonkeyDouble(double val)
+        {
+            Value = val;
+        }
+
+        public string Type()
+        {
+            return ObjType.IntegerObj;
+        }
+
+        public string Inspect()
+        {
+            return Value.ToString();
+        }
+
+        // 继承于同一个类的对象似乎没法定义显式/隐式转换 
+        public MonkeyInteger ToMonkeyInteger() => new MonkeyInteger((long)Value);
+    }
 
     public class MonkeyInteger : IMonkeyObject
     {
@@ -62,6 +85,7 @@ namespace SharpMonkey
         {
             return Value.ToString();
         }
+        public MonkeyDouble ToMonkeyDouble() => new MonkeyDouble(Value);
     }
 
     public class MonkeyBoolean : IMonkeyObject

@@ -24,9 +24,29 @@ namespace SharpMonkeyTest
         private static void TestIntegerObject(IMonkeyObject obj, long expectedVal, string input)
         {
             var intObj = obj as MonkeyInteger;
-            Assert.NotNull(intObj);
+            Assert.NotNull(intObj,input);
             Assert.AreEqual(expectedVal, intObj.Value, $"Failed: {input}");
         }
+        
+        private static void TestDoubleObject(IMonkeyObject obj, double expectedVal, string input)
+        {
+            switch (obj)
+            {
+                case MonkeyInteger val:
+                {
+                    var doubleObj = val.ToMonkeyDouble();
+                    Assert.AreEqual(expectedVal, doubleObj.Value, $"Failed: {input}");
+                    break;
+                }
+                case MonkeyDouble doubleObj:
+                    Assert.AreEqual(expectedVal, doubleObj.Value, $"Failed: {input}");
+                    break;
+                default:
+                    Assert.Fail(input);
+                    break;
+            }
+        }
+        
 
         private static void TestBooleanObject(IMonkeyObject obj, bool expectedVal, string input)
         {
@@ -36,43 +56,66 @@ namespace SharpMonkeyTest
         }
 
         [Test]
-        public void TestEvalIntegerExpression()
+        public void TestEvalNumberExpression()
         {
-            var testTable = new List<(string Input, long ExpectedVal)>
             {
-                new("5", 5),
-                new("10", 10),
-                new("-5", -5),
-                new("-0", 0),
-                new("-0", -0),
-                new("5 * 5;", 25),
-                new("5 + 5 + 10;", 20),
-                new("5 - 5;", 0),
-                new("5 - 5 - 5;", -5),
-                new("2 * 10;", 20),
-                new("100 / 10;", 10),
-                new("100 / 10 * 5;", 50),
-                new("100 / (10 * 10);", 1),
-                new("0 / (10 * 10) + -10;", -10),
-                new("-5 - -5", 0),
-                new("++5", 6),
-                new("++(++5)", 7),
-                new("--(++5)", 5),
-                new("--(--5)", 3),
-                new("5--", 5),
-                new("5++", 5),
+                var testTable = new List<(string Input, long ExpectedVal)>
+                {
+                    new("5", 5),
+                    new("10", 10),
+                    new("-5", -5),
+                    new("-0", 0),
+                    new("-0", -0),
+                    new("5 * 5;", 25),
+                    new("5 + 5 + 10;", 20),
+                    new("5 - 5;", 0),
+                    new("5 - 5 - 5;", -5),
+                    new("2 * 10;", 20),
+                    new("100 / 10;", 10),
+                    new("100 / 10 * 5;", 50),
+                    new("100 / (10 * 10);", 1),
+                    new("0 / (10 * 10) + -10;", -10),
+                    new("-5 - -5", 0),
+                    new("++5", 6),
+                    new("++(++5)", 7),
+                    new("--(++5)", 5),
+                    new("--(--5)", 3),
+                    new("5--", 5),
+                    new("5++", 5),
 
-                new("true ? 5 : 3", 5),
-                new("!true ? 5 : 3", 3),
-                new("1? 5 : 3", 5),
-                new("0? 5 : 3", 3),
-                new("0? 5 : 3", 3),
-                new("(0 && (a + b))? 5 : 3", 3),
-            };
-            foreach (var item in testTable)
+                    new("true ? 5 : 3", 5),
+                    new("!true ? 5 : 3", 3),
+                    new("1? 5 : 3", 5),
+                    new("0? 5 : 3", 3),
+                    new("0? 5 : 3", 3),
+                    new("(0 && (a + b))? 5 : 3", 3),
+                };
+                foreach (var item in testTable)
+                {
+                    var evaluated = TestEval(item.Input);
+                    TestIntegerObject(evaluated, item.ExpectedVal, item.Input);
+                }
+            }
+
             {
-                var evaluated = TestEval(item.Input);
-                TestIntegerObject(evaluated, item.ExpectedVal, item.Input);
+                var testTable = new List<(string Input, double ExpectedVal)>
+                {
+                    new("5.0", 5.0),
+                    new("-5.0", -5.0),
+                    new("-0.0", 0.0),
+                    new("-0.0", -0.0),
+                    new("1.0 ? 5 : 3", 5.0),
+                    new("++5.0", 6.0),
+                    new("++(++5.0)", 7.0),
+                    new("--(++5.0)", 5.0),
+                    new("10 / 4.0;", 2.5),
+                    new("10 * 1.0;", 10.0),
+                };
+                foreach (var item in testTable)
+                {
+                    var evaluated = TestEval(item.Input);
+                    TestDoubleObject(evaluated, item.ExpectedVal, item.Input);
+                }
             }
         }
 
@@ -130,7 +173,9 @@ namespace SharpMonkeyTest
                 new("!!!0", true),
                 new("!1", false),
                 new("!!true", true),
-                new("!!false", false)
+                new("!!false", false),
+                new("!1;", false),
+                new("!1.0;", false),
             };
             foreach (var item in testTable)
             {
@@ -151,6 +196,8 @@ namespace SharpMonkeyTest
                 new("if( 0 == 1 ) {10} else{ 20;}", 20),
                 new("if( 1 > 0 ) {10} else{ 20;}", 10),
                 new("if( 1 < 0 ) {10}", null),
+                new("if( 1 < 1.2 ) {10}", 10),
+                new("if( 0.9 < 1.2 ) {10}", 10),
             };
             foreach (var item in testTable)
             {

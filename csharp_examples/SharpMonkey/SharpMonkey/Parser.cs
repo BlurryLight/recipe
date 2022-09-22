@@ -148,6 +148,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.Ident, ParseIdentifier);
             RegisterPrefixParseFunc(Constants.String, ParseString);
             RegisterPrefixParseFunc(Constants.Int, ParseInteger);
+            RegisterPrefixParseFunc(Constants.Double, ParseDouble);
             RegisterPrefixParseFunc(Constants.Minus, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.Bang, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.Increment, ParsePrefixExpression);
@@ -358,6 +359,21 @@ namespace SharpMonkey
         {
             var expression = new Ast.IntegerLiteral(_curToken, _curToken.Literal);
             return expression;
+        }
+        
+        private Ast.IExpression ParseDouble()
+        {
+            try
+            {
+                var expression = new Ast.DoubleLiteral(_curToken, _curToken.Literal);
+                return expression;
+            }
+            catch (Exception e)
+            {
+                AppendError($"Parse Double {_curToken.Literal} Failed! Reason is {e.Message}");
+            }
+            
+            return null;
         }
 
         private Ast.IExpression ParsePrefixExpression()

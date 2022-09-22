@@ -155,7 +155,9 @@ namespace SharpMonkey
                     }
                     else if (char.IsDigit(CurCh))
                     {
-                        token = new Token(Constants.Int, ReadDigit());
+                        bool isDouble = false;
+                        var literal = ReadDigit(ref isDouble);
+                        token = new Token(isDouble ? Constants.Double:Constants.Int,literal);
                         return token;
                     }
                     else
@@ -195,11 +197,16 @@ namespace SharpMonkey
             return InputContent.Substring(pos, CurPos - pos);
         }
 
-        private string ReadDigit()
+        /// <summary>
+        /// support parse float/integer
+        /// </summary>
+        /// <returns></returns>
+        private string ReadDigit(ref bool IsDouble)
         {
             var pos = this.CurPos;
-            while (char.IsDigit(CurCh))
+            while (char.IsDigit(CurCh) || CurCh == '.' || CurCh == 'e')
             {
+                if (CurCh == '.' || CurCh == 'e') IsDouble = true;
                 ReadChar();
             }
 

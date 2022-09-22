@@ -11,6 +11,7 @@ namespace SharpMonkey
         public const string Eof = "EOF";
         public const string Ident = "IDENT"; // Identifiers
         public const string Int = "INT"; // 123456
+        public const string Double = "Double"; // 1.234, 1e23
 
         public const string Assign = "=";
         public const string Plus = "+";

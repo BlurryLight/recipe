@@ -20,6 +20,8 @@ namespace SharpMonkey
                     return obj == MonkeyBoolean.TrueObject;
                 case MonkeyInteger obj:
                     return obj.Value != 0;
+                case MonkeyDouble obj:
+                    return obj.Value != 0;
                 case MonkeyError:
                     return false;
                 default:
@@ -32,6 +34,7 @@ namespace SharpMonkey
             if (monkeyObject is not MonkeyNull) return false;
             return monkeyObject == MonkeyNull.NullObject;
         }
+        
     }
 
     public static class Evaluator
@@ -87,24 +90,28 @@ namespace SharpMonkey
 
         private static IMonkeyObject EvalMinusPrefixOpExpression(IMonkeyObject right)
         {
-            if (right is not MonkeyInteger intObj)
+            return right switch
             {
-                return new MonkeyError($"unsupported prefix: -{right.Type()}");
-            }
-
-            return new MonkeyInteger(-intObj.Value);
+                MonkeyInteger intObj => new MonkeyInteger(-intObj.Value),
+                MonkeyDouble doubleObj => new MonkeyDouble(-doubleObj.Value),
+                _ => new MonkeyError($"unsupported prefix: -{right.Type()}")
+            };
         }
 
         //  原地自增，自减
         private static IMonkeyObject EvalSelfPrefixOpExpression(IMonkeyObject right, bool increment)
         {
-            if (right is not MonkeyInteger intObj)
+            switch (right)
             {
-                return new MonkeyError($"unsupported prefix: {(increment ? "++" : "--")}{right.Type()}");
+                case MonkeyInteger intObj:
+                    intObj.Value += (increment ? 1 : -1);
+                    return intObj;
+                case MonkeyDouble doubleObj:
+                    doubleObj.Value += (increment ? 1.0 : -1.0);
+                    return doubleObj;
+                default:
+                    return new MonkeyError($"unsupported prefix: {(increment ? "++" : "--")}{right.Type()}");
             }
-
-            intObj.Value += (increment ? 1 : -1);
-            return intObj;
         }
 
         private static IMonkeyObject EvalPrefixExpression(string op, IMonkeyObject right)
@@ -124,6 +131,25 @@ namespace SharpMonkey
             }
         }
 
+        private static IMonkeyObject EvalDoubleInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftDouble = left is MonkeyInteger leftInt? leftInt.ToMonkeyDouble() : (MonkeyDouble)left ;
+            var rightDouble = right is MonkeyInteger rightInt? rightInt.ToMonkeyDouble() : (MonkeyDouble)right ;
+            return op switch
+            {
+                "+" => new MonkeyDouble(leftDouble.Value + rightDouble.Value),
+                "-" => new MonkeyDouble(leftDouble.Value - rightDouble.Value),
+                "*" => new MonkeyDouble(leftDouble.Value * rightDouble.Value),
+                "/" => new MonkeyDouble(leftDouble.Value / rightDouble.Value),
+                "<" => MonkeyBoolean.GetStaticObject(leftDouble.Value < rightDouble.Value),
+                ">" => MonkeyBoolean.GetStaticObject(leftDouble.Value > rightDouble.Value),
+                // ReSharper disable once CompareOfFloatsByEqualityOperator
+                "==" => MonkeyBoolean.GetStaticObject(leftDouble.Value == rightDouble.Value),
+                // ReSharper disable once CompareOfFloatsByEqualityOperator
+                "!=" => MonkeyBoolean.GetStaticObject(leftDouble.Value != rightDouble.Value),
+                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+            };
+        }
         private static IMonkeyObject EvalIntegerInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
             var leftInt = (MonkeyInteger) left;
@@ -179,21 +205,21 @@ namespace SharpMonkey
             {
                 return EvalBoolInfixExpression(op, left, right);
             }
-
-            if (left is MonkeyInteger && right is MonkeyInteger)
-            {
-                return EvalIntegerInfixExpression(op, left, right);
-            }
-
-            if (left is MonkeyBoolean && right is MonkeyBoolean)
-            {
-                return EvalBoolInfixExpression(op, left, right);
-            }
             
-            if (left is MonkeyString && right is MonkeyString )
+            switch (left)
             {
-                return EvalStringInfixExpression(op, left, right);
+                case MonkeyInteger when right is MonkeyInteger:
+                    return EvalIntegerInfixExpression(op, left, right);
+                case MonkeyBoolean when right is MonkeyBoolean:
+                    return EvalBoolInfixExpression(op, left, right);
+                case MonkeyString when right is MonkeyString:
+                    return EvalStringInfixExpression(op, left, right);
+                case MonkeyDouble when right is MonkeyInteger:
+                case MonkeyInteger when right is MonkeyDouble:
+                case MonkeyDouble when right is MonkeyDouble:
+                    return EvalDoubleInfixExpression(op, left, right);
             }
+
 
             if (left.Type() != right.Type())
             {
@@ -307,6 +333,8 @@ namespace SharpMonkey
                     return Eval(stmt.Expression, env);
                 case Ast.IntegerLiteral val:
                     return new MonkeyInteger(val.Value);
+                case Ast.DoubleLiteral val:
+                    return new MonkeyDouble(val.Value);
                 case Ast.StringLiteral val:
                     return new MonkeyString(val.Value);
                 case Ast.BooleanLiteral val:

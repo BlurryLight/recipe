@@ -183,6 +183,28 @@ namespace SharpMonkey
                 return TokenLiteral();
             }
         }
+        
+        public class DoubleLiteral: IExpression
+        {
+            public Token Token;
+            public double Value;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public DoubleLiteral(Token token, string value)
+            {
+                Token = token;
+                Value = Double.Parse(value);
+            }
+
+            public string ToPrintableString()
+            {
+                return TokenLiteral();
+            }
+        }
 
         public class PrefixExpression : IExpression
         {

@@ -56,9 +56,16 @@ namespace SharpMonkeyTest
             Assert.AreEqual(expectedBool, ident.TokenLiteral());
             Assert.AreEqual(expectedBool, ident.ToPrintableString());
         }
+        
+        private void CheckDoubleLiteral(Ast.IExpression exp, double value)
+        {
+            var ident = exp as Ast.DoubleLiteral;
+            Assert.IsNotNull(ident);
+            Assert.AreEqual(value, ident.Value);
+        }
 
         // more general version
-        private void CheckExpression(Ast.IExpression exp, Object val)
+        private void CheckExpression(Ast.IExpression exp, object val)
         {
             switch (val)
             {
@@ -73,6 +80,9 @@ namespace SharpMonkeyTest
                     break;
                 case bool value:
                     CheckBooleanLiteral(exp, value);
+                    break;
+                case double value:
+                    CheckDoubleLiteral(exp,value);
                     break;
                 default:
                     Assert.Fail($"{val.GetType().Name} is not supported in CheckExpression");
@@ -135,6 +145,7 @@ namespace SharpMonkeyTest
             var testTable = new List<(string Input, Object value, string DebugFormat)>
             {
                 new("return 5;\r\n", 5, "return 5;"),
+                new("return 5.0;\r\n", 5.0, "return 5.0;"),
                 new("return x;\r\n", "x", "return x;"),
                 new("return;\r\n", null, "return ;"),
             };
@@ -241,6 +252,21 @@ namespace SharpMonkeyTest
             Assert.NotNull(identifier);
             CheckIntegerLiteral(identifier, 5);
         }
+        
+        [Test]
+        public void TestDoubleExpression()
+        {
+            var input = "5e2;\r\n";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+            var stmt = (Ast.ExpressionStatement) program.Statements[0];
+            var identifier = (Ast.DoubleLiteral) stmt.Expression;
+            Assert.AreEqual(5e2,identifier.Value);
+        }
 
 
         [Test]
@@ -250,7 +276,9 @@ namespace SharpMonkeyTest
             var testTable = new List<(string Input, string PrefixOp, Object value, string DebugFormat)>
             {
                 new("!5;", "!", 5, "(!5)"),
+                new("!5.0;", "!", 5.0, "(!5.0)"),
                 new("-15;", "-", 15, "(-15)"),
+                new("-15e1;", "-", 15e1, "(-15e1)"),
                 new("!true;", "!", true, "(!true)"),
                 new("!false;", "!", false, "(!false)"),
             };
@@ -277,7 +305,7 @@ namespace SharpMonkeyTest
         public void TestInfixExpression()
         {
             // named tuple
-            var testTable = new List<(string Input, long LeftValue, string Operator, long RightValue, string
+            var testTable = new List<(string Input, object LeftValue, string Operator, object RightValue, string
                 DebugFormat)>
             {
                 new("5 + 5;", 5, "+", 5, "(5 + 5)"),
@@ -288,6 +316,9 @@ namespace SharpMonkeyTest
                 new("5 < 5;", 5, "<", 5, "(5 < 5)"),
                 new("5 == 5;", 5, "==", 5, "(5 == 5)"),
                 new("5 != 5;", 5, "!=", 5, "(5 != 5)"),
+                
+                new("5 != 5.0;", 5, "!=", 5.0, "(5 != 5.0)"),
+                new("5 + 5.0;", 5, "+", 5.0, "(5 + 5.0)"),
             };
             foreach (var item in testTable)
             {
