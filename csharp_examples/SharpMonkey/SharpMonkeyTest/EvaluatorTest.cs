@@ -212,6 +212,8 @@ namespace SharpMonkeyTest
                 new("foobar;", "Error: identifier not found: foobar;"),
                 new("if(b == 1) {return 5;}", "Error: identifier not found: b;"),
                 new("let b = 1; (b + 1) = 2;", "Error: Invalid expressions appear during parsing.;"),
+                new("\"Hello \" + 1;", "Error: type mismatch: String + Integer;"),
+                new("\"Hello \" - \"H\";", "Error: unsupported infix: String - String;"),
             };
             foreach (var item in testTable)
             {

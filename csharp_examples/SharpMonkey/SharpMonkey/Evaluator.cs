@@ -128,27 +128,30 @@ namespace SharpMonkey
         {
             var leftInt = (MonkeyInteger) left;
             var rightInt = (MonkeyInteger) right;
-            switch (op)
+            return op switch
             {
-                case "+":
-                    return new MonkeyInteger(leftInt.Value + rightInt.Value);
-                case "-":
-                    return new MonkeyInteger(leftInt.Value - rightInt.Value);
-                case "*":
-                    return new MonkeyInteger(leftInt.Value * rightInt.Value);
-                case "/":
-                    return new MonkeyInteger(leftInt.Value / rightInt.Value);
-                case "<":
-                    return MonkeyBoolean.GetStaticObject(leftInt.Value < rightInt.Value);
-                case ">":
-                    return MonkeyBoolean.GetStaticObject(leftInt.Value > rightInt.Value);
-                case "==":
-                    return MonkeyBoolean.GetStaticObject(leftInt.Value == rightInt.Value);
-                case "!=":
-                    return MonkeyBoolean.GetStaticObject(leftInt.Value != rightInt.Value);
-                default:
-                    return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
-            }
+                "+" => new MonkeyInteger(leftInt.Value + rightInt.Value),
+                "-" => new MonkeyInteger(leftInt.Value - rightInt.Value),
+                "*" => new MonkeyInteger(leftInt.Value * rightInt.Value),
+                "/" => new MonkeyInteger(leftInt.Value / rightInt.Value),
+                "<" => MonkeyBoolean.GetStaticObject(leftInt.Value < rightInt.Value),
+                ">" => MonkeyBoolean.GetStaticObject(leftInt.Value > rightInt.Value),
+                "==" => MonkeyBoolean.GetStaticObject(leftInt.Value == rightInt.Value),
+                "!=" => MonkeyBoolean.GetStaticObject(leftInt.Value != rightInt.Value),
+                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+            };
+        }
+
+        private static IMonkeyObject EvalStringInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftStr = (MonkeyString) left;
+            var rightStr = (MonkeyString) right;
+            return op switch
+            {
+                "+" => new MonkeyString(leftStr.Value + rightStr.Value),
+                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+            };
+
         }
 
         private static IMonkeyObject EvalBoolInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
@@ -185,6 +188,11 @@ namespace SharpMonkey
             if (left is MonkeyBoolean && right is MonkeyBoolean)
             {
                 return EvalBoolInfixExpression(op, left, right);
+            }
+            
+            if (left is MonkeyString && right is MonkeyString )
+            {
+                return EvalStringInfixExpression(op, left, right);
             }
 
             if (left.Type() != right.Type())
