@@ -34,7 +34,6 @@ namespace SharpMonkey
             if (monkeyObject is not MonkeyNull) return false;
             return monkeyObject == MonkeyNull.NullObject;
         }
-        
     }
 
     public static class Evaluator
@@ -133,8 +132,8 @@ namespace SharpMonkey
 
         private static IMonkeyObject EvalDoubleInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
-            var leftDouble = left is MonkeyInteger leftInt? leftInt.ToMonkeyDouble() : (MonkeyDouble)left ;
-            var rightDouble = right is MonkeyInteger rightInt? rightInt.ToMonkeyDouble() : (MonkeyDouble)right ;
+            var leftDouble = left is MonkeyInteger leftInt ? leftInt.ToMonkeyDouble() : (MonkeyDouble) left;
+            var rightDouble = right is MonkeyInteger rightInt ? rightInt.ToMonkeyDouble() : (MonkeyDouble) right;
             return op switch
             {
                 "+" => new MonkeyDouble(leftDouble.Value + rightDouble.Value),
@@ -150,6 +149,7 @@ namespace SharpMonkey
                 _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
             };
         }
+
         private static IMonkeyObject EvalIntegerInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
         {
             var leftInt = (MonkeyInteger) left;
@@ -177,7 +177,6 @@ namespace SharpMonkey
                 "+" => new MonkeyString(leftStr.Value + rightStr.Value),
                 _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
             };
-
         }
 
         private static IMonkeyObject EvalBoolInfixExpression(string op, IMonkeyObject left, IMonkeyObject right)
@@ -205,7 +204,7 @@ namespace SharpMonkey
             {
                 return EvalBoolInfixExpression(op, left, right);
             }
-            
+
             switch (left)
             {
                 case MonkeyInteger when right is MonkeyInteger:
@@ -290,12 +289,17 @@ namespace SharpMonkey
         private static IMonkeyObject EvalIdentifier(Ast.Identifier exp, Environment env)
         {
             var value = env.Get(exp.Value);
-            if (value is null)
+            if (value != null)
             {
-                return new MonkeyError($"identifier not found: {exp.Value}");
+                return value;
             }
 
-            return value;
+            if (MonkeyBuiltinFunc.Builtins.TryGetValue(exp.Value, out MonkeyBuiltinFunc fn))
+            {
+                return fn;
+            }
+
+            return new MonkeyError($"identifier not found: {exp.Value}");
         }
 
         /// <summary>
@@ -423,10 +427,10 @@ namespace SharpMonkey
                 }
                 case Ast.CallExpression exp:
                 {
-                    var evalObj = Eval(exp.Function, env); // must be MonkeyFuncLiteral
-                    if (evalObj is MonkeyError) return evalObj;
-                    var funcObj = (MonkeyFuncLiteral) evalObj;
+                    var funcObj = Eval(exp.Function, env); // maybe MonkeyFuncLiteral | MonkeyBuiltinFunc
+                    if (funcObj is MonkeyError) return funcObj;
                     var args = EvalExpressions(exp.Arguments, env);
+                    // 内部在碰见错误时可能会返回 [MonkeyError]的错误
                     if (args.Count == 1 && args[0] is MonkeyError) return args[0];
                     return ApplyFunction(funcObj, args);
                 }
@@ -439,24 +443,37 @@ namespace SharpMonkey
             }
         }
 
-        private static IMonkeyObject ApplyFunction(MonkeyFuncLiteral funcObj, List<IMonkeyObject> args)
+        private static IMonkeyObject ApplyFunction(IMonkeyObject evalObj, List<IMonkeyObject> args)
         {
-            var funcEnv = new Environment(funcObj.Env);
-            for (int i = 0; i < funcObj.Params.Count; i++)
+            switch (evalObj)
             {
-                // 把每个param 和 arg在当前作用域下对应起来
-                funcEnv.Set(funcObj.Params[i].Value, args[i]);
-            }
+                case MonkeyFuncLiteral funcObj:
+                {
+                    var funcEnv = new Environment(funcObj.Env);
+                    for (int i = 0; i < funcObj.Params.Count; i++)
+                    {
+                        // 把每个param 和 arg在当前作用域下对应起来
+                        funcEnv.Set(funcObj.Params[i].Value, args[i]);
+                    }
 
-            var evaluated = Eval(funcObj.Body, funcEnv);
-            //如果在内层碰见了return语句，return的结果被包裹在return语句内，把return的结果解包
-            if (evaluated is MonkeyReturnValue returnValue)
-            {
-                return returnValue.ReturnObj;
-            }
+                    var evaluated = Eval(funcObj.Body, funcEnv);
+                    //如果在内层碰见了return语句，return的结果被包裹在return语句内，把return的结果解包
+                    if (evaluated is MonkeyReturnValue returnValue)
+                    {
+                        return returnValue.ReturnObj;
+                    }
 
-            //如果是个表达式，比如 func(){5;}()这样的，那么直接取得结果就可以了
-            return evaluated;
+                    //如果是个表达式，比如 func(){5;}()这样的，那么直接取得结果就可以了
+                    return evaluated;
+                }
+                case MonkeyBuiltinFunc funcObj:
+                {
+                    // 展开所有参数
+                    return funcObj.Func(args.ToArray());
+                }
+                default:
+                    return new MonkeyError($"not a function or BuiltinFunc {evalObj.Type()}");
+            }
         }
     }
 }

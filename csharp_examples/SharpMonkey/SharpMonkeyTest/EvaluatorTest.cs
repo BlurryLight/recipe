@@ -24,35 +24,38 @@ namespace SharpMonkeyTest
         private static void TestIntegerObject(IMonkeyObject obj, long expectedVal, string input)
         {
             var intObj = obj as MonkeyInteger;
-            Assert.NotNull(intObj,input);
-            Assert.AreEqual(expectedVal, intObj.Value, $"Failed: {input}");
+            var failedMsg = $"Failed: {input}, obj inspect: <{obj.Inspect()}>";
+            Assert.NotNull(intObj, failedMsg);
+            Assert.AreEqual(expectedVal, intObj.Value, failedMsg);
         }
-        
+
         private static void TestDoubleObject(IMonkeyObject obj, double expectedVal, string input)
         {
+            var failedMsg = $"Failed: {input}, obj inspect: <{obj.Inspect()}>";
             switch (obj)
             {
                 case MonkeyInteger val:
                 {
                     var doubleObj = val.ToMonkeyDouble();
-                    Assert.AreEqual(expectedVal, doubleObj.Value, $"Failed: {input}");
+                    Assert.AreEqual(expectedVal, doubleObj.Value, failedMsg);
                     break;
                 }
                 case MonkeyDouble doubleObj:
-                    Assert.AreEqual(expectedVal, doubleObj.Value, $"Failed: {input}");
+                    Assert.AreEqual(expectedVal, doubleObj.Value, failedMsg);
                     break;
                 default:
-                    Assert.Fail(input);
+                    Assert.Fail(failedMsg);
                     break;
             }
         }
-        
+
 
         private static void TestBooleanObject(IMonkeyObject obj, bool expectedVal, string input)
         {
             var boolObj = obj as MonkeyBoolean;
-            Assert.NotNull(boolObj);
-            Assert.AreEqual(expectedVal, boolObj.Value, $"Failed: {input}");
+            var failedMsg = $"Failed: {input}, obj inspect: <{obj.Inspect()}>";
+            Assert.NotNull(boolObj, failedMsg);
+            Assert.AreEqual(expectedVal, boolObj.Value, failedMsg);
         }
 
         [Test]
@@ -353,6 +356,36 @@ namespace SharpMonkeyTest
             {
                 var evaluated = TestEval(item.Input);
                 TestIntegerObject(evaluated, item.expectedVal, item.Input);
+            }
+        }
+
+        [Test]
+        public void TestBuiltinFunctions()
+        {
+            var testTable = new List<(string Input, long? expectedVal, string errorMsg)>
+            {
+                // len
+                new("len(\"\");", 0, ""),
+                new("len(\" \");", 1, ""),
+                new("len(\"hello\");", 5, ""),
+                new("len(\"hello\r\n\");", 7, ""),
+                new("len(\"你好\r\n\");", 4, ""),
+                new("len(\"你𠈓好\");", 4, ""), // 不能正确处理代理对
+                new("len(\"hello\",\"world\");", null, "Error: wrong number of arguments to len;"),
+                new("len(1);", null, "Error: argument Integer to len is not supported;"),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                if (item.expectedVal is null)
+                {
+                    var errorObj = (MonkeyError) evaluated;
+                    Assert.AreEqual(item.errorMsg, errorObj.Inspect());
+                }
+                else
+                {
+                    TestIntegerObject(evaluated, item.expectedVal.Value, item.Input);
+                }
             }
         }
     }

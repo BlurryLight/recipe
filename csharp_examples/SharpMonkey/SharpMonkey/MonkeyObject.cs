@@ -16,6 +16,7 @@ namespace SharpMonkey
         public const string ErrorObj = "Error";
         public const string FuncObj = "Function";
         public const string StringObj = "String";
+        public const string BuiltinObj = "Builtin";
     }
 
     public interface IMonkeyObject
@@ -43,7 +44,7 @@ namespace SharpMonkey
             return $"\"{Value}\"";
         }
     }
-    
+
     public class MonkeyDouble : IMonkeyObject
     {
         public double Value;
@@ -64,7 +65,7 @@ namespace SharpMonkey
         }
 
         // 继承于同一个类的对象似乎没法定义显式/隐式转换 
-        public MonkeyInteger ToMonkeyInteger() => new MonkeyInteger((long)Value);
+        public MonkeyInteger ToMonkeyInteger() => new MonkeyInteger((long) Value);
     }
 
     public class MonkeyInteger : IMonkeyObject
@@ -85,6 +86,7 @@ namespace SharpMonkey
         {
             return Value.ToString();
         }
+
         public MonkeyDouble ToMonkeyDouble() => new MonkeyDouble(Value);
     }
 
@@ -171,11 +173,11 @@ namespace SharpMonkey
 
     public class MonkeyError : IMonkeyObject
     {
-        public string Msg;
+        private string _msg;
 
         public MonkeyError(string msg)
         {
-            Msg = msg;
+            _msg = msg;
         }
 
         public string Type()
@@ -185,7 +187,7 @@ namespace SharpMonkey
 
         public string Inspect()
         {
-            return $"Error: {Msg};";
+            return $"Error: {_msg};";
         }
     }
 
@@ -218,6 +220,33 @@ namespace SharpMonkey
 
             outBuilder.Append($"fn({string.Join(", ", paramStrs)}) {{ {Body.ToPrintableString()} }}");
             return outBuilder.ToString();
+        }
+    }
+
+    public class MonkeyBuiltinFunc : IMonkeyObject
+    {
+        public static readonly Dictionary<string, MonkeyBuiltinFunc> Builtins = new()
+        {
+            ["len"] = new MonkeyBuiltinFunc(BuiltinFunctions.Len),
+        };
+
+        public delegate IMonkeyObject BuiltinFunc(params IMonkeyObject[] monkeyObjects);
+
+        public BuiltinFunc Func;
+
+        public string Type()
+        {
+            return ObjType.BuiltinObj;
+        }
+
+        public MonkeyBuiltinFunc(BuiltinFunc fn)
+        {
+            Func = fn;
+        }
+
+        public string Inspect()
+        {
+            return "Builtin Function";
         }
     }
 }
