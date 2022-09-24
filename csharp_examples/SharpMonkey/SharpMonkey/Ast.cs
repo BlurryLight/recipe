@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace SharpMonkey
@@ -183,8 +184,8 @@ namespace SharpMonkey
                 return TokenLiteral();
             }
         }
-        
-        public class DoubleLiteral: IExpression
+
+        public class DoubleLiteral : IExpression
         {
             public Token Token;
             public double Value;
@@ -543,13 +544,12 @@ namespace SharpMonkey
         public class AssignExpression : IExpression
         {
             public Token Token; // 以=作为词法单元
-            public Identifier Name; // <ident>部分
+            public IExpression Name; // <ident>部分
             public IExpression Value; // <exp>部分
 
-            public AssignExpression(Token token, Identifier name)
+            public AssignExpression(Token token, IExpression name)
             {
                 Token = token;
-                Debug.Assert(name != null);
                 Name = name;
             }
 
@@ -563,6 +563,56 @@ namespace SharpMonkey
             public string TokenLiteral()
             {
                 return Token.Literal;
+            }
+        }
+
+        public class ArrayLiteral : IExpression
+        {
+            public Token Token; // `[`
+            public List<IExpression> Elements; // [a,b,1 + 2,fn{}()] 异构容器
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public ArrayLiteral(Token token, List<IExpression> elements)
+            {
+                Token = token;
+                Elements = elements;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                List<string> argStrs = Elements.Select(p => p.ToPrintableString()).ToList();
+                outBuilder.Append($"[{string.Join(", ", argStrs)}]"); // "[a, b, ...]"
+                return outBuilder.ToString();
+            }
+        }
+
+        public class IndexExpression : IExpression
+        {
+            public Token Token; // `[`
+            public IExpression Left;
+            public IExpression Index; // <Left>[ <Index> ]
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public IndexExpression(Token token, IExpression left)
+            {
+                Token = token;
+                Left = left;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                outBuilder.Append($"{Left.ToPrintableString()}[{Index.ToPrintableString()}]");
+                return outBuilder.ToString();
             }
         }
     }

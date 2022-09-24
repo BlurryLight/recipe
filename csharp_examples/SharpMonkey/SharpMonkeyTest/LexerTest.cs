@@ -111,7 +111,7 @@ namespace SharpMonkeyTest
         {
             var input = "!-/*5;\r\n 5 < 10 > 5; 10 == 10; 5 != 4;" +
                         "if(5 < 10 && 1.0 || 1e3) {return true;} else {return false;}" +
-                        "while(1){}\0";
+                        "while(1){};[1,2];\0";
 
             var expectedTokens = new List<Token>()
             {
@@ -162,6 +162,13 @@ namespace SharpMonkeyTest
                 new Token(Constants.RParen, ")"),
                 new Token(Constants.LBrace, "{"),
                 new Token(Constants.RBrace, "}"),
+                new Token(Constants.Semicolon, ";"),
+                new Token(Constants.LBracket, "["),
+                new Token(Constants.Int, "1"),
+                new Token(Constants.Comma, ","),
+                new Token(Constants.Int, "2"),
+                new Token(Constants.RBracket, "]"),
+                new Token(Constants.Semicolon, ";"),
                 new Token(Constants.Eof, "EOF"),
             };
 

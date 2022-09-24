@@ -414,11 +414,38 @@ namespace SharpMonkey
                 }
                 case Ast.AssignExpression exp:
                 {
-                    var namedObj = EvalIdentifier(exp.Name, env);
-                    if (namedObj is MonkeyError) return namedObj;
-                    var val = Eval(exp.Value, env);
-                    env.Set(exp.Name.Value, val);
-                    return null; // x = 1;  assign语句没有返回值
+                    switch (exp.Name)
+                    {
+                        case Ast.Identifier ident:
+                        {
+                            var namedObj = EvalIdentifier(ident, env);
+                            if (namedObj is MonkeyError) return namedObj;
+                            var val = Eval(exp.Value, env);
+                            env.Set(ident.Value, val);
+                            return null; // x = 1;  assign语句没有返回值
+                        }
+                        case Ast.IndexExpression indexExp:
+                        {
+                            var left = Eval(indexExp.Left, env);
+                            if (left is MonkeyError) return left;
+                            var index = Eval(indexExp.Index, env);
+                            if (index is MonkeyError) return index;
+
+                            MonkeyInteger indexInteger = (MonkeyInteger) index;
+                            switch (left)
+                            {
+                                case MonkeyArray arrayObj:
+                                    arrayObj.Elements[(int) indexInteger.Value] = Eval(exp.Value, env);
+                                    break;
+                                case MonkeyString stringObj:
+                                    return new MonkeyError("String is immutable!");
+                            }
+
+                            return null;
+                        }
+                    }
+
+                    return null;
                 }
                 case Ast.FunctionLiteral exp:
                 {
@@ -434,6 +461,20 @@ namespace SharpMonkey
                     if (args.Count == 1 && args[0] is MonkeyError) return args[0];
                     return ApplyFunction(funcObj, args);
                 }
+                case Ast.ArrayLiteral exp:
+                {
+                    var elems = EvalExpressions(exp.Elements, env);
+                    if (elems.Count == 1 && elems[0] is MonkeyError) return elems[0];
+                    return new MonkeyArray(elems);
+                }
+                case Ast.IndexExpression exp:
+                {
+                    var left = Eval(exp.Left, env);
+                    if (left is MonkeyError) return left;
+                    var index = Eval(exp.Index, env);
+                    if (index is MonkeyError) return index;
+                    return EvalIndexExpressionImmutable(left, index);
+                }
                 case null:
                     return new MonkeyError("Invalid expressions appear during parsing.");
                 default:
@@ -442,6 +483,39 @@ namespace SharpMonkey
                     return new MonkeyError(msg);
             }
         }
+
+        private static IMonkeyObject EvalIndexExpressionImmutable(IMonkeyObject left, IMonkeyObject index)
+        {
+            switch (left)
+            {
+                case MonkeyString stringObj when index is MonkeyInteger arrayIndex:
+                {
+                    if (arrayIndex.Value >= stringObj.Value.Length)
+                    {
+                        return new MonkeyError($"String[{arrayIndex.Value}] index out of range");
+                    }
+
+                    // 设计选择: 不可变
+                    return new MonkeyString(stringObj.Value[(int) arrayIndex.Value].ToString());
+                }
+                case MonkeyArray arrayObj when index is MonkeyInteger arrayIndex:
+                {
+                    if (arrayIndex.Value >= arrayObj.Elements.Count)
+                    {
+                        return new MonkeyError($"Array[{arrayIndex.Value}] index out of range");
+                    }
+
+                    return arrayObj.Elements[(int) arrayIndex.Value];
+                }
+                default:
+                    return new MonkeyError($"{left.Type()}[{index.Type()}] index operator is not supported");
+            }
+        }
+        // private static ref IMonkeyObject EvalIndexExpressionMutable(ref List<IMonkeyObject> leftElems, IMonkeyObject index)
+        // {
+        //     var arrayIndex = (MonkeyInteger) index;
+        //     return ref leftElems[(int) arrayIndex.Value];
+        // }
 
         private static IMonkeyObject ApplyFunction(IMonkeyObject evalObj, List<IMonkeyObject> args)
         {

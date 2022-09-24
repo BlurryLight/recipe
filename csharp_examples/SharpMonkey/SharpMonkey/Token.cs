@@ -36,6 +36,8 @@ namespace SharpMonkey
         public const string RParen = ")";
         public const string LBrace = "{";
         public const string RBrace = "}";
+        public const string LBracket = "[";
+        public const string RBracket = "]";
 
         public const string And = "&&";
         public const string Or = "||";

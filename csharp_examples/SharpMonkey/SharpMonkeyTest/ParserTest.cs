@@ -56,7 +56,7 @@ namespace SharpMonkeyTest
             Assert.AreEqual(expectedBool, ident.TokenLiteral());
             Assert.AreEqual(expectedBool, ident.ToPrintableString());
         }
-        
+
         private void CheckDoubleLiteral(Ast.IExpression exp, double value)
         {
             var ident = exp as Ast.DoubleLiteral;
@@ -82,7 +82,7 @@ namespace SharpMonkeyTest
                     CheckBooleanLiteral(exp, value);
                     break;
                 case double value:
-                    CheckDoubleLiteral(exp,value);
+                    CheckDoubleLiteral(exp, value);
                     break;
                 default:
                     Assert.Fail($"{val.GetType().Name} is not supported in CheckExpression");
@@ -252,7 +252,7 @@ namespace SharpMonkeyTest
             Assert.NotNull(identifier);
             CheckIntegerLiteral(identifier, 5);
         }
-        
+
         [Test]
         public void TestDoubleExpression()
         {
@@ -265,7 +265,7 @@ namespace SharpMonkeyTest
             Assert.AreEqual(1, program.Statements.Count);
             var stmt = (Ast.ExpressionStatement) program.Statements[0];
             var identifier = (Ast.DoubleLiteral) stmt.Expression;
-            Assert.AreEqual(5e2,identifier.Value);
+            Assert.AreEqual(5e2, identifier.Value);
         }
 
 
@@ -316,7 +316,7 @@ namespace SharpMonkeyTest
                 new("5 < 5;", 5, "<", 5, "(5 < 5)"),
                 new("5 == 5;", 5, "==", 5, "(5 == 5)"),
                 new("5 != 5;", 5, "!=", 5, "(5 != 5)"),
-                
+
                 new("5 != 5.0;", 5, "!=", 5.0, "(5 != 5.0)"),
                 new("5 + 5.0;", 5, "+", 5.0, "(5 + 5.0)"),
             };
@@ -377,6 +377,10 @@ namespace SharpMonkeyTest
                 new("a && b && c;", "((a && b) && c)"),
                 new("a && (b || c) && c;", "((a && (b || c)) && c)"),
                 new("a > b && c < d;", "((a > b) && (c < d))"),
+
+                // index
+                new("a * [1,2,3][b * c] * d;", "((a * [1, 2, 3][(b * c)]) * d)"),
+                new("func(a * c[d + e])", "func((a * c[(d + e)]))"),
             };
             foreach (var item in testTable)
             {
@@ -566,6 +570,52 @@ namespace SharpMonkeyTest
             Assert.NotNull(thenStmt);
             Assert.AreEqual("return", thenStmt.TokenLiteral());
             CheckIdentifier(thenStmt.ReturnValue, "x");
+        }
+
+        [Test]
+        public void TestArrayLiteral()
+        {
+            var input = "[a,1,a + b, fn(){}]";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.ArrayLiteral;
+            Assert.NotNull(exp);
+
+            CheckIdentifier(exp.Elements[0], "a");
+            CheckIntegerLiteral(exp.Elements[1], 1);
+            CheckInfixExpression(exp.Elements[2], "a", "+", "b");
+            Assert.NotNull(exp.Elements[3] as Ast.FunctionLiteral);
+        }
+
+        [Test]
+        public void TestArrayIndex()
+        {
+            var input = "MyArray[1 + 3];";
+            var l = new Lexer(input);
+            var p = new Parser(l);
+            var program = p.ParseProgram();
+
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.ExpressionStatement;
+            Assert.NotNull(stmt);
+            var exp = stmt.Expression as Ast.IndexExpression;
+            Assert.NotNull(exp);
+
+            CheckIdentifier(exp.Left, "MyArray");
+            CheckInfixExpression(exp.Index, 1, "+", 3);
+            Assert.AreEqual("[", exp.Token.Literal);
+            Assert.AreEqual("MyArray[(1 + 3)]", exp.ToPrintableString());
         }
     }
 }

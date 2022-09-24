@@ -121,6 +121,12 @@ namespace SharpMonkey
                 case '}':
                     token = new Token(Constants.RBrace, CurCh.ToString());
                     break;
+                case '[':
+                    token = new Token(Constants.LBracket, CurCh.ToString());
+                    break;
+                case ']':
+                    token = new Token(Constants.RBracket, CurCh.ToString());
+                    break;
                 case '!':
                     token = TryMakeTwoCharToken('=', Constants.NotEq, Constants.Bang);
                     break;
@@ -157,7 +163,7 @@ namespace SharpMonkey
                     {
                         bool isDouble = false;
                         var literal = ReadDigit(ref isDouble);
-                        token = new Token(isDouble ? Constants.Double:Constants.Int,literal);
+                        token = new Token(isDouble ? Constants.Double : Constants.Int, literal);
                         return token;
                     }
                     else

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace SharpMonkey
@@ -219,6 +220,29 @@ namespace SharpMonkey
             }
 
             outBuilder.Append($"fn({string.Join(", ", paramStrs)}) {{ {Body.ToPrintableString()} }}");
+            return outBuilder.ToString();
+        }
+    }
+
+    public class MonkeyArray : IMonkeyObject
+    {
+        public List<IMonkeyObject> Elements;
+
+        public MonkeyArray(List<IMonkeyObject> elements)
+        {
+            Elements = elements;
+        }
+
+        public string Type()
+        {
+            return ObjType.FuncObj;
+        }
+
+        public string Inspect()
+        {
+            StringBuilder outBuilder = new StringBuilder();
+            List<string> ElemStrs = Elements.Select(p => p.Inspect()).ToList();
+            outBuilder.Append($"[{string.Join(", ", ElemStrs)}]");
             return outBuilder.ToString();
         }
     }

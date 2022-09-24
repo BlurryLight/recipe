@@ -264,6 +264,7 @@ namespace SharpMonkeyTest
                 new("let b = 1; (b + 1) = 2;", "Error: Invalid expressions appear during parsing.;"),
                 new("\"Hello \" + 1;", "Error: type mismatch: String + Integer;"),
                 new("\"Hello \" - \"H\";", "Error: unsupported infix: String - String;"),
+                new("1[2]", "Error: Integer[Integer] index operator is not supported;"),
             };
             foreach (var item in testTable)
             {
@@ -386,6 +387,23 @@ namespace SharpMonkeyTest
                 {
                     TestIntegerObject(evaluated, item.expectedVal.Value, item.Input);
                 }
+            }
+        }
+
+        [Test]
+        public void TestArrayAndIndex()
+        {
+            // array declaration
+            var testTable = new List<(string Input, long expectedVal)>
+            {
+                new("let a = [1,2 * 3, 3 + 3 + 3];a[0];", 1),
+                new("let a = [1,2 * 3, 3 + 3 + 3];a[1];", 6),
+                new("let a = [1,2 * 3, 3 + 3 + 3];a[2];", 9),
+            };
+            foreach (var item in testTable)
+            {
+                var evaluated = TestEval(item.Input);
+                TestIntegerObject(evaluated, item.expectedVal, item.Input);
             }
         }
     }

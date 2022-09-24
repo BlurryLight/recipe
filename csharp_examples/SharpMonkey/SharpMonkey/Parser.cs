@@ -46,7 +46,8 @@ namespace SharpMonkey
         Product, // *
         Prefix, // -x or !x
         Postfix, // a++
-        Call // a + func(b)
+        Call, // a + func(b),
+        Index, // a + func(b[0]),[优先级应该大于,否则会变成func(b  [0]),会碰见找不到)的错误
     }
 
     public class Parser
@@ -86,6 +87,7 @@ namespace SharpMonkey
             {Constants.Or, Priority.And},
             {Constants.LParen, Priority.Call},
             {Constants.Assign, Priority.Assign},
+            {Constants.LBracket, Priority.Index}
         };
 
         private Priority PeekPrecedence()
@@ -159,6 +161,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.If, ParseIfExpression);
             RegisterPrefixParseFunc(Constants.Function, ParseFuncLiteral);
             RegisterPrefixParseFunc(Constants.While, ParseWhileExpression);
+            RegisterPrefixParseFunc(Constants.LBracket, ParseArrayLiteral);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -181,6 +184,8 @@ namespace SharpMonkey
             RegisterInfixParseFunc(Constants.QuestionMark, ParseConditionalExpression);
             // 出现 <ident>(args,...)这种情况时候，应该判定为函数调用
             RegisterInfixParseFunc(Constants.LParen, ParseCallExpression);
+
+            RegisterInfixParseFunc(Constants.LBracket, ParseIndexExpression);
         }
 
 
@@ -360,7 +365,7 @@ namespace SharpMonkey
             var expression = new Ast.IntegerLiteral(_curToken, _curToken.Literal);
             return expression;
         }
-        
+
         private Ast.IExpression ParseDouble()
         {
             try
@@ -372,7 +377,7 @@ namespace SharpMonkey
             {
                 AppendError($"Parse Double {_curToken.Literal} Failed! Reason is {e.Message}");
             }
-            
+
             return null;
         }
 
@@ -553,11 +558,17 @@ namespace SharpMonkey
             return fn;
         }
 
-        private List<Ast.IExpression> ParseCallArguments()
+        private Ast.IExpression ParseArrayLiteral()
+        {
+            var exp = new Ast.ArrayLiteral(_curToken, ParseExpressionList(Constants.RBracket));
+            return exp;
+        }
+
+        private List<Ast.IExpression> ParseExpressionList(TokenType endTokenType)
         {
             // 仿照ParseParameters的逻辑
             var args = new List<Ast.IExpression>();
-            if (_peekToken.Type == Constants.RParen)
+            if (_peekToken.Type == endTokenType)
             {
                 NextToken();
                 return args;
@@ -572,28 +583,35 @@ namespace SharpMonkey
                 args.Add(ParseExpression(Priority.Lowest));
             }
 
-            return !ExpectPeek(Constants.RParen) ? null : args;
+            return !ExpectPeek(endTokenType) ? null : args;
         }
 
         private Ast.IExpression ParseCallExpression(Ast.IExpression left)
         {
             var exp = new Ast.CallExpression(_curToken, left)
             {
-                Arguments = ParseCallArguments()
+                Arguments = ParseExpressionList(Constants.RParen)
             };
             return exp;
         }
 
+        private Ast.IExpression ParseIndexExpression(Ast.IExpression left)
+        {
+            var exp = new Ast.IndexExpression(_curToken, left); // cur Token is [
+            NextToken();
+            exp.Index = ParseExpression(Priority.Lowest);
+            return !ExpectPeek(Constants.RBracket) ? null : exp;
+        }
+
         private Ast.IExpression ParseAssignExpression(Ast.IExpression left)
         {
-            var leftIdent = left as Ast.Identifier;
-            if (leftIdent == null)
+            if (left is not Ast.Identifier && left is not Ast.IndexExpression)
             {
-                AppendError($"Assign left must be identifier!");
+                AppendError($"Assign left must be left value!");
                 return null;
             }
 
-            var exp = new Ast.AssignExpression(_curToken, leftIdent);
+            var exp = new Ast.AssignExpression(_curToken, left);
             // 从 = token移动到下一个token
             NextToken();
             exp.Value = ParseExpression(Priority.Lowest);
