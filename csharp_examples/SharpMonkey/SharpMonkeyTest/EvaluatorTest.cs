@@ -374,6 +374,12 @@ namespace SharpMonkeyTest
                 new("len(\"你𠈓好\");", 4, ""), // 不能正确处理代理对
                 new("len(\"hello\",\"world\");", null, "Error: wrong number of arguments to len;"),
                 new("len(1);", null, "Error: argument Integer to len is not supported;"),
+                new("len([0,1,2]);", 3, ""),
+
+                // array funcs
+                new("let a = [1,2,3];first(a);", 1, ""),
+                new("let a = [1,2,3];last(a);", 3, ""),
+                new("let a = [1,2,3];let b = rest(a);b[0]", 2, "")
             };
             foreach (var item in testTable)
             {
@@ -399,6 +405,8 @@ namespace SharpMonkeyTest
                 new("let a = [1,2 * 3, 3 + 3 + 3];a[0];", 1),
                 new("let a = [1,2 * 3, 3 + 3 + 3];a[1];", 6),
                 new("let a = [1,2 * 3, 3 + 3 + 3];a[2];", 9),
+                // mutable array index
+                new("let a = [1];a[0] = 2;a[0];", 2),
             };
             foreach (var item in testTable)
             {

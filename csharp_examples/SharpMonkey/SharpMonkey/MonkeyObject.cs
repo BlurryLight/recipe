@@ -252,6 +252,10 @@ namespace SharpMonkey
         public static readonly Dictionary<string, MonkeyBuiltinFunc> Builtins = new()
         {
             ["len"] = new MonkeyBuiltinFunc(BuiltinFunctions.Len),
+            ["first"] = new MonkeyBuiltinFunc(BuiltinFunctions.First),
+            ["last"] = new MonkeyBuiltinFunc(BuiltinFunctions.Last),
+            ["rest"] = new MonkeyBuiltinFunc(BuiltinFunctions.Rest),
+            ["push"] = new MonkeyBuiltinFunc(BuiltinFunctions.Push),
         };
 
         public delegate IMonkeyObject BuiltinFunc(params IMonkeyObject[] monkeyObjects);
