@@ -379,7 +379,7 @@ namespace SharpMonkeyTest
                 // array funcs
                 new("let a = [1,2,3];first(a);", 1, ""),
                 new("let a = [1,2,3];last(a);", 3, ""),
-                new("let a = [1,2,3];let b = rest(a);b[0]", 2, "")
+                new("let a = [1,2,3];let b = rest(a);b[0]", 2, ""),
             };
             foreach (var item in testTable)
             {

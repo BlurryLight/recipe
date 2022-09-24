@@ -93,5 +93,15 @@ namespace SharpMonkey
                     return new MonkeyError($"argument {obj.Type()} to push is not supported");
             }
         }
+
+        public static IMonkeyObject Puts(params IMonkeyObject[] args)
+        {
+            foreach (var obj in args)
+            {
+                Console.WriteLine(obj.Inspect());
+            }
+
+            return null;
+        }
     }
 }

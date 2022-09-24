@@ -256,6 +256,7 @@ namespace SharpMonkey
             ["last"] = new MonkeyBuiltinFunc(BuiltinFunctions.Last),
             ["rest"] = new MonkeyBuiltinFunc(BuiltinFunctions.Rest),
             ["push"] = new MonkeyBuiltinFunc(BuiltinFunctions.Push),
+            ["puts"] = new MonkeyBuiltinFunc(BuiltinFunctions.Puts),
         };
 
         public delegate IMonkeyObject BuiltinFunc(params IMonkeyObject[] monkeyObjects);
