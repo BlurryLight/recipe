@@ -20,6 +20,7 @@ namespace SharpMonkey
         public const string StringObj = "String";
         public const string BuiltinObj = "Builtin";
         public const string MapObj = "MapObj";
+        public const string ArrayObj = "ArrayObj";
     }
 
     public interface IMonkeyObject
@@ -45,7 +46,7 @@ namespace SharpMonkey
     public class MonkeyString : IMonkeyObject, IMonkeyHash
     {
         public string Value;
-        private static HashKey? _hashVal = null;
+        private HashKey? _hashVal = null;
 
         public MonkeyString(string value)
         {
@@ -77,7 +78,7 @@ namespace SharpMonkey
     public class MonkeyDouble : IMonkeyObject, IMonkeyHash
     {
         public double Value;
-        private static HashKey? _hashVal = null;
+        private HashKey? _hashVal = null;
 
         public MonkeyDouble(double val)
         {
@@ -112,7 +113,7 @@ namespace SharpMonkey
     public class MonkeyInteger : IMonkeyObject, IMonkeyHash
     {
         public Int64 Value;
-        private static HashKey? _hashVal = null;
+        private HashKey? _hashVal = null;
 
         public MonkeyInteger(Int64 val)
         {
@@ -295,7 +296,7 @@ namespace SharpMonkey
 
         public string Type()
         {
-            return ObjType.FuncObj;
+            return ObjType.ArrayObj;
         }
 
         public string Inspect()
@@ -351,6 +352,15 @@ namespace SharpMonkey
         // 因此我们采用KeyObj的hashkey方法返回的hash值作为key，而把keyObj和valueObj都保存在Value里
         // 为什么要保存KeyObj是因为我们需要实现inspect方法，需要原始的keyObj信息
         public Dictionary<HashKey, HashPairs> Pairs;
+
+        public MonkeyMap()
+        {
+        }
+
+        public MonkeyMap(Dictionary<HashKey, HashPairs> pairs)
+        {
+            Pairs = pairs;
+        }
 
         public string Type()
         {

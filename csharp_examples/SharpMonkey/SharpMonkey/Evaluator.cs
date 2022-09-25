@@ -414,38 +414,7 @@ namespace SharpMonkey
                 }
                 case Ast.AssignExpression exp:
                 {
-                    switch (exp.Name)
-                    {
-                        case Ast.Identifier ident:
-                        {
-                            var namedObj = EvalIdentifier(ident, env);
-                            if (namedObj is MonkeyError) return namedObj;
-                            var val = Eval(exp.Value, env);
-                            env.Set(ident.Value, val);
-                            return null; // x = 1;  assign语句没有返回值
-                        }
-                        case Ast.IndexExpression indexExp:
-                        {
-                            var left = Eval(indexExp.Left, env);
-                            if (left is MonkeyError) return left;
-                            var index = Eval(indexExp.Index, env);
-                            if (index is MonkeyError) return index;
-
-                            MonkeyInteger indexInteger = (MonkeyInteger) index;
-                            switch (left)
-                            {
-                                case MonkeyArray arrayObj:
-                                    arrayObj.Elements[(int) indexInteger.Value] = Eval(exp.Value, env);
-                                    break;
-                                case MonkeyString stringObj:
-                                    return new MonkeyError("String is immutable!");
-                            }
-
-                            return null;
-                        }
-                    }
-
-                    return null;
+                    return EvalAssignExpression(exp, env);
                 }
                 case Ast.FunctionLiteral exp:
                 {
@@ -475,6 +444,10 @@ namespace SharpMonkey
                     if (index is MonkeyError) return index;
                     return EvalIndexExpressionImmutable(left, index);
                 }
+                case Ast.MapLiteral exp:
+                {
+                    return EvalMapLiteral(exp, env);
+                }
                 case null:
                     return new MonkeyError("Invalid expressions appear during parsing.");
                 default:
@@ -482,6 +455,74 @@ namespace SharpMonkey
                         $"Eval Node '{node.GetType().FullName} {node.ToPrintableString()}' has not implemented yet.");
                     return new MonkeyError(msg);
             }
+        }
+
+        private static IMonkeyObject EvalAssignExpression(Ast.AssignExpression exp, Environment env)
+        {
+            switch (exp.Name)
+            {
+                case Ast.Identifier ident:
+                {
+                    var namedObj = EvalIdentifier(ident, env);
+                    if (namedObj is MonkeyError) return namedObj;
+                    var val = Eval(exp.Value, env);
+                    env.Set(ident.Value, val);
+                    return null; // x = 1;  assign语句没有返回值
+                }
+                case Ast.IndexExpression indexExp:
+                {
+                    var left = Eval(indexExp.Left, env);
+                    if (left is MonkeyError) return left;
+                    var index = Eval(indexExp.Index, env);
+                    if (index is MonkeyError) return index;
+                    switch (left)
+                    {
+                        case MonkeyArray arrayObj when index is MonkeyInteger indexInteger:
+                        {
+                            arrayObj.Elements[(int) indexInteger.Value] = Eval(exp.Value, env);
+                            break;
+                        }
+                        case MonkeyString stringObj:
+                            return new MonkeyError("String is immutable!");
+                        case MonkeyMap mapObj when index is IMonkeyHash hashKey:
+                        {
+                            mapObj.Pairs[hashKey.HashKey()] = new MonkeyMap.HashPairs()
+                                {KeyObj = index, ValueObj = Eval(exp.Value, env)};
+                            return null;
+                        }
+                        default:
+                            return new MonkeyError($"{left.Type()}[{index.Type()}] is not supported!");
+                    }
+
+
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        private static IMonkeyObject EvalMapLiteral(Ast.MapLiteral exp, Environment env)
+        {
+            var pairs = new Dictionary<HashKey, MonkeyMap.HashPairs>();
+
+            // 对express里的map的键值对依次求值
+            foreach (var entry in exp.Pairs)
+            {
+                var key = Eval(entry.Key, env);
+                if (key is MonkeyError) return key;
+                if (key is not IMonkeyHash hash)
+                {
+                    return new MonkeyError($"{key.Type()} is not hashable!");
+                }
+
+                var keyHash = hash.HashKey();
+                var value = Eval(entry.Value, env);
+                if (value is MonkeyError) return value;
+                pairs.Add(keyHash, new MonkeyMap.HashPairs() {KeyObj = key, ValueObj = value});
+            }
+
+            return new MonkeyMap(pairs: pairs);
         }
 
         private static IMonkeyObject EvalIndexExpressionImmutable(IMonkeyObject left, IMonkeyObject index)
@@ -506,6 +547,15 @@ namespace SharpMonkey
                     }
 
                     return arrayObj.Elements[(int) arrayIndex.Value];
+                }
+                case MonkeyMap mapObj when index is IMonkeyHash hashObj:
+                {
+                    if (mapObj.Pairs.TryGetValue(hashObj.HashKey(), out var pair))
+                    {
+                        return pair.ValueObj;
+                    }
+
+                    return new MonkeyError($"Map[{index.Inspect()}] doesn't exist");
                 }
                 default:
                     return new MonkeyError($"{left.Type()}[{index.Type()}] index operator is not supported");

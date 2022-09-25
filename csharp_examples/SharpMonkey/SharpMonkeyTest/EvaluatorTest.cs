@@ -265,6 +265,7 @@ namespace SharpMonkeyTest
                 new("\"Hello \" + 1;", "Error: type mismatch: String + Integer;"),
                 new("\"Hello \" - \"H\";", "Error: unsupported infix: String - String;"),
                 new("1[2]", "Error: Integer[Integer] index operator is not supported;"),
+                new("{[]:1}", "Error: ArrayObj is not hashable!;"),
             };
             foreach (var item in testTable)
             {
@@ -407,6 +408,10 @@ namespace SharpMonkeyTest
                 new("let a = [1,2 * 3, 3 + 3 + 3];a[2];", 9),
                 // mutable array index
                 new("let a = [1];a[0] = 2;a[0];", 2),
+
+                // map
+                new("let a = {\"one\":1};a[\"one\"];", 1),
+                new("let a = {\"one\":1};a[\"one\"] = 2;a[\"one\"];", 2),
             };
             foreach (var item in testTable)
             {
@@ -458,6 +463,41 @@ namespace SharpMonkeyTest
                 Assert.AreEqual(str1Obj.Value, str2Obj.Value);
                 Assert.AreEqual(str1Obj.HashKey(), str2Obj.HashKey());
                 Assert.AreEqual(str1Obj.HashKey().GetHashCode(), str2Obj.HashKey().GetHashCode());
+            }
+        }
+
+
+        [Test]
+        public void TestHashLiteral()
+        {
+            var input = @"let two = ""two"";
+            {""one"": 10 - 9,
+            two: 1+1,
+            ""thr"" + ""ee"": 6 / 2,
+            4:4,
+            true : 5,
+            false: 6,
+            7.0:7
+            };";
+
+            var evaluated = TestEval(input);
+            var mapObj = evaluated as MonkeyMap;
+            Assert.IsNotNull(mapObj);
+            var expected = new Dictionary<HashKey, int>
+            {
+                {new MonkeyString("one").HashKey(), 1},
+                {new MonkeyString("two").HashKey(), 2},
+                {new MonkeyString("three").HashKey(), 3},
+                {new MonkeyInteger(4).HashKey(), 4},
+                {MonkeyBoolean.GetStaticObject(true).HashKey(), 5},
+                {MonkeyBoolean.GetStaticObject(false).HashKey(), 6},
+                {new MonkeyDouble(7.0).HashKey(), 7}
+            };
+            Assert.AreEqual(expected.Count, mapObj.Pairs.Count);
+            foreach (var entry in expected)
+            {
+                Assert.IsTrue(mapObj.Pairs.TryGetValue(entry.Key, out var value));
+                TestIntegerObject(value.ValueObj, entry.Value, value.KeyObj.Inspect());
             }
         }
     }
