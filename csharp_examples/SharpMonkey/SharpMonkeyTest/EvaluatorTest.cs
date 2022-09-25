@@ -414,5 +414,51 @@ namespace SharpMonkeyTest
                 TestIntegerObject(evaluated, item.expectedVal, item.Input);
             }
         }
+
+        [Test]
+        public void TestHashKey()
+        {
+            {
+                var string1 = "\"hello\";";
+                var string2 = "\"hello\";";
+
+                var str1Obj = (MonkeyString) TestEval(string1);
+                var str2Obj = (MonkeyString) TestEval(string2);
+                Assert.AreEqual(string1, string2);
+                Assert.AreNotEqual(str1Obj, str2Obj);
+                Assert.AreNotEqual(str1Obj.GetHashCode(), str2Obj.GetHashCode());
+                Assert.AreEqual(str1Obj.Value, str2Obj.Value);
+
+                Assert.AreEqual(str1Obj.HashKey(), str2Obj.HashKey());
+                Assert.AreEqual(str1Obj.HashKey().GetHashCode(), str2Obj.HashKey().GetHashCode());
+            }
+
+            {
+                var string1 = "1.1;";
+                var string2 = "1.1;";
+
+                var str1Obj = (MonkeyDouble) TestEval(string1);
+                var str2Obj = (MonkeyDouble) TestEval(string2);
+                Assert.AreEqual(string1, string2);
+                Assert.AreNotEqual(str1Obj, str2Obj);
+                Assert.AreNotEqual(str1Obj.GetHashCode(), str2Obj.GetHashCode());
+                Assert.AreEqual(str1Obj.Value, str2Obj.Value);
+
+                Assert.AreEqual(str1Obj.HashKey(), str2Obj.HashKey());
+                Assert.AreEqual(str1Obj.HashKey().GetHashCode(), str2Obj.HashKey().GetHashCode());
+            }
+
+            {
+                var string1 = "true;";
+                var string2 = "true;";
+
+                var str1Obj = (MonkeyBoolean) TestEval(string1);
+                var str2Obj = (MonkeyBoolean) TestEval(string2);
+                Assert.AreEqual(string1, string2);
+                Assert.AreEqual(str1Obj.Value, str2Obj.Value);
+                Assert.AreEqual(str1Obj.HashKey(), str2Obj.HashKey());
+                Assert.AreEqual(str1Obj.HashKey().GetHashCode(), str2Obj.HashKey().GetHashCode());
+            }
+        }
     }
 }

@@ -615,5 +615,26 @@ namespace SharpMonkey
                 return outBuilder.ToString();
             }
         }
+
+        public class MapLiteral : IExpression
+        {
+            public Token Token; // '{
+            public Dictionary<IExpression, IExpression> Pairs;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public string ToPrintableString()
+            {
+                StringBuilder outBuilder = new StringBuilder();
+                List<string> pairStrs = Pairs
+                    .Select(p => $"{p.Key.ToPrintableString()} : {p.Value.ToPrintableString()}")
+                    .ToList();
+                outBuilder.Append($"{{{string.Join(", ", pairStrs)}}}");
+                return outBuilder.ToString();
+            }
+        }
     }
 }

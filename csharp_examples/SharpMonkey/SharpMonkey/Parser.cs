@@ -162,6 +162,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.Function, ParseFuncLiteral);
             RegisterPrefixParseFunc(Constants.While, ParseWhileExpression);
             RegisterPrefixParseFunc(Constants.LBracket, ParseArrayLiteral);
+            RegisterPrefixParseFunc(Constants.LBrace, ParseMapLiteral);
 
             // register infix function
             RegisterInfixParseFunc(Constants.Plus, ParseInfixExpression);
@@ -592,6 +593,43 @@ namespace SharpMonkey
             {
                 Arguments = ParseExpressionList(Constants.RParen)
             };
+            return exp;
+        }
+
+        private Ast.IExpression ParseMapLiteral()
+        {
+            var exp = new Ast.MapLiteral()
+            {
+                Token = _curToken,
+                Pairs = new Dictionary<Ast.IExpression, Ast.IExpression>()
+            };
+            while (_peekToken.Type != Constants.RBrace)
+            {
+                // 从{或者,移动到第一个key
+                NextToken();
+                var key = ParseExpression(Priority.Lowest);
+                if (!ExpectPeek(Constants.Colon)) // consume :
+                {
+                    return null;
+                }
+
+                // 当前token在 : 上，移动一格
+                NextToken();
+                var value = ParseExpression(Priority.Lowest);
+                exp.Pairs.Add(key, value);
+                if (_peekToken.Type != Constants.Comma && _peekToken.Type != Constants.RBrace)
+                {
+                    AppendError(
+                        $"unexpected token {_peekToken.Type} appears in ParseMapLiteral! Expect Comma or RBrace");
+                    return null;
+                }
+
+                // 如果是, 移动到，上
+                if (_peekToken.Type == Constants.Comma)
+                    NextToken();
+            }
+
+            if (!ExpectPeek(Constants.RBrace)) return null;
             return exp;
         }
 

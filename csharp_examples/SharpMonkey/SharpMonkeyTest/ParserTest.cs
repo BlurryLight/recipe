@@ -617,5 +617,48 @@ namespace SharpMonkeyTest
             Assert.AreEqual("[", exp.Token.Literal);
             Assert.AreEqual("MyArray[(1 + 3)]", exp.ToPrintableString());
         }
+
+        [Test]
+        public void TestParsingMapLiteral()
+        {
+            {
+                var input = "{a : 0 + 1}";
+                var l = new Lexer(input);
+                var p = new Parser(l);
+                var program = p.ParseProgram();
+
+                CheckParserErrors(p);
+                Assert.AreEqual(0, p.Errors.Count);
+                Assert.AreEqual(1, program.Statements.Count);
+
+                var stmt = program.Statements[0] as Ast.ExpressionStatement;
+                Assert.NotNull(stmt);
+                var exp = stmt.Expression as Ast.MapLiteral;
+                Assert.NotNull(exp);
+
+                CheckIdentifier(exp.Pairs.First().Key, "a");
+                CheckInfixExpression(exp.Pairs.First().Value, 0, "+", 1);
+                Assert.AreEqual("{", exp.Token.Literal);
+                Assert.AreEqual("{a : (0 + 1)}", exp.ToPrintableString());
+            }
+
+            {
+                var input = "{};";
+                var l = new Lexer(input);
+                var p = new Parser(l);
+                var program = p.ParseProgram();
+
+                CheckParserErrors(p);
+                Assert.AreEqual(0, p.Errors.Count);
+                Assert.AreEqual(1, program.Statements.Count);
+
+                var stmt = program.Statements[0] as Ast.ExpressionStatement;
+                Assert.NotNull(stmt);
+                var exp = stmt.Expression as Ast.MapLiteral;
+                Assert.NotNull(exp);
+                Assert.AreEqual(0, exp.Pairs.Count);
+                Assert.AreEqual("{}", exp.ToPrintableString());
+            }
+        }
     }
 }
