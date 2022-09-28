@@ -20,12 +20,6 @@ public:
 
   bool Init() override {
     auto res = D3DApp::Init();
-    auto key_cb = [](GLFWwindow *win, int key, int scancode, int action,
-                     int mods) {
-      static_cast<D3DApp *>(glfwGetWindowUserPointer(win))
-          ->glfw_keycallback(key, scancode, action, mods);
-    };
-    glfwSetKeyCallback(window_, key_cb);
     if (!res)
       return res;
     if (!InitEffect())

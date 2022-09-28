@@ -8,6 +8,7 @@
 #include <DirectXMath.h>
 #include <d3d11_1.h>
 #include <string>
+#include <third_party/SimpleMath/SimpleMath.h> //take form DirectXTK
 #include <wrl/client.h>
 
 struct GLFWwindow;
@@ -15,6 +16,7 @@ struct ImGuiIO;
 template <class T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 namespace PD {
 
+class Camera;
 class D3DApp {
 public:
   D3DApp();
@@ -28,6 +30,7 @@ public:
   virtual void UpdateScene(float dt) = 0;
   virtual void DrawScene() = 0;
   virtual void glfw_keycallback(int key, int scancode, int action, int mods);
+  virtual void glfw_mouse_callback(double xPos, double yPos);
   virtual void ProcessInput(GLFWwindow *); // default do nothing
   /**
    * @brief 有关IMGUI的**内容**
@@ -62,6 +65,7 @@ protected:
   bool reverse_z_ = true;
   bool AllowMouseMove_ = true;
   ImGuiIO *imgui_io_ = nullptr;
+  Camera *camera_ = nullptr;
 
 public:
   int ClientWidth_ = -1, ClientHeight_ = -1;

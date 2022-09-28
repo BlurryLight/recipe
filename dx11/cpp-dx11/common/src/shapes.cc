@@ -1,10 +1,10 @@
-#include "shapes.hh"
-#include "d3dUtils.hh"
+#include "../d3dUtils.hh"
 #include <DirectXMath.h>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <fmt/core.h>
+#include <shapes.hh>
 #include <spdlog/spdlog.h>
 
 using namespace PD;
@@ -183,7 +183,7 @@ PD::CubeMesh::CubeMesh(ID3D11Device *device, ID3D11DeviceContext *context)
   HRESULT hr;
   HR(device_->CreateBuffer(&bufferDesc, &resourceData, &vbo_));
 }
-void CubeMesh::draw() {
+void CubeMesh::draw() const {
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   uint32_t offset = 0;
   static const uint32_t stride = sizeof(value_type);

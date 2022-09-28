@@ -9,6 +9,7 @@
 // it will undefine foreirn APIENTRY to avoid redefine it
 #include <GLFW/glfw3native.h> //https://github.com/glfw/glfw/issues/1062
 #include <assert.h>
+#include <freeCamera.hh>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -34,6 +35,9 @@ D3DApp::D3DApp()
 D3DApp::~D3DApp() {
   if (pd3dDeviceIMContext_) {
     pd3dDeviceIMContext_->ClearState();
+  }
+  if (camera_) {
+    delete camera_;
   }
 }
 HWND D3DApp::MainWnd() const {
@@ -176,9 +180,24 @@ bool D3DApp::InitMainWindow() {
   window_ = window;
   this->mainWnd_ = glfwGetWin32Window(window);
   glfwSetFramebufferSizeCallback(window, OnResizeFrame);
+  // glfw的回调函数只会通知哪个window，并且只适合pure-c函数
+  // 因此要从window中调用类内的回调函数需要保存this指针
   glfwSetWindowUserPointer(window,
                            (void *)this); // restore this pointer to glfw window
-  //  glfwSetWindowSizeCallback(window,OnResizeFrame);
+
+  auto key_cb = [](GLFWwindow *win, int key, int scancode, int action,
+                   int mods) {
+    static_cast<D3DApp *>(glfwGetWindowUserPointer(win))
+        ->glfw_keycallback(key, scancode, action, mods);
+  };
+
+  auto mouse_cb = [](GLFWwindow *win, double xpos, double ypos) {
+    static_cast<D3DApp *>(glfwGetWindowUserPointer(win))
+        ->glfw_mouse_callback(xpos, ypos);
+  };
+
+  glfwSetKeyCallback(window_, key_cb);
+  glfwSetCursorPosCallback(window_, mouse_cb);
 
   // IMGUI INIT
   IMGUI_CHECKVERSION();
@@ -280,9 +299,20 @@ bool D3DApp::InitDirect3D() {
   return true;
 }
 
-void D3DApp::ProcessInput(GLFWwindow *) {
-  if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+void D3DApp::ProcessInput(GLFWwindow *window) {
+  if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window_, true);
+
+  if (camera_) {
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+      camera_->ProcessKeyboard(CameraMovement::FORWARD, imgui_io_->DeltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+      camera_->ProcessKeyboard(CameraMovement::BACKWARD, imgui_io_->DeltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+      camera_->ProcessKeyboard(CameraMovement::LEFT, imgui_io_->DeltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+      camera_->ProcessKeyboard(CameraMovement::RIGHT, imgui_io_->DeltaTime);
+  }
 }
 void PD::D3DApp::glfw_keycallback(int key, int scancode, int action, int mods) {
   (void)mods;
@@ -292,5 +322,34 @@ void PD::D3DApp::glfw_keycallback(int key, int scancode, int action, int mods) {
       glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     else
       glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+  }
+}
+
+void PD::D3DApp::glfw_mouse_callback(double xPos, double yPos) {
+  // glfw的窗口坐标是左上角为00， 右下角为W,H
+  // fmt::print("{} {}\n", (int)xPos, (int)yPos);
+  static bool firstMouse = true;
+  static double lastX = 0, lastY = 0;
+  if (!camera_)
+    return;
+  if (AllowMouseMove_) {
+    if (firstMouse) {
+      lastX = xPos;
+      lastY = yPos;
+      firstMouse = false;
+    }
+
+    // 在Dx坐标系有差异，TODO: 补一个坐标系的图
+    // 和gl分开
+    float xoffset = lastX - xPos;
+    float yoffset = lastY - yPos;
+
+    lastX = xPos;
+    lastY = yPos;
+
+    // 当鼠标从左上往下移动的时候，offset为负数
+    camera_->ProcessMouseMovement(xoffset, yoffset);
+  } else {
+    firstMouse = true;
   }
 }

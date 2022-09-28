@@ -5,6 +5,7 @@
 #include <winnt.h>
 
 #include <GLFW/glfw3.h>
+#include <freeCamera.hh>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_dx11.h>
 #include <imgui/imgui_impl_glfw.h>
@@ -35,12 +36,6 @@ public:
 
   bool Init() override {
     auto res = D3DApp::Init();
-    auto key_cb = [](GLFWwindow *win, int key, int scancode, int action,
-                     int mods) {
-      static_cast<D3DApp *>(glfwGetWindowUserPointer(win))
-          ->glfw_keycallback(key, scancode, action, mods);
-    };
-    glfwSetKeyCallback(window_, key_cb);
     if (!res)
       return res;
     if (!InitEffect())
@@ -52,9 +47,9 @@ public:
   void glfw_keycallback(int key, int scancode, int action, int mods) override {
     ignore(scancode);
     ignore(mods);
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
-      vsync_ = !vsync_;
-    }
+    // if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+    //   vsync_ = !vsync_;
+    // }
   }
   void DrawImGUI() override {
     D3DApp::DrawImGUI();
@@ -70,26 +65,30 @@ public:
   }
   void ProcessInput(GLFWwindow *window) override {
     D3DApp::ProcessInput(window);
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS)
       this->rotation_speed_ += 0.01f * imgui_io_->DeltaTime;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
       this->rotation_speed_ -= 0.01f * imgui_io_->DeltaTime;
   }
   void UpdateScene(float dt) override {
+    assert(camera_);
     static float phi = 0.0f, theta = 0.0f;
     phi += rotation_speed_ * dt, theta += rotation_speed_ * dt;
     CBuffer_.World =
         DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
     CBuffer_.Proj = GetProjectionMatrixFovLH(DirectX::XM_PIDIV4, AspectRatio(),
                                              0.1f, 100.0f, reverse_z_);
+
+    CBuffer_.View = camera_->GetViewMatrix();
     CBuffer_.WorldInverseTranspose = DirectX::XMMatrixInverse(
         nullptr, DirectX::XMMatrixTranspose(CBuffer_.World));
     CBuffer_.WorldInverseTranspose =
         DirectX::XMMatrixTranspose(CBuffer_.WorldInverseTranspose);
     CBuffer_.World = DirectX::XMMatrixTranspose(CBuffer_.World);
+    CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
     CBuffer_.Proj = DirectX::XMMatrixTranspose(CBuffer_.Proj);
 
-    light_cbuffer_.CamPosW = DirectX::XMFLOAT3(0, 0, -5);
+    light_cbuffer_.CamPosW = camera_->Position;
     // map data
     D3D11_MAPPED_SUBRESOURCE mappedData;
     HRESULT hr = S_OK;
@@ -113,11 +112,9 @@ public:
     pd3dDeviceIMContext_->ClearDepthStencilView(
         pDepthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
         reverse_z_ ? 0.0f : 1.0f, 0);
-    // for (const auto &shape : shapes_) {
-    //   shape->draw(pd3dDeviceIMContext_.Get());
-    // }
-    // cube_->draw();
-    models_[0]->draw();
+    for (const auto &shape : models_) {
+      shape->draw();
+    }
   };
 
 private:
@@ -142,8 +139,7 @@ private:
   MVP CBuffer_;
   LightCBuffer light_cbuffer_;
   float rotation_speed_ = 0.0001f;
-  std::vector<std::unique_ptr<Model>> models_;
-  std::unique_ptr<CubeMesh> cube_;
+  std::vector<std::unique_ptr<IMesh>> models_;
   ResourcePathSearcher path_manager_;
   ResourcePathSearcher::Path dir_path_;
 
@@ -213,11 +209,9 @@ protected:
   }
   bool InitResource() {
     using namespace DirectX;
-    // this->shapes_.emplace_back(std::make_unique<CubeMesh>());
-    // auto mesh = dynamic_cast<CubeMesh *>(this->shapes_[0].get());
-    cube_ = std::make_unique<CubeMesh>(pd3dDevice_.Get(),
-                                       pd3dDeviceIMContext_.Get());
-    auto mesh = cube_.get();
+    auto cube = std::make_unique<CubeMesh>(pd3dDevice_.Get(),
+                                           pd3dDeviceIMContext_.Get());
+    models_.push_back(std::move(cube));
 
     Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
                              path_manager_.find_path(L"bunny.obj"));
@@ -237,10 +231,9 @@ protected:
                                  pLightCBuffer_.GetAddressOf()));
 
     CBuffer_.World = XMMatrixIdentity();
-    CBuffer_.View = XMMatrixLookAtLH(XMVectorSet(0.0, 0.0, -5.0, 0.0),
-                                     XMVectorSet(0.0, 0.0, 0.0, 0.0),
-                                     XMVectorSet(0.0, 1.0, 0.0, 0.0));
-    CBuffer_.View = DirectX::XMMatrixTranspose(CBuffer_.View);
+    camera_ = new PD::Camera(SimpleMath::Vector3(0, 0, -5),
+                             SimpleMath::Vector3(0, 0, 1),
+                             SimpleMath::Vector3(0, 1, 0));
 
     // set mat
     light_cbuffer_.PhongMat.ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1);

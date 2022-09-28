@@ -17,7 +17,7 @@ struct IMesh { // Non-copyable
   IMesh() {}
   IMesh(const IMesh &) = delete;
   IMesh &operator=(const IMesh &) = delete;
-  virtual void draw() = 0;
+  virtual void draw() const = 0;
   virtual ~IMesh() {}
 };
 
@@ -46,7 +46,7 @@ struct Mesh {
   // std::vector<uint32_t> indices;
 };
 } // namespace details
-struct Model {
+struct Model : IMesh {
   using Path = std::filesystem::path;
   using Texture = details::Texture;
   using Mesh = details::Mesh;
@@ -54,7 +54,7 @@ struct Model {
   using index_type = Mesh::index_type;
   Model(ID3D11Device *device, ID3D11DeviceContext *context, Path path);
   Model() = default;
-  void draw() const;
+  void draw() const override;
   ~Model();
 
 private:
@@ -79,7 +79,7 @@ struct CubeMesh : public IMesh {
   ID3D11Buffer *vbo_ = nullptr;
   ID3D11Device *device_ = nullptr;
   ID3D11DeviceContext *context_ = nullptr;
-  void draw() override;
+  void draw() const override;
 };
 
 // struct SphereMesh {
