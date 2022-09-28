@@ -339,8 +339,9 @@ void PD::D3DApp::glfw_mouse_callback(double xPos, double yPos) {
       firstMouse = false;
     }
 
-    // 在Dx坐标系有差异，TODO: 补一个坐标系的图
+    // 在Dx坐标系有差异，补一个坐标系的图
     // 和gl分开
+    // https://img.blurredcode.com/img/d3dApp-2022-09-28-19-59-24.png?x-oss-process=style/compress
     float xoffset = lastX - xPos;
     float yoffset = lastY - yPos;
 
