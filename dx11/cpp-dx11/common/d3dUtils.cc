@@ -3,7 +3,9 @@
 #include <codecvt>
 #include <comdef.h> // for _com_error
 #include <debugapi.h>
+#include <filesystem>
 
+namespace fs = std::filesystem;
 std::string utf16_to_utf8(std::u16string const &s) {
   std::wstring_convert<
       std::codecvt_utf8_utf16<char16_t, 0x10ffff,
@@ -85,6 +87,9 @@ HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
                              std::string ShaderModel, ID3DBlob **ppBlobOut,
                              bool force_compile) {
   HRESULT hr = S_OK;
+  // 当hlsl比cso新的时候必须重编
+  force_compile = force_compile || (fs::last_write_time(csoFileNameInOut) <
+                                    fs::last_write_time(hlslPath));
   if (!force_compile && !csoFileNameInOut.empty() &&
       (D3DReadFileToBlob(csoFileNameInOut.data(), ppBlobOut) == S_OK)) {
     return hr;
