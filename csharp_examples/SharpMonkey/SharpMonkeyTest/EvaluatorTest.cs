@@ -169,14 +169,14 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<(string Input, bool ExpectedVal)>
             {
-                new("!true", false),
-                new("!false", true),
-                new("!5", false),
-                new("!0", true),
-                new("!!!0", true),
-                new("!1", false),
-                new("!!true", true),
-                new("!!false", false),
+                new("!true;", false),
+                new("!false;", true),
+                new("!5;", false),
+                new("!0;", true),
+                new("!!!0;", true),
+                new("!1;", false),
+                new("!!true;", true),
+                new("!!false;", false),
                 new("!1;", false),
                 new("!1.0;", false),
             };
@@ -250,7 +250,7 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<(string Input, string ExpectedMsg)>
             {
-                new("5 + true", "Error: type mismatch: Integer + Boolean;"),
+                new("5 + true;", "Error: type mismatch: Integer + Boolean;"),
                 new("5 + true;5;", "Error: type mismatch: Integer + Boolean;"),
                 new("-true;", "Error: unsupported prefix: -Boolean;"),
                 new("--true;", "Error: unsupported prefix: --Boolean;"),
@@ -266,6 +266,7 @@ namespace SharpMonkeyTest
                 new("\"Hello \" - \"H\";", "Error: unsupported infix: String - String;"),
                 new("1[2]", "Error: Integer[Integer] index operator is not supported;"),
                 new("{[]:1}", "Error: ArrayObj is not hashable!;"),
+                new("fn(){ a = 1;}();", "Error: Try to assign an unbound value a;")
             };
             foreach (var item in testTable)
             {
@@ -380,7 +381,7 @@ namespace SharpMonkeyTest
                 // array funcs
                 new("let a = [1,2,3];first(a);", 1, ""),
                 new("let a = [1,2,3];last(a);", 3, ""),
-                new("let a = [1,2,3];let b = rest(a);b[0]", 2, ""),
+                new("let a = [1,2,3];let b = rest(a);b[0];", 2, ""),
             };
             foreach (var item in testTable)
             {

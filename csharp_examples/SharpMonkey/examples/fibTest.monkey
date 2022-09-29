@@ -17,5 +17,5 @@ let fib = fn(n)
 let i = 0;
 while(i < 20)
 {
-    puts(fib(i++))
+    puts(fib(i++));
 }

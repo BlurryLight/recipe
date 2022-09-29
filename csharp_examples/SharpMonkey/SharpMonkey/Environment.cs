@@ -32,10 +32,35 @@ namespace SharpMonkey
             return value;
         }
 
+        /// <summary>
+        /// 在当前环境存储一个变量， let x = 1;
+        /// </summary>
+        /// <param name="valName"></param>
+        /// <param name="val"></param>
+        /// <returns></returns>
         public IMonkeyObject Set(string valName, IMonkeyObject val)
         {
             Bindings[valName] = val;
             return val;
+        }
+
+        /// <summary>
+        /// 设置一个之前已经绑定过的变量
+        /// </summary>
+        /// <param name="valName"></param>
+        /// <param name="val"></param>
+        /// <returns>如果设置的变量没有被绑定过，则抛出错误</returns>
+        public IMonkeyObject TrySetBoundedVar(string valName, IMonkeyObject val)
+        {
+            if (Bindings.ContainsKey(valName))
+            {
+                Bindings[valName] = val;
+                return val;
+            }
+
+            if (Outer == null) return new MonkeyError($"Try to assign an unbound value {valName}");
+            // 从本层往上逐层寻找最近的定义
+            return Outer.TrySetBoundedVar(valName, val);
         }
     }
 }

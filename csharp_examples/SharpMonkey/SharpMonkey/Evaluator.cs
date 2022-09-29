@@ -55,9 +55,12 @@ namespace SharpMonkey
         private static IMonkeyObject EvalStatements(List<Ast.IStatement> stmts, bool TopLevel, Environment env)
         {
             IMonkeyObject result = null;
+            //顶层不用复制一个新的环境
+            // 确保函数体/while里的新声明的变量只会shadow外面的变量，不会修改外面的值
+            var newEnv = TopLevel ? env : new Environment(env);
             foreach (var statement in stmts)
             {
-                result = Eval(statement, env);
+                result = Eval(statement, newEnv);
                 switch (result)
                 {
                     case MonkeyReturnValue resultRef:
@@ -463,10 +466,9 @@ namespace SharpMonkey
             {
                 case Ast.Identifier ident:
                 {
-                    var namedObj = EvalIdentifier(ident, env);
-                    if (namedObj is MonkeyError) return namedObj;
                     var val = Eval(exp.Value, env);
-                    env.Set(ident.Value, val);
+                    var namedObj = env.TrySetBoundedVar(ident.Value, val);
+                    if (namedObj is MonkeyError) return namedObj;
                     return null; // x = 1;  assign语句没有返回值
                 }
                 case Ast.IndexExpression indexExp:
