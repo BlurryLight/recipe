@@ -575,7 +575,10 @@ namespace SharpMonkey
             {
                 case MonkeyFuncLiteral funcObj:
                 {
-                    var funcEnv = new Environment(funcObj.Env);
+                    var funcEnv = new Environment(funcObj.Env)
+                    {
+                        AllowSetOuterVariable = false
+                    };
                     for (int i = 0; i < funcObj.Params.Count; i++)
                     {
                         // 把每个param 和 arg在当前作用域下对应起来

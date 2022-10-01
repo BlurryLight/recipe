@@ -266,7 +266,8 @@ namespace SharpMonkeyTest
                 new("\"Hello \" - \"H\";", "Error: unsupported infix: String - String;"),
                 new("1[2]", "Error: Integer[Integer] index operator is not supported;"),
                 new("{[]:1}", "Error: ArrayObj is not hashable!;"),
-                new("fn(){ a = 1;}();", "Error: Try to assign an unbound value a;")
+                new("fn(){ a = 1;}();", "Error: Try to assign an unbound value a;"),
+                new("let a = 1;fn(){ a = 1;}();", "Error: Try to assign an unbound value a;"),
             };
             foreach (var item in testTable)
             {
@@ -302,6 +303,7 @@ namespace SharpMonkeyTest
             {
                 new("let a = 1;while(a < 5){a++;};a;", 5),
                 new("let a = 1;while(true){ a++;if(a > 5) {return 100;}};", 100),
+                new("let a = 1;let i = 0;while(i<1){ i++;a = 5;};a;", 5),
             };
             foreach (var item in testTable)
             {
@@ -354,6 +356,8 @@ namespace SharpMonkeyTest
                     10),
                 new("let sub= fn(x,y){ return x-y;};let newFunc = fn(x,y,func){return func(x,y);};newFunc(5,5,sub);",
                     0),
+                // shadow variable
+                new("let a = 1;fn(){ let a = 2;a;}();", 2),
             };
             foreach (var item in testTable)
             {

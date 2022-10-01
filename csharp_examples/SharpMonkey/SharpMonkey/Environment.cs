@@ -7,6 +7,7 @@ namespace SharpMonkey
     public class Environment
     {
         private Dictionary<string, IMonkeyObject> Bindings = null;
+        public bool AllowSetOuterVariable = true; // 默认引用捕获外层变量
         public Environment? Outer;
 
         public Environment()
@@ -37,7 +38,7 @@ namespace SharpMonkey
         /// </summary>
         /// <param name="valName"></param>
         /// <param name="val"></param>
-        /// <returns></returns>
+        /// <returns>val</returns>
         public IMonkeyObject Set(string valName, IMonkeyObject val)
         {
             Bindings[valName] = val;
@@ -58,7 +59,8 @@ namespace SharpMonkey
                 return val;
             }
 
-            if (Outer == null) return new MonkeyError($"Try to assign an unbound value {valName}");
+            if (!AllowSetOuterVariable || Outer == null)
+                return new MonkeyError($"Try to assign an unbound value {valName}");
             // 从本层往上逐层寻找最近的定义
             return Outer.TrySetBoundedVar(valName, val);
         }
