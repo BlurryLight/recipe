@@ -20,6 +20,7 @@ target_include_directories(d3dlib PUBLIC ${CMAKE_SOURCE_DIR}/third_party)
 target_link_libraries(d3dlib PUBLIC d3d11 dxgi dxguid D3DCompiler winmm)
 target_link_libraries(d3dlib PUBLIC fmt::fmt)
 target_link_libraries(d3dlib PUBLIC spdlog::spdlog)
+target_link_libraries(d3dlib PUBLIC stb_image_lib)
 
 add_custom_command(TARGET d3dlib POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

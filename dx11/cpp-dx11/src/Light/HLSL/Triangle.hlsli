@@ -15,6 +15,7 @@ struct VertexOut {
   float4 posH : SV_POSITION;
   float3 normalW : TEXCOORD0;
   float3 posW : TEXCOORD1;
+  float2 uv : TEXCOORD2;
 };
 
 struct DirectionalLight {

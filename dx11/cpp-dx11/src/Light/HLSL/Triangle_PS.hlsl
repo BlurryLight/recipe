@@ -1,5 +1,8 @@
 #include "Triangle.hlsli"
 
+Texture2D my_texture;
+SamplerState my_sampler;
+
 float4 BlinnPhongShading(DirectionalLight light, PhongMaterial mat,
                          VertexOut fragment) {
   float4 ambient = mat.ambient * light.color;
@@ -19,6 +22,8 @@ float4 BlinnPhongShading(DirectionalLight light, PhongMaterial mat,
 float4 PS(VertexOut pIn) : SV_Target {
   // renormalize  normal
   pIn.normalW = normalize(pIn.normalW);
-  return BlinnPhongShading(g_DirLight, g_Mat, pIn);
+  return float4(BlinnPhongShading(g_DirLight, g_Mat, pIn).rgb *
+                    my_texture.Sample(my_sampler, pIn.uv).rgb,
+                1.0);
   // return float4(pIn.normalW.rgb * 0.5 + 0.3, 1.0);
 }

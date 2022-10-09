@@ -1,7 +1,7 @@
 add_library(assimp SHARED IMPORTED GLOBAL)
 
 # 设置为动态链接库
-set(assimp_ROOT_PATH "${CMAKE_SOURCE_DIR}/third_party/assimp")
+set(assimp_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 message("assimp_ROOT_PATH: " ${assimp_ROOT_PATH})
 
 # 引入lib文件

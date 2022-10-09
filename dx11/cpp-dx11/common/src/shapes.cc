@@ -14,7 +14,8 @@ PD::Model::Model(ID3D11Device *device, ID3D11DeviceContext *context, Path path)
     : context_(context), device_(device), path_(path) {
   Assimp::Importer importer;
   const aiScene *scene = importer.ReadFile(
-      path.u8string(), aiProcess_Triangulate | aiProcess_GenSmoothNormals);
+      path.u8string(), aiProcess_Triangulate | aiProcess_GenSmoothNormals |
+                           aiProcess_GenUVCoords | aiProcess_CalcTangentSpace);
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
       !scene->mRootNode) {
     spdlog::error("Assimp Open {} Failed", path.u8string());
@@ -53,10 +54,10 @@ Model::Mesh PD::Model::processMesh(const aiMesh *mesh, const aiScene *scene) {
       normal = XMVector3Normalize(normal);
       XMStoreFloat3(&v.normal, normal);
     }
-    //只需要第一组texture坐标
+    //暂时只需要第一组texture坐标
     if (mesh->mTextureCoords[0]) {
-      auto uv = mesh->mTextureCoords[0];
-      v.tex = XMFLOAT2(uv->x, uv->y);
+      auto uv = mesh->mTextureCoords[0][i];
+      v.tex = XMFLOAT2(uv.x, uv.y);
     }
     //我们先忽略tangent和bitangent
     vdata.push_back(v);

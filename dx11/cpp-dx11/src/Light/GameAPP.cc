@@ -13,6 +13,7 @@
 #include <include/material.hh>
 #include <resource_path_searcher.h>
 #include <shapes.hh>
+#include <texture.hh>
 #include <vertexLayout.hh>
 namespace PD {
 
@@ -30,7 +31,7 @@ public:
     dir_path_ = path;
     path_manager_.add_path(path / "HLSL");
     auto resource_path = ResourcePathSearcher::root_path / "resources";
-    path_manager_.add_path(resource_path / "models");
+    path_manager_.add_path(resource_path / "models" / "spot");
   };
   ~GameApp(){};
 
@@ -47,9 +48,7 @@ public:
   void glfw_keycallback(int key, int scancode, int action, int mods) override {
     ignore(scancode);
     ignore(mods);
-    // if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
-    //   vsync_ = !vsync_;
-    // }
+    D3DApp::glfw_keycallback(key, scancode, action, mods);
   }
   void DrawImGUI() override {
     D3DApp::DrawImGUI();
@@ -209,12 +208,12 @@ protected:
   }
   bool InitResource() {
     using namespace DirectX;
-    auto cube = std::make_unique<CubeMesh>(pd3dDevice_.Get(),
-                                           pd3dDeviceIMContext_.Get());
-    models_.push_back(std::move(cube));
+    // auto cube = std::make_unique<CubeMesh>(pd3dDevice_.Get(),
+    //                                        pd3dDeviceIMContext_.Get());
+    // models_.push_back(std::move(cube));
 
     Model *model = new Model(pd3dDevice_.Get(), pd3dDeviceIMContext_.Get(),
-                             path_manager_.find_path(L"bunny.obj"));
+                             path_manager_.find_path(L"spot_triangulated.obj"));
     models_.push_back(std::unique_ptr<Model>(model));
     HRESULT hr;
     // 申请cbuffer
@@ -234,6 +233,64 @@ protected:
     camera_ = new PD::Camera(SimpleMath::Vector3(0, 0, -5),
                              SimpleMath::Vector3(0, 0, 1),
                              SimpleMath::Vector3(0, 1, 0));
+    // init texture
+    int ImageWidth;
+    int ImageHeight;
+    int ImageChannels;
+    int ImageDesiredChannels = 4;
+
+    stbi_set_flip_vertically_on_load(1);
+    unsigned char *ImageData = stbi_load(
+        path_manager_.find_path(L"spot_texture.png").u8string().c_str(),
+        &ImageWidth, &ImageHeight, &ImageChannels, ImageDesiredChannels);
+    assert(ImageData);
+    stbi_set_flip_vertically_on_load(0);
+
+    int ImagePitch = ImageWidth * 4;
+    D3D11_TEXTURE2D_DESC ImageTextureDesc = {};
+
+    ImageTextureDesc.Width = ImageWidth;
+    ImageTextureDesc.Height = ImageHeight;
+    ImageTextureDesc.MipLevels = 1;
+    ImageTextureDesc.ArraySize = 1;
+    ImageTextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    ImageTextureDesc.SampleDesc.Count = 1;
+    ImageTextureDesc.SampleDesc.Quality = 0;
+    ImageTextureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    ImageTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA ImageSubresourceData = {};
+
+    ImageSubresourceData.pSysMem = ImageData;
+    ImageSubresourceData.SysMemPitch = ImagePitch;
+
+    ID3D11Texture2D *ImageTexture;
+
+    HR(pd3dDevice_->CreateTexture2D(&ImageTextureDesc, &ImageSubresourceData,
+                                    &ImageTexture));
+    free(ImageData);
+    D3D11_SAMPLER_DESC ImageSamplerDesc = {};
+    ID3D11ShaderResourceView *ImageShaderResourceView;
+
+    HR(pd3dDevice_->CreateShaderResourceView(ImageTexture, nullptr,
+                                             &ImageShaderResourceView));
+
+    ImageSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    ImageSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    ImageSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    ImageSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    ImageSamplerDesc.MipLODBias = 0.0f;
+    ImageSamplerDesc.MaxAnisotropy = 1;
+    ImageSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    ImageSamplerDesc.BorderColor[0] = 1.0f;
+    ImageSamplerDesc.BorderColor[1] = 1.0f;
+    ImageSamplerDesc.BorderColor[2] = 1.0f;
+    ImageSamplerDesc.BorderColor[3] = 1.0f;
+    ImageSamplerDesc.MinLOD = -FLT_MAX;
+    ImageSamplerDesc.MaxLOD = FLT_MAX;
+
+    ID3D11SamplerState *ImageSamplerState;
+    pd3dDevice_->CreateSamplerState(&ImageSamplerDesc, &ImageSamplerState);
 
     // set mat
     light_cbuffer_.PhongMat.ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1);
@@ -252,6 +309,8 @@ protected:
     pd3dDeviceIMContext_->PSSetConstantBuffers(0, 1,
                                                pLightCBuffer_.GetAddressOf());
     pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
+    pd3dDeviceIMContext_->PSSetShaderResources(0, 1, &ImageShaderResourceView);
+    pd3dDeviceIMContext_->PSSetSamplers(0, 1, &ImageSamplerState);
 
     D3D11SetDebugObjectName(pVertexLayout_.Get(), "VertexPosColorLayout");
     D3D11SetDebugObjectName(pVertexShader_.Get(), "Trangle_VS");

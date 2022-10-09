@@ -9,5 +9,6 @@ VertexOut VS(VertexIn vIn) {
   vOut.posH = mul(posV, g_Proj);
   vOut.posW = posW.xyz;
   vOut.normalW = mul(float4(vIn.normal, 1.0), g_WorldInverseTranspose).xyz;
+  vOut.uv = vIn.tex;
   return vOut;
 }
