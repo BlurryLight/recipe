@@ -264,16 +264,16 @@ protected:
     ImageSubresourceData.pSysMem = ImageData;
     ImageSubresourceData.SysMemPitch = ImagePitch;
 
-    ID3D11Texture2D *ImageTexture;
+    ComPtr<ID3D11Texture2D> ImageTexture;
 
     HR(pd3dDevice_->CreateTexture2D(&ImageTextureDesc, &ImageSubresourceData,
-                                    &ImageTexture));
+                                    ImageTexture.GetAddressOf()));
     free(ImageData);
     D3D11_SAMPLER_DESC ImageSamplerDesc = {};
-    ID3D11ShaderResourceView *ImageShaderResourceView;
+    ComPtr<ID3D11ShaderResourceView> ImageShaderResourceView;
 
-    HR(pd3dDevice_->CreateShaderResourceView(ImageTexture, nullptr,
-                                             &ImageShaderResourceView));
+    HR(pd3dDevice_->CreateShaderResourceView(
+        ImageTexture.Get(), nullptr, ImageShaderResourceView.GetAddressOf()));
 
     ImageSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     ImageSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -282,15 +282,12 @@ protected:
     ImageSamplerDesc.MipLODBias = 0.0f;
     ImageSamplerDesc.MaxAnisotropy = 1;
     ImageSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    ImageSamplerDesc.BorderColor[0] = 1.0f;
-    ImageSamplerDesc.BorderColor[1] = 1.0f;
-    ImageSamplerDesc.BorderColor[2] = 1.0f;
-    ImageSamplerDesc.BorderColor[3] = 1.0f;
-    ImageSamplerDesc.MinLOD = -FLT_MAX;
+    ImageSamplerDesc.MinLOD = 0;
     ImageSamplerDesc.MaxLOD = FLT_MAX;
 
-    ID3D11SamplerState *ImageSamplerState;
-    pd3dDevice_->CreateSamplerState(&ImageSamplerDesc, &ImageSamplerState);
+    ComPtr<ID3D11SamplerState> ImageSamplerState;
+    pd3dDevice_->CreateSamplerState(&ImageSamplerDesc,
+                                    ImageSamplerState.GetAddressOf());
 
     // set mat
     light_cbuffer_.PhongMat.ambient = XMFLOAT4(0.1f, 0.1f, 0.1f, 1);
@@ -309,8 +306,9 @@ protected:
     pd3dDeviceIMContext_->PSSetConstantBuffers(0, 1,
                                                pLightCBuffer_.GetAddressOf());
     pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
-    pd3dDeviceIMContext_->PSSetShaderResources(0, 1, &ImageShaderResourceView);
-    pd3dDeviceIMContext_->PSSetSamplers(0, 1, &ImageSamplerState);
+    pd3dDeviceIMContext_->PSSetShaderResources(
+        0, 1, ImageShaderResourceView.GetAddressOf());
+    pd3dDeviceIMContext_->PSSetSamplers(0, 1, ImageSamplerState.GetAddressOf());
 
     D3D11SetDebugObjectName(pVertexLayout_.Get(), "VertexPosColorLayout");
     D3D11SetDebugObjectName(pVertexShader_.Get(), "Trangle_VS");
