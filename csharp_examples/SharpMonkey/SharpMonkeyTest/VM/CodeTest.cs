@@ -5,12 +5,12 @@ using NUnit.Framework;
 using SharpMonkey;
 using SharpMonkey.VM;
 
-namespace SharpMonkeyTest.VM
+namespace SharpMonkeyTest
 {
     using Instructions = List<byte>;
     using Opcode = Byte;
 
-    public class CodeTest
+    public class OpCodeTest
     {
         [SetUp]
         public void Setup()

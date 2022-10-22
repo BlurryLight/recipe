@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace SharpMonkey.VM
 {
@@ -47,6 +50,11 @@ namespace SharpMonkey.VM
             return null;
         }
 
+        public static List<byte> MakeBytes(OpConstants op, params int[] operands)
+        {
+            return MakeBytes((byte) op, operands);
+        }
+
         /// <summary>
         /// 输入一个可读的Opcode表示，输出其字节码表示
         /// </summary>
@@ -74,8 +82,12 @@ namespace SharpMonkey.VM
                 {
                     case 2:
                     {
-                        Debug.Assert(oprand > 0 && oprand < ushort.MaxValue,
-                            $"oprand should be in [{ushort.MinValue,ushort.MaxValue}] but is {oprand}");
+                        if (oprand < 0 || oprand > ushort.MaxValue)
+                        {
+                            throw new Exception(
+                                $"oprand should be in [{ushort.MinValue},{ushort.MaxValue}] but is {oprand}");
+                        }
+
                         byte[] bytes = BitConverter.GetBytes((ushort) oprand);
                         if (BitConverter.IsLittleEndian)
                         {
@@ -92,6 +104,72 @@ namespace SharpMonkey.VM
             }
 
             return instruction;
+        }
+
+        private static ReadOnlySpan<byte> SubOperands(Instructions ins, int offset, int count)
+        {
+            var span = CollectionsMarshal.AsSpan(ins.GetRange(offset, count));
+            if (BitConverter.IsLittleEndian)
+            {
+                span.Reverse();
+            }
+
+            return span;
+        }
+
+        public static Tuple<List<int>, int> ReadOperands(Instructions ins, Definition def)
+        {
+            var operands = new List<int>();
+            var offset = 0;
+            for (int i = 0; i < def.OperandWidths.Count; i++)
+            {
+                var width = def.OperandWidths[i];
+                switch (width)
+                {
+                    case 2:
+                        operands.Add(BitConverter.ToUInt16(SubOperands(ins, i, 2)));
+                        break;
+                }
+
+                offset += width;
+            }
+
+            return new Tuple<List<int>, int>(operands, offset);
+        }
+
+        /// <summary>
+        /// 把字节码翻译为可读格式。 格式为 <指令开始的字节> <Op名> <操作数>
+        /// 比如 0006 OpConstant 65535 
+        /// </summary>
+        /// <param name="ins"></param>
+        /// <returns></returns>
+        public static string DecodeInstructions(Instructions ins)
+        {
+            var sb = new StringBuilder();
+            for (int i = 0; i < ins.Count;)
+            {
+                var def = Lookup(ins[i]);
+                Debug.Assert(def != null);
+                var (operands, offset) = ReadOperands(ins.Skip(i + 1).ToList(), def);
+                sb.Append($"{i:0000} {FormatIns(def, operands)}\n");
+                // 格式化一条指令，以及它的所有操作符，移动偏移量到下一条指令的起始处
+                i += offset + 1;
+            }
+
+            return sb.ToString();
+        }
+
+        private static string FormatIns(Definition def, List<int> operands)
+        {
+            var operandCount = def.OperandWidths.Count;
+            Debug.Assert(operandCount == operands.Count);
+            switch (operands.Count)
+            {
+                case 1:
+                    return $"{def.Name} {operands[0]}";
+            }
+
+            return $"Error: unhandled operandCount for {def.Name}\n";
         }
     }
 
