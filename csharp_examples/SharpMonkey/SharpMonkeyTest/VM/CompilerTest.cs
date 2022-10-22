@@ -120,7 +120,8 @@ namespace SharpMonkeyTest
                 {
                     case int:
                     case long:
-                        TestIntegerObject((long) constant, actual);
+                        long val = Convert.ToInt64(constant);
+                        TestIntegerObject(val, actual);
                         break;
                     default:
                         Assert.Fail("should not be here");
