@@ -101,7 +101,9 @@ namespace SharpMonkey.VM
                     var floatVal = new MonkeyDouble(exp.Value);
                     Emit((byte) OpConstants.OpConstant, AddConstant(floatVal));
                     break;
-
+                case Ast.BooleanLiteral exp:
+                    Emit(exp.Value ? (byte) OpConstants.OpTrue : (byte) OpConstants.OpFalse);
+                    break;
                 default:
                     throw new NotImplementedException($"not implemented for type {node.ToPrintableString()}");
             }

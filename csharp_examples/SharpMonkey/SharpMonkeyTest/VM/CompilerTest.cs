@@ -49,7 +49,13 @@ namespace SharpMonkeyTest
             var testTable = new List<(Opcode op, List<int> operands, int bytesRead)>
             {
                 new((byte) OpConstants.OpConstant, new List<int>() {65534}, 2),
-                new((byte) OpConstants.OpAdd, new List<int>(), 0)
+                new((byte) OpConstants.OpAdd, new List<int>(), 0),
+                new((byte) OpConstants.OpDiv, new List<int>(), 0),
+                new((byte) OpConstants.OpSub, new List<int>(), 0),
+                new((byte) OpConstants.OpMul, new List<int>(), 0),
+                new((byte) OpConstants.OpTrue, new List<int>(), 0),
+                new((byte) OpConstants.OpFalse, new List<int>(), 0),
+                new((byte) OpConstants.OpPop, new List<int>(), 0),
             };
 
             foreach (var tc in testTable)
@@ -100,6 +106,20 @@ namespace SharpMonkeyTest
             table.Add(newCase);
         }
 
+        private void RunCompilerTests(List<CompilerTestCase> testCases)
+        {
+            foreach (var testCase in testCases)
+            {
+                var program = Parse(testCase.input);
+                var compiler = new Compiler();
+                compiler.Compile(program);
+
+                var bytecode = compiler.Bytecode();
+                TestInstructions(testCase.expectedInstructions, bytecode.Instructions);
+                TestConstants(testCase.expectedConstants, bytecode.Constants);
+            }
+        }
+
         [Test]
         public void TestMathArithmetic()
         {
@@ -123,16 +143,7 @@ namespace SharpMonkeyTest
             BuildArithmeticCase((byte) OpConstants.OpMul, "*", ref testTable);
             BuildArithmeticCase((byte) OpConstants.OpDiv, "/", ref testTable);
 
-            foreach (var testCase in testTable)
-            {
-                var program = Parse(testCase.input);
-                var compiler = new Compiler();
-                compiler.Compile(program);
-
-                var bytecode = compiler.Bytecode();
-                TestInstructions(testCase.expectedInstructions, bytecode.Instructions);
-                TestConstants(testCase.expectedConstants, bytecode.Constants);
-            }
+            RunCompilerTests(testTable);
         }
 
 
@@ -186,6 +197,35 @@ namespace SharpMonkeyTest
             {
                 Assert.AreEqual(concatted[i], bytecodeInstructions[i]);
             }
+        }
+
+        [Test]
+        public void TestBooleanExpressions()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "true;",
+                expectedConstants = new List<Object> { },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+            newCase = new CompilerTestCase
+            {
+                input = "false;",
+                expectedConstants = new List<Object> { },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
         }
     }
 }

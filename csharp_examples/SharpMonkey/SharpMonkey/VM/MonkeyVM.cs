@@ -80,6 +80,12 @@ namespace SharpMonkey.VM
                     case OpConstants.OpPop:
                         Pop();
                         break;
+                    case OpConstants.OpTrue:
+                        Push(MonkeyBoolean.TrueObject);
+                        break;
+                    case OpConstants.OpFalse:
+                        Push(MonkeyBoolean.FalseObject);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }

@@ -19,6 +19,8 @@ namespace SharpMonkey.VM
         OpSub,
         OpMul,
         OpDiv,
+        OpTrue,
+        OpFalse,
     }
 
     public class Definition
@@ -45,6 +47,8 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpSub, new Definition(OpConstants.OpSub.ToString(), new List<int>())},
             {(Opcode) OpConstants.OpMul, new Definition(OpConstants.OpMul.ToString(), new List<int>())},
             {(Opcode) OpConstants.OpDiv, new Definition(OpConstants.OpDiv.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpTrue, new Definition(OpConstants.OpTrue.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpFalse, new Definition(OpConstants.OpFalse.ToString(), new List<int>())},
         };
 
         public static Definition Lookup(Opcode code)

@@ -34,10 +34,13 @@ namespace SharpMonkeyTest
                 case double doubleVal:
                     CompilerTest.TestDoubleObject(doubleVal, actual);
                     break;
+                case bool boolVal:
+                    Assert.AreEqual(boolVal, ((MonkeyBoolean) actual).Value);
+                    break;
             }
         }
 
-        public void RunVMTests(List<VMTestCase> cases)
+        private void RunVMTests(List<VMTestCase> cases)
         {
             foreach (var testCase in cases)
             {
@@ -81,6 +84,17 @@ namespace SharpMonkeyTest
                 new() {input = "1 + 2.0", expected = 3.0},
                 new() {input = "4 / 2.0", expected = 2.0},
                 new() {input = "5 - 2.5", expected = 2.5},
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestBooleanExpressions()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {input = "true", expected = true},
+                new() {input = "false", expected = false},
             };
             RunVMTests(testTable);
         }
