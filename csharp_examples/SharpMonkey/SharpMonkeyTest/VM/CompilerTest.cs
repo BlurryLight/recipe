@@ -72,32 +72,56 @@ namespace SharpMonkeyTest
             {
                 OpcodeUtils.MakeBytes(OpConstants.OpAdd),
                 OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
-                OpcodeUtils.MakeBytes(OpConstants.OpConstant, 65534)
+                OpcodeUtils.MakeBytes(OpConstants.OpConstant, 65534),
+                OpcodeUtils.MakeBytes(OpConstants.OpPop),
             };
             var expected = $"0000 OpAdd NULL\n" +
                            $"0001 OpConstant 2\n" +
-                           $"0004 OpConstant 65534\n";
+                           $"0004 OpConstant 65534\n" +
+                           $"0007 OpPop NULL\n";
             var concatted = concatInstructions(instructions);
             Assert.AreEqual(expected, OpcodeUtils.DecodeInstructions(concatted));
         }
 
-        [Test]
-        public void TestIntegerArithmetic()
+        private void BuildArithmeticCase(byte op, string infix, ref List<CompilerTestCase> table)
         {
-            var testTable = new List<CompilerTestCase>();
-
             var newCase = new CompilerTestCase
             {
-                input = "1 + 2",
+                input = $"1 {infix} 2",
                 expectedConstants = new List<Object> {1, 2},
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
-                    OpcodeUtils.MakeBytes(OpConstants.OpAdd)
+                    OpcodeUtils.MakeBytes(op),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            table.Add(newCase);
+        }
+
+        [Test]
+        public void TestMathArithmetic()
+        {
+            var testTable = new List<CompilerTestCase>();
+
+            var newCase = new CompilerTestCase
+            {
+                input = "1;2;",
+                expectedConstants = new List<Object> {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
             testTable.Add(newCase);
+            BuildArithmeticCase((byte) OpConstants.OpAdd, "+", ref testTable);
+            BuildArithmeticCase((byte) OpConstants.OpSub, "-", ref testTable);
+            BuildArithmeticCase((byte) OpConstants.OpMul, "*", ref testTable);
+            BuildArithmeticCase((byte) OpConstants.OpDiv, "/", ref testTable);
 
             foreach (var testCase in testTable)
             {
@@ -110,6 +134,7 @@ namespace SharpMonkeyTest
                 TestConstants(testCase.expectedConstants, bytecode.Constants);
             }
         }
+
 
         private void TestConstants(List<Object> testCaseExpectedConstants, List<IMonkeyObject> bytecodeConstants)
         {
@@ -125,11 +150,21 @@ namespace SharpMonkeyTest
                         long val = Convert.ToInt64(constant);
                         TestIntegerObject(val, actual);
                         break;
+                    case double doubleVal:
+                        TestDoubleObject(doubleVal, actual);
+                        break;
                     default:
                         Assert.Fail("should not be here");
                         return;
                 }
             }
+        }
+
+        public static void TestDoubleObject(double doubleVal, IMonkeyObject actual)
+        {
+            var obj = actual as MonkeyDouble;
+            Assert.NotNull(obj);
+            Assert.AreEqual(doubleVal, obj.Value, $"obj.value {obj.Value} is not expected {doubleVal} ");
         }
 
         public static void TestIntegerObject(long constant, IMonkeyObject actual)

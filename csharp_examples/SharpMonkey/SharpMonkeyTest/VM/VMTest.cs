@@ -31,6 +31,9 @@ namespace SharpMonkeyTest
                     var val = Convert.ToInt64(expected);
                     CompilerTest.TestIntegerObject(val, actual);
                     break;
+                case double doubleVal:
+                    CompilerTest.TestDoubleObject(doubleVal, actual);
+                    break;
             }
         }
 
@@ -44,8 +47,10 @@ namespace SharpMonkeyTest
 
                 var vm = new MonkeyVM(comp.Bytecode());
                 vm.Run();
-                var stackTop = vm.StackTop();
+                var stackTop = vm.LastPoppedStackElem();
                 TestExpectedObject(testCase.expected, stackTop);
+                // 确认已经清栈
+                Assert.IsNull(vm.StackTop());
             }
         }
 
@@ -58,6 +63,24 @@ namespace SharpMonkeyTest
                 new() {input = "1", expected = 1},
                 new() {input = "2", expected = 2},
                 new() {input = "1 + 2", expected = 3},
+                new() {input = "2 * 2", expected = 4},
+                new() {input = "4 / 2", expected = 2},
+                new() {input = "5 - 2", expected = 3},
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestDoubleArithmetic()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {input = "1.0", expected = 1.0},
+                new() {input = "2.0", expected = 2.0},
+                new() {input = "1 * 2.0", expected = 2.0},
+                new() {input = "1 + 2.0", expected = 3.0},
+                new() {input = "4 / 2.0", expected = 2.0},
+                new() {input = "5 - 2.5", expected = 2.5},
             };
             RunVMTests(testTable);
         }

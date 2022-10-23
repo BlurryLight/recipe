@@ -24,6 +24,9 @@ namespace SharpMonkey.VM
         /// <returns></returns>
         private int AddConstant(IMonkeyObject obj)
         {
+            //TODO: avoid add repeated constant
+            // 思路: 通过一个HashDict记录每个常量的 Hashkey -> index关系，在已经存在的情况下返回Index
+            // 但是这限制了常量池能够存储的类型(IMonkeyHash)，应该是可行的
             _constantsPool.Add(obj);
             return _constantsPool.Count - 1;
         }
@@ -66,14 +69,24 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.ExpressionStatement exp:
                     Compile(exp.Expression);
+                    Emit((byte) OpConstants.OpPop);
                     break;
                 case Ast.InfixExpression exp:
                     Compile(exp.Left);
                     Compile(exp.Right);
                     switch (exp.Operator)
                     {
-                        case "+":
+                        case Constants.Plus:
                             Emit((byte) OpConstants.OpAdd);
+                            break;
+                        case Constants.Minus:
+                            Emit((byte) OpConstants.OpSub);
+                            break;
+                        case Constants.Asterisk:
+                            Emit((byte) OpConstants.OpMul);
+                            break;
+                        case Constants.Slash:
+                            Emit((byte) OpConstants.OpDiv);
                             break;
                         default:
                             throw new NotImplementedException($"not implemented for InfixOperator {exp.Operator}");
@@ -83,6 +96,10 @@ namespace SharpMonkey.VM
                 case Ast.IntegerLiteral exp:
                     var integer = new MonkeyInteger(exp.Value);
                     Emit((byte) OpConstants.OpConstant, AddConstant(integer));
+                    break;
+                case Ast.DoubleLiteral exp:
+                    var floatVal = new MonkeyDouble(exp.Value);
+                    Emit((byte) OpConstants.OpConstant, AddConstant(floatVal));
                     break;
 
                 default:

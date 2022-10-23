@@ -27,6 +27,15 @@ namespace SharpMonkey.VM
             return _sp == 0 ? null : _stack[_sp - 1];
         }
 
+        // 对于表达式 "1;2;", 我们会压入一个元素，随后在运行下一句指令之前清栈。
+        // 类似于 Push 1; Pop();Push 2; Pop();
+        // 在pop的时候我们并没有把元素置为null,这意味着元素仍然在栈上，只有在下一次Push的时候才会被覆盖
+        // 所以我们可以通过这个方法拿到仍然在栈上，尚未被覆写的元素。
+        public IMonkeyObject LastPoppedStackElem()
+        {
+            return _stack[_sp];
+        }
+
         private void Push(IMonkeyObject obj)
         {
             if (_sp >= KStackSize)
@@ -63,12 +72,71 @@ namespace SharpMonkey.VM
                         Push(_constantsPool[constIndex]);
                         break;
                     case OpConstants.OpAdd:
-                        var right = (MonkeyInteger) Pop();
-                        var left = (MonkeyInteger) Pop();
-                        Push(new MonkeyInteger(left.Value + right.Value));
+                    case OpConstants.OpSub:
+                    case OpConstants.OpMul:
+                    case OpConstants.OpDiv:
+                        ExecuteInfixOperation(op);
                         break;
+                    case OpConstants.OpPop:
+                        Pop();
+                        break;
+                    default:
+                        throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void ExecuteInfixOperation(OpConstants op)
+        {
+            var right = Pop();
+            var left = Pop();
+
+            IMonkeyObject res = null;
+            switch (left)
+            {
+                case MonkeyInteger when right is MonkeyInteger:
+                    res = ExecuteIntegerInfixOperation(op, left, right);
+                    break;
+                // case MonkeyBoolean when right is MonkeyBoolean:
+                //     return EvalBoolInfixExpression(op, left, right);
+                // case MonkeyString when right is MonkeyString:
+                //     return EvalStringInfixExpression(op, left, right);
+                case MonkeyDouble when right is MonkeyInteger:
+                case MonkeyInteger when right is MonkeyDouble:
+                case MonkeyDouble when right is MonkeyDouble:
+                    res = EvalDoubleInfixExpression(op, left, right);
+                    break;
+            }
+
+            Push(res);
+        }
+
+        private IMonkeyObject EvalDoubleInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftDouble = left is MonkeyInteger leftInt ? leftInt.ToMonkeyDouble() : (MonkeyDouble) left;
+            var rightDouble = right is MonkeyInteger rightInt ? rightInt.ToMonkeyDouble() : (MonkeyDouble) right;
+            return op switch
+            {
+                OpConstants.OpAdd => new MonkeyDouble(leftDouble.Value + rightDouble.Value),
+                OpConstants.OpSub => new MonkeyDouble(leftDouble.Value - rightDouble.Value),
+                OpConstants.OpMul => new MonkeyDouble(leftDouble.Value * rightDouble.Value),
+                OpConstants.OpDiv => new MonkeyDouble(leftDouble.Value / rightDouble.Value),
+                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+            };
+        }
+
+        private IMonkeyObject ExecuteIntegerInfixOperation(OpConstants op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftInt = (MonkeyInteger) left;
+            var rightInt = (MonkeyInteger) right;
+            return op switch
+            {
+                OpConstants.OpAdd => new MonkeyInteger(leftInt.Value + rightInt.Value),
+                OpConstants.OpSub => new MonkeyInteger(leftInt.Value - rightInt.Value),
+                OpConstants.OpMul => new MonkeyInteger(leftInt.Value * rightInt.Value),
+                OpConstants.OpDiv => new MonkeyInteger(leftInt.Value / rightInt.Value),
+                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+            };
         }
     }
 }

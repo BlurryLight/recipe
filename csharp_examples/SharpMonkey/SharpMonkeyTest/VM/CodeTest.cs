@@ -25,7 +25,15 @@ namespace SharpMonkeyTest
                 new((byte) OpConstants.OpConstant, new List<int> {65534},
                     new List<byte> {(byte) OpConstants.OpConstant, 0xFF, 0XFE}),
                 new((byte) OpConstants.OpAdd, new List<int>(),
-                    new List<byte> {(byte) OpConstants.OpAdd})
+                    new List<byte> {(byte) OpConstants.OpAdd}),
+                new((byte) OpConstants.OpPop, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpPop}),
+                new((byte) OpConstants.OpSub, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpSub}),
+                new((byte) OpConstants.OpMul, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpMul}),
+                new((byte) OpConstants.OpDiv, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpDiv}),
             };
 
             foreach (var tt in testTable)

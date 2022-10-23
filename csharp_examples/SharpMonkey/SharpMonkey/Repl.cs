@@ -54,7 +54,7 @@ namespace SharpMonkey
                         compiler.Compile(program);
                         var vm = new MonkeyVM(compiler.Bytecode());
                         vm.Run();
-                        var evaled = vm.StackTop();
+                        var evaled = vm.LastPoppedStackElem();
                         Console.WriteLine(evaled.Inspect());
                     }
                     catch (Exception e)

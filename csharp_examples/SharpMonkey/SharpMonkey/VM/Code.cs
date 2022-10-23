@@ -14,7 +14,11 @@ namespace SharpMonkey.VM
     public enum OpConstants : byte
     {
         OpConstant,
+        OpPop,
         OpAdd,
+        OpSub,
+        OpMul,
+        OpDiv,
     }
 
     public class Definition
@@ -36,7 +40,11 @@ namespace SharpMonkey.VM
         public static readonly Dictionary<Opcode, Definition> Definitions = new()
         {
             {(Opcode) OpConstants.OpConstant, new Definition(OpConstants.OpConstant.ToString(), new List<int> {2})},
-            {(Opcode) OpConstants.OpAdd, new Definition(OpConstants.OpAdd.ToString(), new List<int>())}
+            {(Opcode) OpConstants.OpPop, new Definition(OpConstants.OpPop.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpAdd, new Definition(OpConstants.OpAdd.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpSub, new Definition(OpConstants.OpSub.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpMul, new Definition(OpConstants.OpMul.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpDiv, new Definition(OpConstants.OpDiv.ToString(), new List<int>())},
         };
 
         public static Definition Lookup(Opcode code)
