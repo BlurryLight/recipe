@@ -55,9 +55,9 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                // new() {input = "1", expected = 1},
-                // new() {input = "2", expected = 2},
-                new() {input = "1 + 2", expected = 2}, // TODO: Fix this
+                new() {input = "1", expected = 1},
+                new() {input = "2", expected = 2},
+                new() {input = "1 + 2", expected = 3},
             };
             RunVMTests(testTable);
         }

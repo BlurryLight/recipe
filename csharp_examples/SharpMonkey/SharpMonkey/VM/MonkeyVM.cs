@@ -31,10 +31,22 @@ namespace SharpMonkey.VM
         {
             if (_sp >= KStackSize)
             {
-                throw new IndexOutOfRangeException($"VM sp is out of range {KStackSize}");
+                throw new IndexOutOfRangeException($"Push: VM sp {_sp} is out of range [0, {KStackSize})");
             }
 
             _stack[_sp++] = obj;
+        }
+
+        private IMonkeyObject Pop()
+        {
+            if (_sp <= 0)
+            {
+                throw new IndexOutOfRangeException($"Pop: VM sp {_sp - 1} is out of range [0, {KStackSize})");
+            }
+
+            var res = _stack[_sp - 1];
+            _sp--;
+            return res;
         }
 
         // 依次执行指令
@@ -49,6 +61,11 @@ namespace SharpMonkey.VM
                         var constIndex = OpcodeUtils.ReadUint16(_instructions, i + 1);
                         i += 2;
                         Push(_constantsPool[constIndex]);
+                        break;
+                    case OpConstants.OpAdd:
+                        var right = (MonkeyInteger) Pop();
+                        var left = (MonkeyInteger) Pop();
+                        Push(new MonkeyInteger(left.Value + right.Value));
                         break;
                 }
             }

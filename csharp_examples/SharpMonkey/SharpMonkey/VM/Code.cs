@@ -14,6 +14,7 @@ namespace SharpMonkey.VM
     public enum OpConstants : byte
     {
         OpConstant,
+        OpAdd,
     }
 
     public class Definition
@@ -34,7 +35,8 @@ namespace SharpMonkey.VM
     {
         public static readonly Dictionary<Opcode, Definition> Definitions = new()
         {
-            {(Opcode) OpConstants.OpConstant, new Definition(OpConstants.OpConstant.ToString(), new List<int> {2})}
+            {(Opcode) OpConstants.OpConstant, new Definition(OpConstants.OpConstant.ToString(), new List<int> {2})},
+            {(Opcode) OpConstants.OpAdd, new Definition(OpConstants.OpAdd.ToString(), new List<int>())}
         };
 
         public static Definition Lookup(Opcode code)
@@ -62,33 +64,25 @@ namespace SharpMonkey.VM
         public static List<byte> MakeBytes(Opcode op, params int[] operands)
         {
             var def = Lookup(op);
-
-            var instructionLen = 1;
-            foreach (var width in def.OperandWidths)
-            {
-                instructionLen += width;
-            }
-
             Debug.Assert(operands.Length == def.OperandWidths.Count);
 
-            var instruction = new List<byte>();
-            instruction.Add(op);
+            var instruction = new List<byte> {op};
             // 首位一定是指令
             for (int i = 0; i < operands.Length; i++)
             {
                 var width = def.OperandWidths[i];
-                var oprand = operands[i];
+                var operand = operands[i];
                 switch (width)
                 {
                     case 2:
                     {
-                        if (oprand < 0 || oprand > ushort.MaxValue)
+                        if (operand < 0 || operand > ushort.MaxValue)
                         {
                             throw new Exception(
-                                $"oprand should be in [{ushort.MinValue},{ushort.MaxValue}] but is {oprand}");
+                                $"oprand should be in [{ushort.MinValue},{ushort.MaxValue}] but is {operand}");
                         }
 
-                        byte[] bytes = BitConverter.GetBytes((ushort) oprand);
+                        byte[] bytes = BitConverter.GetBytes((ushort) operand);
                         if (BitConverter.IsLittleEndian)
                         {
                             Array.Reverse(bytes);
@@ -170,6 +164,8 @@ namespace SharpMonkey.VM
             Debug.Assert(operandCount == operands.Count);
             switch (operands.Count)
             {
+                case 0:
+                    return $"{def.Name} NULL";
                 case 1:
                     return $"{def.Name} {operands[0]}";
             }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel.Design;
+using SharpMonkey.VM;
 
 namespace SharpMonkey
 {
@@ -8,6 +9,8 @@ namespace SharpMonkey
         // for file
         // foreach (string line in File.ReadAllLines(fileName))
         private const string Prompt = ">>";
+
+        private static bool _useVM = true;
 
         public static void Start()
         {
@@ -37,9 +40,28 @@ namespace SharpMonkey
                     }
                 }
 
-                var evaled = Evaluator.Eval(program, env);
-                if (evaled != null)
-                    Console.WriteLine(evaled.Inspect());
+                if (!_useVM)
+                {
+                    var evaled = Evaluator.Eval(program, env);
+                    if (evaled != null)
+                        Console.WriteLine(evaled.Inspect());
+                }
+                else
+                {
+                    try
+                    {
+                        var compiler = new Compiler();
+                        compiler.Compile(program);
+                        var vm = new MonkeyVM(compiler.Bytecode());
+                        vm.Run();
+                        var evaled = vm.StackTop();
+                        Console.WriteLine(evaled.Inspect());
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                }
             }
         }
     }

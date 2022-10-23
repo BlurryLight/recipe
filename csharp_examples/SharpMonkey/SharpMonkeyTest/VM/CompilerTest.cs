@@ -25,10 +25,10 @@ namespace SharpMonkeyTest
         };
 
         // 把多条OpCode的Bytecode连接到一起放到一个连续的buffer里
-        public Instructions concatInstructions(List<Instructions> LinesOfInstruction)
+        private Instructions concatInstructions(List<Instructions> linesOfInstruction)
         {
             var res = new Instructions();
-            foreach (var line in LinesOfInstruction)
+            foreach (var line in linesOfInstruction)
             {
                 res.AddRange(line);
             }
@@ -48,7 +48,8 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<(Opcode op, List<int> operands, int bytesRead)>
             {
-                new((byte) OpConstants.OpConstant, new List<int>() {65534}, 2)
+                new((byte) OpConstants.OpConstant, new List<int>() {65534}, 2),
+                new((byte) OpConstants.OpAdd, new List<int>(), 0)
             };
 
             foreach (var tc in testTable)
@@ -69,13 +70,13 @@ namespace SharpMonkeyTest
         {
             var instructions = new List<Instructions>
             {
-                OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                OpcodeUtils.MakeBytes(OpConstants.OpAdd),
                 OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
                 OpcodeUtils.MakeBytes(OpConstants.OpConstant, 65534)
             };
-            var expected = $"0000 OpConstant 1\n" +
-                           $"0003 OpConstant 2\n" +
-                           $"0006 OpConstant 65534\n";
+            var expected = $"0000 OpAdd NULL\n" +
+                           $"0001 OpConstant 2\n" +
+                           $"0004 OpConstant 65534\n";
             var concatted = concatInstructions(instructions);
             Assert.AreEqual(expected, OpcodeUtils.DecodeInstructions(concatted));
         }
@@ -92,20 +93,21 @@ namespace SharpMonkeyTest
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1)
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpAdd)
                 }
             };
             testTable.Add(newCase);
 
-            foreach (var TestCase in testTable)
+            foreach (var testCase in testTable)
             {
-                var program = Parse(TestCase.input);
+                var program = Parse(testCase.input);
                 var compiler = new Compiler();
                 compiler.Compile(program);
 
                 var bytecode = compiler.Bytecode();
-                TestInstructions(TestCase.expectedInstructions, bytecode.Instructions);
-                TestConstants(TestCase.expectedConstants, bytecode.Constants);
+                TestInstructions(testCase.expectedInstructions, bytecode.Instructions);
+                TestConstants(testCase.expectedConstants, bytecode.Constants);
             }
         }
 

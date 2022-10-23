@@ -70,6 +70,15 @@ namespace SharpMonkey.VM
                 case Ast.InfixExpression exp:
                     Compile(exp.Left);
                     Compile(exp.Right);
+                    switch (exp.Operator)
+                    {
+                        case "+":
+                            Emit((byte) OpConstants.OpAdd);
+                            break;
+                        default:
+                            throw new NotImplementedException($"not implemented for InfixOperator {exp.Operator}");
+                    }
+
                     break;
                 case Ast.IntegerLiteral exp:
                     var integer = new MonkeyInteger(exp.Value);
