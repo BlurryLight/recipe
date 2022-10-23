@@ -36,7 +36,7 @@ namespace SharpMonkeyTest
             return res;
         }
 
-        Ast.MonkeyProgram Parse(string input)
+        public static Ast.MonkeyProgram Parse(string input)
         {
             var p = new Parser(new Lexer(input));
             return p.ParseProgram();
@@ -130,7 +130,7 @@ namespace SharpMonkeyTest
             }
         }
 
-        private void TestIntegerObject(long constant, IMonkeyObject actual)
+        public static void TestIntegerObject(long constant, IMonkeyObject actual)
         {
             var obj = actual as MonkeyInteger;
             Assert.NotNull(obj);

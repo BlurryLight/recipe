@@ -117,6 +117,11 @@ namespace SharpMonkey.VM
             return span;
         }
 
+        public static ushort ReadUint16(Instructions ins, int offset)
+        {
+            return BitConverter.ToUInt16(SubOperands(ins, offset, 2));
+        }
+
         public static Tuple<List<int>, int> ReadOperands(Instructions ins, Definition def)
         {
             var operands = new List<int>();
