@@ -24,6 +24,11 @@ namespace SharpMonkeyTest
 
         public void TestExpectedObject(Object expected, IMonkeyObject actual)
         {
+            if (actual is MonkeyError)
+            {
+                Assert.Fail($"{actual.Inspect()}");
+            }
+
             switch (expected)
             {
                 case int:
@@ -95,6 +100,16 @@ namespace SharpMonkeyTest
             {
                 new() {input = "true", expected = true},
                 new() {input = "false", expected = false},
+                new() {input = "1 < 2", expected = true},
+                new() {input = "1 > 2", expected = false},
+                new() {input = "true == true", expected = true},
+                new() {input = "true != true", expected = false},
+                new() {input = "false != true", expected = true},
+                new() {input = "false != false", expected = false},
+                new() {input = "(1 < 2 ) != true", expected = false},
+                new() {input = "((1 < 2 ) && (2 < 3)) != true", expected = false},
+                new() {input = "(1 < 2 ) == true", expected = true},
+                new() {input = "(1 > 2 ) || (2 > 1) == true", expected = true},
             };
             RunVMTests(testTable);
         }

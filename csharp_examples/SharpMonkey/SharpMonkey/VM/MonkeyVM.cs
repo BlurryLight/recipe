@@ -75,6 +75,11 @@ namespace SharpMonkey.VM
                     case OpConstants.OpSub:
                     case OpConstants.OpMul:
                     case OpConstants.OpDiv:
+                    case OpConstants.OpEqual:
+                    case OpConstants.OpGreaterThan:
+                    case OpConstants.OpNotEqual:
+                    case OpConstants.OpAnd:
+                    case OpConstants.OpOr:
                         ExecuteInfixOperation(op);
                         break;
                     case OpConstants.OpPop:
@@ -98,26 +103,54 @@ namespace SharpMonkey.VM
             var left = Pop();
 
             IMonkeyObject res = null;
+            // 单独处理隐式转换的问题
+            if (op == OpConstants.OpAnd || op == OpConstants.OpOr)
+            {
+                res = ExecuteBoolInfixExpression(op, left, right);
+                Push(res);
+                return;
+            }
+
             switch (left)
             {
                 case MonkeyInteger when right is MonkeyInteger:
                     res = ExecuteIntegerInfixOperation(op, left, right);
                     break;
-                // case MonkeyBoolean when right is MonkeyBoolean:
-                //     return EvalBoolInfixExpression(op, left, right);
+                case MonkeyBoolean when right is MonkeyBoolean:
+                    res = ExecuteBoolInfixExpression(op, left, right);
+                    break;
                 // case MonkeyString when right is MonkeyString:
                 //     return EvalStringInfixExpression(op, left, right);
                 case MonkeyDouble when right is MonkeyInteger:
                 case MonkeyInteger when right is MonkeyDouble:
                 case MonkeyDouble when right is MonkeyDouble:
-                    res = EvalDoubleInfixExpression(op, left, right);
+                    res = ExecuteDoubleInfixExpression(op, left, right);
                     break;
             }
 
             Push(res);
         }
 
-        private IMonkeyObject EvalDoubleInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)
+        private IMonkeyObject ExecuteBoolInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftBoolean = MonkeyBoolean.ImplicitConvertFrom(left);
+            var rightBoolean = MonkeyBoolean.ImplicitConvertFrom(right);
+            switch (op)
+            {
+                case OpConstants.OpEqual:
+                    return MonkeyBoolean.GetStaticObject(leftBoolean == rightBoolean);
+                case OpConstants.OpNotEqual:
+                    return MonkeyBoolean.GetStaticObject(leftBoolean != rightBoolean);
+                case OpConstants.OpAnd:
+                    return MonkeyBoolean.GetStaticObject(leftBoolean.Value && rightBoolean.Value);
+                case OpConstants.OpOr:
+                    return MonkeyBoolean.GetStaticObject(leftBoolean.Value || rightBoolean.Value);
+                default:
+                    return new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
+            }
+        }
+
+        private IMonkeyObject ExecuteDoubleInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)
         {
             var leftDouble = left is MonkeyInteger leftInt ? leftInt.ToMonkeyDouble() : (MonkeyDouble) left;
             var rightDouble = right is MonkeyInteger rightInt ? rightInt.ToMonkeyDouble() : (MonkeyDouble) right;
@@ -127,7 +160,10 @@ namespace SharpMonkey.VM
                 OpConstants.OpSub => new MonkeyDouble(leftDouble.Value - rightDouble.Value),
                 OpConstants.OpMul => new MonkeyDouble(leftDouble.Value * rightDouble.Value),
                 OpConstants.OpDiv => new MonkeyDouble(leftDouble.Value / rightDouble.Value),
-                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+                OpConstants.OpGreaterThan => MonkeyBoolean.GetStaticObject(leftDouble.Value > rightDouble.Value),
+                OpConstants.OpEqual => MonkeyBoolean.GetStaticObject(leftDouble.Value == rightDouble.Value),
+                OpConstants.OpNotEqual => MonkeyBoolean.GetStaticObject(leftDouble.Value != rightDouble.Value),
+                _ => new MonkeyError($"unsupported Double infix: {left.Type()} {op} {right.Type()}")
             };
         }
 
@@ -141,7 +177,10 @@ namespace SharpMonkey.VM
                 OpConstants.OpSub => new MonkeyInteger(leftInt.Value - rightInt.Value),
                 OpConstants.OpMul => new MonkeyInteger(leftInt.Value * rightInt.Value),
                 OpConstants.OpDiv => new MonkeyInteger(leftInt.Value / rightInt.Value),
-                _ => new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}")
+                OpConstants.OpGreaterThan => MonkeyBoolean.GetStaticObject(leftInt.Value > rightInt.Value),
+                OpConstants.OpEqual => MonkeyBoolean.GetStaticObject(leftInt.Value == rightInt.Value),
+                OpConstants.OpNotEqual => MonkeyBoolean.GetStaticObject(leftInt.Value != rightInt.Value),
+                _ => new MonkeyError($"unsupported Integer infix: {left.Type()} {op} {right.Type()}")
             };
         }
     }

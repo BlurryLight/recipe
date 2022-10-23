@@ -206,7 +206,7 @@ namespace SharpMonkeyTest
             var newCase = new CompilerTestCase
             {
                 input = "true;",
-                expectedConstants = new List<Object> { },
+                expectedConstants = new List<Object>(),
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpTrue),
@@ -217,7 +217,7 @@ namespace SharpMonkeyTest
             newCase = new CompilerTestCase
             {
                 input = "false;",
-                expectedConstants = new List<Object> { },
+                expectedConstants = new List<Object>(),
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpFalse),
@@ -225,6 +225,122 @@ namespace SharpMonkeyTest
                 }
             };
             testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "1 == 2;",
+                expectedConstants = new List<Object> {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "1 != 2;",
+                expectedConstants = new List<Object> {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpNotEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "1 > 2;",
+                expectedConstants = new List<Object> {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpGreaterThan),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "1 < 2;",
+                expectedConstants = new List<Object> {2, 1},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpGreaterThan),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "true !=  false;",
+                expectedConstants = new List<Object>(),
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse),
+                    OpcodeUtils.MakeBytes(OpConstants.OpNotEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "true == true;",
+                expectedConstants = new List<Object>(),
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "(true || false) == true;",
+                expectedConstants = new List<Object>(),
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse),
+                    OpcodeUtils.MakeBytes(OpConstants.OpOr),
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+            newCase = new CompilerTestCase
+            {
+                input = "(true && true) == false;",
+                expectedConstants = new List<Object>(),
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpAnd),
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse),
+                    OpcodeUtils.MakeBytes(OpConstants.OpEqual),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
             RunCompilerTests(testTable);
         }
     }

@@ -38,6 +38,12 @@ namespace SharpMonkeyTest
                     new List<byte> {(byte) OpConstants.OpTrue}),
                 new((byte) OpConstants.OpFalse, new List<int>(),
                     new List<byte> {(byte) OpConstants.OpFalse}),
+                new((byte) OpConstants.OpEqual, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpEqual}),
+                new((byte) OpConstants.OpNotEqual, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpNotEqual}),
+                new((byte) OpConstants.OpGreaterThan, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpGreaterThan}),
             };
 
             foreach (var tt in testTable)

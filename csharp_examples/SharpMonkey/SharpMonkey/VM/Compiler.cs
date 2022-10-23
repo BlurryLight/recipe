@@ -72,7 +72,17 @@ namespace SharpMonkey.VM
                     Emit((byte) OpConstants.OpPop);
                     break;
                 case Ast.InfixExpression exp:
+                    // 这里只是展示了在编译成字节码的时候可以通过调整infix的压栈顺序节约 OpCode的一种可能
+                    if (exp.Operator == Constants.Lt)
+                    {
+                        Compile(exp.Right);
+                        Compile(exp.Left);
+                        Emit((byte) OpConstants.OpGreaterThan);
+                        break;
+                    }
+
                     Compile(exp.Left);
+                    // TODO: 这里，或者在VM的时候处理短路原则
                     Compile(exp.Right);
                     switch (exp.Operator)
                     {
@@ -87,6 +97,21 @@ namespace SharpMonkey.VM
                             break;
                         case Constants.Slash:
                             Emit((byte) OpConstants.OpDiv);
+                            break;
+                        case Constants.Gt:
+                            Emit((byte) OpConstants.OpGreaterThan);
+                            break;
+                        case Constants.Eq:
+                            Emit((byte) OpConstants.OpEqual);
+                            break;
+                        case Constants.NotEq:
+                            Emit((byte) OpConstants.OpNotEqual);
+                            break;
+                        case Constants.And:
+                            Emit((byte) OpConstants.OpAnd);
+                            break;
+                        case Constants.Or:
+                            Emit((byte) OpConstants.OpOr);
                             break;
                         default:
                             throw new NotImplementedException($"not implemented for InfixOperator {exp.Operator}");
