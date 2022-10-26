@@ -270,13 +270,16 @@ namespace SharpMonkeyTest
 
             newCase = new CompilerTestCase
             {
-                input = "1 < 2;",
-                expectedConstants = new List<Object> {2, 1},
+                input = "1 < 2;++3;",
+                expectedConstants = new List<Object> {2, 1, 3},
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
                     OpcodeUtils.MakeBytes(OpConstants.OpGreaterThan),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_PREFIX),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -340,6 +343,24 @@ namespace SharpMonkeyTest
                 }
             };
             testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "-1;!true;",
+                expectedConstants = new List<Object>() {1},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpMinus),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
+                    OpcodeUtils.MakeBytes(OpConstants.OpBang),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
 
             RunCompilerTests(testTable);
         }

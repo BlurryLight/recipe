@@ -91,10 +91,67 @@ namespace SharpMonkey.VM
                     case OpConstants.OpFalse:
                         Push(MonkeyBoolean.FalseObject);
                         break;
+                    case OpConstants.OpBang:
+                    case OpConstants.OpMinus:
+                        ExecutePrefixOperation(op);
+                        break;
+                    case OpConstants.OpIncrement:
+                        var bPrefix = _instructions[i + 1];
+                        i += 1;
+                        if (bPrefix == OpcodeUtils.OP_INCREMENT_PREFIX)
+                            ExecutePrefixOperation(op);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void ExecutePrefixOperation(OpConstants op)
+        {
+            switch (op)
+            {
+                case OpConstants.OpBang:
+                    ExecutePrefixBangOperation();
+                    break;
+                case OpConstants.OpMinus:
+                    ExecutePrefixMinusOperation();
+                    break;
+                case OpConstants.OpIncrement:
+                    if (_stack[_sp - 1] is MonkeyInteger iVal)
+                    {
+                        iVal.Value += 1;
+                    }
+
+                    if (_stack[_sp - 1] is MonkeyDouble dVal)
+                    {
+                        dVal.Value += 1.0;
+                    }
+
+                    break;
+            }
+        }
+
+        private void ExecutePrefixMinusOperation()
+        {
+            var operand = Pop();
+            switch (operand)
+            {
+                case MonkeyDouble dVal:
+                    Push(new MonkeyDouble(-dVal.Value));
+                    break;
+                case MonkeyInteger iVal:
+                    Push(new MonkeyInteger(-iVal.Value));
+                    break;
+                default:
+                    throw new ArgumentException($"!{operand.Type()} is not supported");
+            }
+        }
+
+        private void ExecutePrefixBangOperation()
+        {
+            var operand = Pop();
+            Push(MonkeyBoolean.GetStaticObject(!EvaluatorHelper.IsTrueObject(operand)));
         }
 
         private void ExecuteInfixOperation(OpConstants op)

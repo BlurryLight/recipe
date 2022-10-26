@@ -129,6 +129,24 @@ namespace SharpMonkey.VM
                 case Ast.BooleanLiteral exp:
                     Emit(exp.Value ? (byte) OpConstants.OpTrue : (byte) OpConstants.OpFalse);
                     break;
+                case Ast.PrefixExpression exp:
+                    Compile(exp.Right);
+                    switch (exp.Operator)
+                    {
+                        case Constants.Bang:
+                            Emit((byte) OpConstants.OpBang);
+                            break;
+                        case Constants.Minus:
+                            Emit((byte) OpConstants.OpMinus);
+                            break;
+                        case Constants.Increment:
+                            Emit((byte) OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_PREFIX);
+                            break;
+                        default:
+                            throw new NotImplementedException($"not implemented for PrefixOperator{exp.Operator}");
+                    }
+
+                    break;
                 default:
                     throw new NotImplementedException($"not implemented for type {node.ToPrintableString()}");
             }

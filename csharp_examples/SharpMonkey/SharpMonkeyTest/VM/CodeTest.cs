@@ -44,6 +44,10 @@ namespace SharpMonkeyTest
                     new List<byte> {(byte) OpConstants.OpNotEqual}),
                 new((byte) OpConstants.OpGreaterThan, new List<int>(),
                     new List<byte> {(byte) OpConstants.OpGreaterThan}),
+                new((byte) OpConstants.OpMinus, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpMinus}),
+                new((byte) OpConstants.OpBang, new List<int>(),
+                    new List<byte> {(byte) OpConstants.OpBang}),
             };
 
             foreach (var tt in testTable)

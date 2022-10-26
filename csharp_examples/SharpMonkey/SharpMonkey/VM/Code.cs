@@ -26,6 +26,9 @@ namespace SharpMonkey.VM
         OpGreaterThan,
         OpAnd,
         OpOr,
+        OpMinus,
+        OpBang,
+        OpIncrement,
     }
 
     public class Definition
@@ -44,6 +47,9 @@ namespace SharpMonkey.VM
 
     public static class OpcodeUtils
     {
+        public static readonly int OP_INCREMENT_PREFIX = 0x00;
+        public static readonly int OP_INCREMENT_POSTFIX = 0xFF;
+
         public static readonly Dictionary<Opcode, Definition> Definitions = new()
         {
             {(Opcode) OpConstants.OpConstant, new Definition(OpConstants.OpConstant.ToString(), new List<int> {2})},
@@ -59,6 +65,10 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpGreaterThan, new Definition(OpConstants.OpGreaterThan.ToString(), new List<int>())},
             {(Opcode) OpConstants.OpAnd, new Definition(OpConstants.OpAnd.ToString(), new List<int>())},
             {(Opcode) OpConstants.OpOr, new Definition(OpConstants.OpOr.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpMinus, new Definition(OpConstants.OpMinus.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpBang, new Definition(OpConstants.OpBang.ToString(), new List<int>())},
+            // 第一个字节决定 是Prefix还是PostFix
+            {(Opcode) OpConstants.OpIncrement, new Definition(OpConstants.OpIncrement.ToString(), new List<int>() {1})},
         };
 
         public static Definition Lookup(Opcode code)
@@ -96,6 +106,17 @@ namespace SharpMonkey.VM
                 var operand = operands[i];
                 switch (width)
                 {
+                    case 1:
+                    {
+                        if (operand < 0 || operand > Byte.MaxValue)
+                        {
+                            throw new Exception(
+                                $"oprand should be in [{Byte.MinValue},{Byte.MaxValue}] but is {operand}");
+                        }
+
+                        instruction.Add((byte) operand);
+                        break;
+                    }
                     case 2:
                     {
                         if (operand < 0 || operand > ushort.MaxValue)
@@ -113,6 +134,7 @@ namespace SharpMonkey.VM
                         instruction.AddRange(bytes);
                         break;
                     }
+
                     default:
                         Debug.Fail("Unsupported width");
                         break;
@@ -147,6 +169,9 @@ namespace SharpMonkey.VM
                 var width = def.OperandWidths[i];
                 switch (width)
                 {
+                    case 1:
+                        operands.Add(ins[i]);
+                        break;
                     case 2:
                         operands.Add(BitConverter.ToUInt16(SubOperands(ins, i, 2)));
                         break;

@@ -70,10 +70,12 @@ namespace SharpMonkeyTest
             {
                 new() {input = "1", expected = 1},
                 new() {input = "2", expected = 2},
+                new() {input = "-2", expected = -2},
                 new() {input = "1 + 2", expected = 3},
                 new() {input = "2 * 2", expected = 4},
                 new() {input = "4 / 2", expected = 2},
                 new() {input = "5 - 2", expected = 3},
+                new() {input = "++5;", expected = 6},
             };
             RunVMTests(testTable);
         }
@@ -85,10 +87,12 @@ namespace SharpMonkeyTest
             {
                 new() {input = "1.0", expected = 1.0},
                 new() {input = "2.0", expected = 2.0},
+                new() {input = "-2.0", expected = -2.0},
                 new() {input = "1 * 2.0", expected = 2.0},
                 new() {input = "1 + 2.0", expected = 3.0},
                 new() {input = "4 / 2.0", expected = 2.0},
                 new() {input = "5 - 2.5", expected = 2.5},
+                new() {input = "++5.0;", expected = 6.0},
             };
             RunVMTests(testTable);
         }
@@ -100,6 +104,13 @@ namespace SharpMonkeyTest
             {
                 new() {input = "true", expected = true},
                 new() {input = "false", expected = false},
+                new() {input = "!true", expected = false},
+                new() {input = "!!true", expected = true},
+                new() {input = "!false", expected = true},
+                new() {input = "!!false", expected = false},
+                new() {input = "!5", expected = false},
+                new() {input = "!0", expected = true},
+                new() {input = "!!5", expected = true},
                 new() {input = "1 < 2", expected = true},
                 new() {input = "1 > 2", expected = false},
                 new() {input = "true == true", expected = true},
