@@ -29,6 +29,8 @@ namespace SharpMonkey.VM
         OpMinus,
         OpBang,
         OpIncrement,
+        OpJumpNotTruthy, // JNZ in X86
+        OpJump, // JMP in X86
     }
 
     public class Definition
@@ -69,6 +71,11 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpBang, new Definition(OpConstants.OpBang.ToString(), new List<int>())},
             // 第一个字节决定 是Prefix还是PostFix
             {(Opcode) OpConstants.OpIncrement, new Definition(OpConstants.OpIncrement.ToString(), new List<int>() {1})},
+            {(Opcode) OpConstants.OpJump, new Definition(OpConstants.OpJump.ToString(), new List<int> {2})},
+            {
+                (Opcode) OpConstants.OpJumpNotTruthy,
+                new Definition(OpConstants.OpJumpNotTruthy.ToString(), new List<int> {2})
+            },
         };
 
         public static Definition Lookup(Opcode code)

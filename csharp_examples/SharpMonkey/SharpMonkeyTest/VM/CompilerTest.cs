@@ -189,13 +189,13 @@ namespace SharpMonkeyTest
             Instructions bytecodeInstructions)
         {
             var concatted = concatInstructions(testCaseExpectedInstructions);
-            Assert.AreEqual(concatted.Count, bytecodeInstructions.Count,
-                $"Expected bytes:\n{OpcodeUtils.DecodeInstructions(concatted)}" +
-                $"Actual bytes:\n{OpcodeUtils.DecodeInstructions(bytecodeInstructions)}"
+            var msg = $"Expected bytes:\n{OpcodeUtils.DecodeInstructions(concatted)}" +
+                      $"Actual bytes:\n{OpcodeUtils.DecodeInstructions(bytecodeInstructions)}";
+            Assert.AreEqual(concatted.Count, bytecodeInstructions.Count, msg
             );
             for (int i = 0; i < concatted.Count; i++)
             {
-                Assert.AreEqual(concatted[i], bytecodeInstructions[i]);
+                Assert.AreEqual(concatted[i], bytecodeInstructions[i], msg);
             }
         }
 
@@ -362,6 +362,28 @@ namespace SharpMonkeyTest
             testTable.Add(newCase);
 
 
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
+        public void TestConditionExpressions()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "if(true) { 10;} ; 333;",
+                expectedConstants = new List<Object>() {10, 333},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue), // 0000
+                    OpcodeUtils.MakeBytes(OpConstants.OpJumpNotTruthy, 7), // 0001 ,需要跳转到条件语句之后的那条语句，如果条件不成立就跳转
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0), // 0004
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0007
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1), // 0008
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0011
+                }
+            };
+            testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
     }
