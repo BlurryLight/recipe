@@ -437,8 +437,8 @@ namespace SharpMonkeyTest
             var testTable = new List<CompilerTestCase>();
             var newCase = new CompilerTestCase
             {
-                input = " 1 ? 2 : 3;10;",
-                expectedConstants = new List<Object>() {1, 2, 3, 10},
+                input = " 1 ? 2 : 3; 3;",
+                expectedConstants = new List<Object>() {1, 2, 3},
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0), // 0000
@@ -447,7 +447,7 @@ namespace SharpMonkeyTest
                     OpcodeUtils.MakeBytes(OpConstants.OpJump, 15), // 0009
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2), // 00012
                     OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0015
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 3), // 00016
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2), // 00016
                     OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0019
                 }
             };

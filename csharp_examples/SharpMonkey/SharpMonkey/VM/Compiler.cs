@@ -22,6 +22,7 @@ namespace SharpMonkey.VM
     {
         private readonly Instructions _instructions;
         private readonly List<IMonkeyObject> _constantsPool;
+        private readonly Dictionary<HashKey, int> _constantsPoolIndex;
         private EmittedInstruction _lastInstruction;
         private EmittedInstruction _previousInstruction;
 
@@ -32,11 +33,21 @@ namespace SharpMonkey.VM
         /// <returns></returns>
         private int AddConstant(IMonkeyObject obj)
         {
-            //TODO: avoid add repeated constant
-            // 思路: 通过一个HashDict记录每个常量的 Hashkey -> index关系，在已经存在的情况下返回Index
-            // 但是这限制了常量池能够存储的类型(IMonkeyHash)，应该是可行的
+            if (obj is not IMonkeyHash hashObj)
+            {
+                throw new Exception($"ConstantPool object must be IMonkeyHash");
+            }
+
+            var hashKey = hashObj.HashKey();
+            if (_constantsPoolIndex.TryGetValue(hashKey, out int index))
+            {
+                return index;
+            }
+
             _constantsPool.Add(obj);
-            return _constantsPool.Count - 1;
+            var idx = _constantsPool.Count - 1;
+            _constantsPoolIndex[hashKey] = idx;
+            return idx;
         }
 
         /// <summary>
@@ -101,6 +112,7 @@ namespace SharpMonkey.VM
         {
             _instructions = new Instructions();
             _constantsPool = new List<IMonkeyObject>();
+            _constantsPoolIndex = new Dictionary<HashKey, int>();
             _lastInstruction = new EmittedInstruction();
             _previousInstruction = new EmittedInstruction();
         }
@@ -291,7 +303,7 @@ namespace SharpMonkey.VM
             return new Bytecode()
             {
                 Instructions = _instructions,
-                Constants = _constantsPool
+                Constants = _constantsPool,
             };
         }
     }
