@@ -21,10 +21,11 @@ namespace SharpMonkey.VM
     public class Compiler
     {
         private readonly Instructions _instructions;
-        private readonly List<IMonkeyObject> _constantsPool;
-        private readonly Dictionary<HashKey, int> _constantsPoolIndex;
+        public readonly List<IMonkeyObject> ConstantsPool;
+        public readonly Dictionary<HashKey, int> ConstantsPoolIndex;
         private EmittedInstruction _lastInstruction;
         private EmittedInstruction _previousInstruction;
+        public readonly SymbolTable SymbolTable;
 
         /// <summary>
         /// 添加一个常量对象到常量池里,并返回对象的索引
@@ -39,14 +40,14 @@ namespace SharpMonkey.VM
             }
 
             var hashKey = hashObj.HashKey();
-            if (_constantsPoolIndex.TryGetValue(hashKey, out int index))
+            if (ConstantsPoolIndex.TryGetValue(hashKey, out int index))
             {
                 return index;
             }
 
-            _constantsPool.Add(obj);
-            var idx = _constantsPool.Count - 1;
-            _constantsPoolIndex[hashKey] = idx;
+            ConstantsPool.Add(obj);
+            var idx = ConstantsPool.Count - 1;
+            ConstantsPoolIndex[hashKey] = idx;
             return idx;
         }
 
@@ -110,9 +111,22 @@ namespace SharpMonkey.VM
 
         public Compiler()
         {
+            SymbolTable = new SymbolTable();
             _instructions = new Instructions();
-            _constantsPool = new List<IMonkeyObject>();
-            _constantsPoolIndex = new Dictionary<HashKey, int>();
+            ConstantsPool = new List<IMonkeyObject>();
+            ConstantsPoolIndex = new Dictionary<HashKey, int>();
+            _lastInstruction = new EmittedInstruction();
+            _previousInstruction = new EmittedInstruction();
+        }
+
+        public Compiler(List<IMonkeyObject> constantsPool, Dictionary<HashKey, int> constantsPoolIndex,
+            SymbolTable symbolTable)
+        {
+            ConstantsPool = constantsPool;
+            ConstantsPoolIndex = constantsPoolIndex;
+            SymbolTable = symbolTable;
+
+            _instructions = new Instructions();
             _lastInstruction = new EmittedInstruction();
             _previousInstruction = new EmittedInstruction();
         }
@@ -241,6 +255,15 @@ namespace SharpMonkey.VM
                 case Ast.NullLiteral:
                     Emit((byte) OpConstants.OpNull);
                     break;
+                case Ast.LetStatement stmt:
+                    Compile(stmt.Value);
+                    var symbol = SymbolTable.Define(stmt.Name.Value);
+                    Emit((byte) OpConstants.OpSetGlobal, symbol.Index);
+                    break;
+                case Ast.Identifier ident:
+                    symbol = SymbolTable.Resolve(ident.Value);
+                    Emit((byte) OpConstants.OpGetGlobal, symbol.Index);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
@@ -303,7 +326,7 @@ namespace SharpMonkey.VM
             return new Bytecode()
             {
                 Instructions = _instructions,
-                Constants = _constantsPool,
+                Constants = ConstantsPool,
             };
         }
     }

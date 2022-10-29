@@ -9,13 +9,26 @@ namespace SharpMonkey.VM
     public class MonkeyVM
     {
         private const int KStackSize = 2048;
+        private const int KGlobalSize = UInt16.MaxValue;
         private Instructions _instructions;
         private readonly List<IMonkeyObject> _constantsPool;
         private IMonkeyObject[] _stack; // 以数组尾部为顶形成的栈
         private int _sp = 0;
+        public readonly IMonkeyObject[] Globals;
 
         public MonkeyVM(Bytecode code)
         {
+            _instructions = code.Instructions;
+            _constantsPool = code.Constants;
+            _stack = new IMonkeyObject[KStackSize];
+            Globals = new IMonkeyObject[KGlobalSize];
+            _sp = 0;
+        }
+
+        public MonkeyVM(Bytecode code, IMonkeyObject[] globals)
+        {
+            Globals = globals;
+
             _instructions = code.Instructions;
             _constantsPool = code.Constants;
             _stack = new IMonkeyObject[KStackSize];
@@ -122,6 +135,17 @@ namespace SharpMonkey.VM
                     case OpConstants.OpNull:
                         Push(MonkeyNull.NullObject);
                         break;
+                    case OpConstants.OpSetGlobal:
+                        var setGlobalIdx = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        Globals[setGlobalIdx] = Pop();
+                        i += 2;
+                        break;
+                    case OpConstants.OpGetGlobal:
+                        var getGlobalIdx = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        Push(Globals[getGlobalIdx]);
+                        i += 2;
+                        break;
+
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }

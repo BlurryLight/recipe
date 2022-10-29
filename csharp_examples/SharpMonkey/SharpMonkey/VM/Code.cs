@@ -32,6 +32,8 @@ namespace SharpMonkey.VM
         OpJumpNotTruthy, // JNZ in X86
         OpJump, // JMP in X86
         OpNull,
+        OpSetGlobal,
+        OpGetGlobal,
     }
 
     public class Definition
@@ -78,6 +80,8 @@ namespace SharpMonkey.VM
                 new Definition(OpConstants.OpJumpNotTruthy.ToString(), new List<int> {2})
             },
             {(Opcode) OpConstants.OpNull, new Definition(OpConstants.OpNull.ToString(), new List<int>())},
+            {(Opcode) OpConstants.OpSetGlobal, new Definition(OpConstants.OpSetGlobal.ToString(), new List<int> {2})},
+            {(Opcode) OpConstants.OpGetGlobal, new Definition(OpConstants.OpGetGlobal.ToString(), new List<int> {2})},
         };
 
         public static Definition Lookup(Opcode code)

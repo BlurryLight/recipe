@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using SharpMonkey.VM;
 
@@ -12,9 +13,29 @@ namespace SharpMonkey
 
         public static bool _useVM = true;
 
+        private struct CompilerVMContext
+        {
+            // for compiler
+            public List<IMonkeyObject> CompilerConstantsPool;
+            public Dictionary<HashKey, int> CompilerConstantIndex;
+            public SymbolTable CompilerSymbolTable;
+
+            // for VM
+            public IMonkeyObject[] VMGlobals;
+            public bool isValid;
+        }
+
         public static void Start()
         {
+            // for evaluator 在不同的行之间保持状态，需要一个大的Context
             Environment env = new Environment();
+
+            // 同理，对于VM，也需要在REPL的不同行之间维持状态
+
+            CompilerVMContext VMContext = new CompilerVMContext
+            {
+                isValid = false
+            };
             while (true)
             {
                 Console.Write(Prompt);
@@ -50,9 +71,23 @@ namespace SharpMonkey
                 {
                     try
                     {
-                        var compiler = new Compiler();
+                        // 继承状态 
+                        var compiler = VMContext.isValid
+                            ? new Compiler(VMContext.CompilerConstantsPool, VMContext.CompilerConstantIndex,
+                                VMContext.CompilerSymbolTable)
+                            : new Compiler();
                         compiler.Compile(program);
-                        var vm = new MonkeyVM(compiler.Bytecode());
+                        var vm = VMContext.isValid
+                            ? new MonkeyVM(compiler.Bytecode(), VMContext.VMGlobals)
+                            : new MonkeyVM(compiler.Bytecode());
+
+                        // 记录状态
+                        VMContext.isValid = true;
+                        VMContext.CompilerConstantIndex = compiler.ConstantsPoolIndex;
+                        VMContext.CompilerConstantsPool = compiler.ConstantsPool;
+                        VMContext.CompilerSymbolTable = compiler.SymbolTable;
+                        VMContext.VMGlobals = vm.Globals;
+
                         vm.Run();
                         var evaled = vm.LastPoppedStackElem();
                         Console.WriteLine(evaled.Inspect());

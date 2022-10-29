@@ -161,5 +161,17 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestGlobalLetStatements()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {input = "let a = 1; a", expected = 1},
+                new() {input = "let a = 1; let b = a + 1; b", expected = 2},
+                new() {input = "let a = 1; let b = 3; a + b;", expected = 4},
+            };
+            RunVMTests(testTable);
+        }
     }
 }
