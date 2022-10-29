@@ -129,6 +129,12 @@ namespace SharpMonkeyTest
                 new() {input = "!(if(false){10;})", expected = true},
                 new() {input = "null", expected = false},
                 new() {input = "!null", expected = true},
+
+                new() {input = "false && (1 / 0) ", expected = false}, // will not throw exception
+                new() {input = "(false && false)  && (1 / 0) ", expected = false},
+                new() {input = "(false || true )  || 1  ", expected = true},
+                new() {input = "true && (1 / 1) ", expected = true},
+                new() {input = "false && (true) ", expected = false},
             };
             RunVMTests(testTable);
         }

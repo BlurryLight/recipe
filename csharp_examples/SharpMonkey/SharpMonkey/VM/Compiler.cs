@@ -130,8 +130,27 @@ namespace SharpMonkey.VM
                         break;
                     }
 
+                    if (exp.Operator == Constants.And)
+                    {
+                        // 由于短路原则，And运算符需要特殊处理
+                        // 详细分析逻辑看` input = "true && false;" 这个测试用例处的分析
+                        Compile(exp.Left);
+                        var ph =
+                            Emit((byte) OpConstants.OpJumpNotTruthy,
+                                54321);
+                        Emit((byte) OpConstants.OpTrue);
+                        Compile(exp.Right);
+                        Emit((byte) OpConstants.OpAnd);
+                        var ph2 =
+                            Emit((byte) OpConstants.OpJump,
+                                54321);
+                        var pos1 = Emit((byte) OpConstants.OpFalse);
+                        ChangeOperand(ph, pos1);
+                        ChangeOperand(ph2, pos1 + 1);
+                        break;
+                    }
+
                     Compile(exp.Left);
-                    // TODO: 这里，或者在VM的时候处理短路原则
                     Compile(exp.Right);
                     switch (exp.Operator)
                     {
@@ -155,9 +174,6 @@ namespace SharpMonkey.VM
                             break;
                         case Constants.NotEq:
                             Emit((byte) OpConstants.OpNotEqual);
-                            break;
-                        case Constants.And:
-                            Emit((byte) OpConstants.OpAnd);
                             break;
                         case Constants.Or:
                             Emit((byte) OpConstants.OpOr);

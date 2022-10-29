@@ -328,18 +328,41 @@ namespace SharpMonkeyTest
                 }
             };
             testTable.Add(newCase);
+
             newCase = new CompilerTestCase
             {
-                input = "(true && true) == false;",
+                /*
+                 *  && 具有短路原则，第一个条件为false的时候，第二个语句不会执行
+                 *  所以在 a && b 形式时
+                 *  - 当 a = false, 必须生成一个指令跳过b部分的执行
+                 *  - 当 a = true时，eval(b), 此时栈上分别有a和b的结果，再压入OpAdd
+                 *  - 当进入到eval(b)时，a必定为true，所以直接压入True，不要再压入执行a的字节码，如果a是一个有副作用的函数，会导致a的副作用被执行两次
+                 *   写成C伪代码
+                 * 
+                 *   stack.push(a());
+                 *   if(stack.pop())
+                 *  {
+                 *      stack.push(true && b());
+                 *      goto out;
+                 *  }
+                 *  a_false:
+                 *    stack.push(false);
+                 * out:
+                 *    return stack.pop();
+                 *  
+                 */
+                input = "true && false;",
                 expectedConstants = new List<Object>(),
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
-                    OpcodeUtils.MakeBytes(OpConstants.OpTrue),
-                    OpcodeUtils.MakeBytes(OpConstants.OpAnd),
-                    OpcodeUtils.MakeBytes(OpConstants.OpFalse),
-                    OpcodeUtils.MakeBytes(OpConstants.OpEqual),
-                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue), // 0000
+                    OpcodeUtils.MakeBytes(OpConstants.OpJumpNotTruthy, 10), // 0001
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue), // 0004
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse), // 0006
+                    OpcodeUtils.MakeBytes(OpConstants.OpAnd), // 0006
+                    OpcodeUtils.MakeBytes(OpConstants.OpJump, 11), // 0007
+                    OpcodeUtils.MakeBytes(OpConstants.OpFalse), // 00010
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0011
                 }
             };
             testTable.Add(newCase);
