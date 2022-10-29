@@ -157,6 +157,7 @@ namespace SharpMonkey
             RegisterPrefixParseFunc(Constants.Decrement, ParsePrefixExpression);
             RegisterPrefixParseFunc(Constants.True, ParseBoolean);
             RegisterPrefixParseFunc(Constants.False, ParseBoolean);
+            RegisterPrefixParseFunc(Constants.Null, ParseNull);
             RegisterPrefixParseFunc(Constants.LParen, ParseGroupedExpression);
             RegisterPrefixParseFunc(Constants.If, ParseIfExpression);
             RegisterPrefixParseFunc(Constants.Function, ParseFuncLiteral);
@@ -355,8 +356,15 @@ namespace SharpMonkey
             return expression;
         }
 
+        private Ast.IExpression ParseNull()
+        {
+            // optimize :return static object
+            return new Ast.NullLiteral(_curToken);
+        }
+
         private Ast.IExpression ParseBoolean()
         {
+            // optimize :return static object
             var expression = new Ast.BooleanLiteral(_curToken, _curToken.Literal);
             return expression;
         }

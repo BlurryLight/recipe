@@ -10,7 +10,7 @@ namespace SharpMonkey
         // foreach (string line in File.ReadAllLines(fileName))
         private const string Prompt = ">>";
 
-        private static bool _useVM = true;
+        public static bool _useVM = true;
 
         public static void Start()
         {

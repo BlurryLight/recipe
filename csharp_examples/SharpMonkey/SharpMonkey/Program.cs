@@ -16,8 +16,8 @@ namespace SharpMonkey
             // Environment.GetCommandLineArgs()[0];
             if (args.Length == 1)
             {
-                string ScriptContent = File.ReadAllText(args[0]);
-                Parser parser = new Parser(new Lexer(ScriptContent));
+                string scriptContent = File.ReadAllText(args[0]);
+                Parser parser = new Parser(new Lexer(scriptContent));
                 var program = parser.ParseProgram();
                 if (parser.Errors.Count > 0)
                 {
@@ -37,14 +37,23 @@ namespace SharpMonkey
 
                 return 0;
             }
-            else
+
+            // REPL mode
+
+            // -e evaluator
+            if (args.Length == 2)
             {
-                // repl
-                Console.WriteLine("Welcome to monkey");
-                Console.WriteLine("Feel free to type commands");
-                Repl.Start();
-                return 0;
+                if (args[1].Contains("evaluator"))
+                {
+                    Repl._useVM = false;
+                }
             }
+
+            Console.WriteLine("Welcome to monkey");
+            Console.WriteLine("Feel free to type commands");
+            Console.WriteLine($"You are in mode {(Repl._useVM ? "VM" : "Evaluator")} ");
+            Repl.Start();
+            return 0;
         }
     }
 }

@@ -54,7 +54,7 @@ namespace SharpMonkeyTest
         {
             var input = "let five = true ? 5 : 4;\r\n let ten = 10\r\n" +
                         "   let add = fn(x,y) {x + y;};" +
-                        " let result = add(--five,++ten);\0";
+                        " let result = add(--five,++ten);null;\0";
 
             var expectedTokens = new List<Token>()
             {
@@ -98,6 +98,8 @@ namespace SharpMonkeyTest
                 new Token(Constants.Increment, "++"),
                 new Token(Constants.Ident, "ten"),
                 new Token(Constants.RParen, ")"),
+                new Token(Constants.Semicolon, ";"),
+                new Token(Constants.Null, "null"),
                 new Token(Constants.Semicolon, ";"),
                 new Token(Constants.Eof, "EOF"),
             };

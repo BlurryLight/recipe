@@ -380,6 +380,26 @@ namespace SharpMonkey
             }
         }
 
+        public class NullLiteral : IExpression
+        {
+            public Token Token;
+
+            public string TokenLiteral()
+            {
+                return Token.Literal;
+            }
+
+            public NullLiteral(Token token)
+            {
+                Token = token;
+            }
+
+            public string ToPrintableString()
+            {
+                return TokenLiteral();
+            }
+        }
+
         public class BlockStatement : IStatement
         {
             public Token Token; // {

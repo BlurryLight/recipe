@@ -206,7 +206,7 @@ namespace SharpMonkey
 
         public string Inspect()
         {
-            return "Null";
+            return "MonkeyNull";
         }
 
         public static MonkeyNull NullObject { get; } = new MonkeyNull();

@@ -31,6 +31,7 @@ namespace SharpMonkey.VM
         OpIncrement,
         OpJumpNotTruthy, // JNZ in X86
         OpJump, // JMP in X86
+        OpNull,
     }
 
     public class Definition
@@ -76,6 +77,7 @@ namespace SharpMonkey.VM
                 (Opcode) OpConstants.OpJumpNotTruthy,
                 new Definition(OpConstants.OpJumpNotTruthy.ToString(), new List<int> {2})
             },
+            {(Opcode) OpConstants.OpNull, new Definition(OpConstants.OpNull.ToString(), new List<int>())},
         };
 
         public static Definition Lookup(Opcode code)

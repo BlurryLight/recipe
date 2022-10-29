@@ -210,6 +210,9 @@ namespace SharpMonkey.VM
                     }
 
                     break;
+                case Ast.NullLiteral:
+                    Emit((byte) OpConstants.OpNull);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
@@ -227,25 +230,23 @@ namespace SharpMonkey.VM
             // 所以如果If内部的Block里带有返回值，需要清除内层的OpPop， Consequence/Alternative两个内层都要清理，只保留外层的 if()else{}的那个OpPop，以维持栈平衡
             Compile(exp.Consequence);
             RemoveInnerBlockOpPop();
-
+            var jumpAlternativePlaceholder =
+                Emit((byte) OpConstants.OpJump,
+                    54321);
+            var alternativeBeginPos = _instructions.Count;
+            ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
             if (exp.Alternative == null)
             {
-                var jumpDest = _instructions.Count;
-                ChangeOperand(jumpConsequencePlaceholder, jumpDest);
+                Emit((byte) OpConstants.OpNull);
             }
             else
             {
-                var jumpAlternativePlaceholder =
-                    Emit((byte) OpConstants.OpJump,
-                        54321);
-                var alternativeBeginPos = _instructions.Count;
-                ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
                 Compile(exp.Alternative);
                 RemoveInnerBlockOpPop();
-
-                var alternativeEndPos = _instructions.Count;
-                ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
             }
+
+            var alternativeEndPos = _instructions.Count;
+            ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
         }
 
         // 逻辑和IfExpression非常相似,可以复用逻辑

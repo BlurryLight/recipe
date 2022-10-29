@@ -119,7 +119,9 @@ namespace SharpMonkey.VM
                         }
 
                         break;
-
+                    case OpConstants.OpNull:
+                        Push(MonkeyNull.NullObject);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }

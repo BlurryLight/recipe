@@ -347,6 +347,10 @@ namespace SharpMonkey
                 case Ast.BooleanLiteral val:
                     // a small optimization. will never create new Boolean object
                     return val.Value ? MonkeyBoolean.TrueObject : MonkeyBoolean.FalseObject;
+                case Ast.NullLiteral:
+                {
+                    return MonkeyNull.NullObject;
+                }
                 case Ast.PrefixExpression exp:
                 {
                     var right = Eval(exp.Right, env);

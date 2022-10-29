@@ -52,7 +52,7 @@ namespace SharpMonkeyTest
 
         private static void TestBooleanObject(IMonkeyObject obj, bool expectedVal, string input)
         {
-            var boolObj = obj as MonkeyBoolean;
+            var boolObj = MonkeyBoolean.ImplicitConvertFrom(obj);
             var failedMsg = $"Failed: {input}, obj inspect: <{obj.Inspect()}>";
             Assert.NotNull(boolObj, failedMsg);
             Assert.AreEqual(expectedVal, boolObj.Value, failedMsg);
@@ -156,6 +156,11 @@ namespace SharpMonkeyTest
                 new("false || false && true", false),
                 new("0 && (a + b || c + d)", false),
                 new("1 && (1 + 2) || false", true),
+
+                new("if(false){10;}", false),
+                new("!(if(false){10;})", true),
+                new("null", false),
+                new("!null", true),
             };
             foreach (var item in testTable)
             {

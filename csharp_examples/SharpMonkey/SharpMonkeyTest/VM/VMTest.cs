@@ -16,13 +16,13 @@ namespace SharpMonkeyTest
         {
         }
 
-        public struct VMTestCase
+        private struct VMTestCase
         {
             public string input;
             public Object expected;
         };
 
-        public void TestExpectedObject(Object expected, IMonkeyObject actual)
+        private void TestExpectedObject(Object expected, IMonkeyObject actual)
         {
             if (actual is MonkeyError)
             {
@@ -40,7 +40,10 @@ namespace SharpMonkeyTest
                     CompilerTest.TestDoubleObject(doubleVal, actual);
                     break;
                 case bool boolVal:
-                    Assert.AreEqual(boolVal, ((MonkeyBoolean) actual).Value);
+                    Assert.AreEqual(boolVal, MonkeyBoolean.ImplicitConvertFrom(actual).Value);
+                    break;
+                case MonkeyNull:
+                    Assert.IsTrue(EvaluatorHelper.IsNullObject(actual));
                     break;
             }
         }
@@ -121,6 +124,11 @@ namespace SharpMonkeyTest
                 new() {input = "((1 < 2 ) && (2 < 3)) != true", expected = false},
                 new() {input = "(1 < 2 ) == true", expected = true},
                 new() {input = "(1 > 2 ) || (2 > 1) == true", expected = true},
+
+                new() {input = "if(false){10;}", expected = false},
+                new() {input = "!(if(false){10;})", expected = true},
+                new() {input = "null", expected = false},
+                new() {input = "!null", expected = true},
             };
             RunVMTests(testTable);
         }
@@ -143,7 +151,7 @@ namespace SharpMonkeyTest
                 new() {input = "false ? 10 : 20;", expected = 20},
                 new() {input = "if ( true ? false : true ) {10;} else { 20;}", expected = 20},
 
-                // new() {input = "if ( false ) {10;} ", expected = 20}, ///???
+                new() {input = "if ( false ) {10;} ", expected = MonkeyNull.NullObject},
             };
             RunVMTests(testTable);
         }
