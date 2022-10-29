@@ -72,6 +72,14 @@ namespace SharpMonkey.VM
             _lastInstruction = _previousInstruction;
         }
 
+        private void RemoveInnerBlockOpPop()
+        {
+            if (_lastInstruction.Op == (byte) OpConstants.OpPop)
+            {
+                RemoveLastOpPop();
+            }
+        }
+
         // 把从StartPos开始的字节码，替换为ins内的字节码
         private void ReplaceInstructionsRange(int startPos, Instructions ins)
         {
@@ -188,21 +196,12 @@ namespace SharpMonkey.VM
                     }
 
                     break;
-                case Ast.IfExpression exp:
-                    Compile(exp.Condition);
-                    var jumpPlaceholder =
-                        Emit((byte) OpConstants.OpJumpNotTruthy,
-                            54321); // fill an rubissh value since we doesn't know where to jump
-                    // 对于 if(true){ 10; }这样的语句, Compiler会插入两个OpPop，一次是10;一次是 if()..,所以要清除多余的OpPop,因为if是带有返回值的ExressionStatement
-                    // 所以如果If内部的Block里带有返回值，需要清除这个OpPop
-                    Compile(exp.Consequence);
-                    if (_lastInstruction.Op == (byte) OpConstants.OpPop)
-                    {
-                        RemoveLastOpPop();
-                    }
 
-                    var jumpDest = _instructions.Count;
-                    ChangeOperand(jumpPlaceholder, jumpDest);
+                case Ast.IfExpression exp:
+                    CompileIfExpression(exp);
+                    break;
+                case Ast.ConditionalExpression exp:
+                    CompileConditionExpression(exp);
                     break;
                 case Ast.BlockStatement stmts:
                     foreach (var stmt in stmts.Statements)
@@ -215,6 +214,59 @@ namespace SharpMonkey.VM
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
             }
+        }
+
+        private void CompileIfExpression(Ast.IfExpression exp)
+        {
+            Compile(exp.Condition);
+            var jumpConsequencePlaceholder =
+                Emit((byte) OpConstants.OpJumpNotTruthy,
+                    54321); // fill an rubissh value since we doesn't know where to jump
+            // 对于 if(true){ 10; }这样的语句, Compiler会插入两个OpPop，一次是10;一次是 if()..,
+            // 因为if是带有返回值的ExressionStatement
+            // 所以如果If内部的Block里带有返回值，需要清除内层的OpPop， Consequence/Alternative两个内层都要清理，只保留外层的 if()else{}的那个OpPop，以维持栈平衡
+            Compile(exp.Consequence);
+            RemoveInnerBlockOpPop();
+
+            if (exp.Alternative == null)
+            {
+                var jumpDest = _instructions.Count;
+                ChangeOperand(jumpConsequencePlaceholder, jumpDest);
+            }
+            else
+            {
+                var jumpAlternativePlaceholder =
+                    Emit((byte) OpConstants.OpJump,
+                        54321);
+                var alternativeBeginPos = _instructions.Count;
+                ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
+                Compile(exp.Alternative);
+                RemoveInnerBlockOpPop();
+
+                var alternativeEndPos = _instructions.Count;
+                ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
+            }
+        }
+
+        // 逻辑和IfExpression非常相似,可以复用逻辑
+        private void CompileConditionExpression(Ast.ConditionalExpression exp)
+        {
+            Compile(exp.Condition);
+            var jumpConsequencePlaceholder =
+                Emit((byte) OpConstants.OpJumpNotTruthy,
+                    54321);
+            Compile(exp.ThenArm);
+            RemoveInnerBlockOpPop();
+            var jumpAlternativePlaceholder =
+                Emit((byte) OpConstants.OpJump,
+                    54321);
+            var alternativeBeginPos = _instructions.Count;
+            ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
+            Compile(exp.ElseArm);
+            RemoveInnerBlockOpPop();
+
+            var alternativeEndPos = _instructions.Count;
+            ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
         }
 
         public Bytecode Bytecode()

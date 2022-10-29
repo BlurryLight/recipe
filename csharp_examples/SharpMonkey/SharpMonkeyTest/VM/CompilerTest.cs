@@ -366,7 +366,7 @@ namespace SharpMonkeyTest
         }
 
         [Test]
-        public void TestConditionExpressions()
+        public void TestIfExpressions()
         {
             var testTable = new List<CompilerTestCase>();
             var newCase = new CompilerTestCase
@@ -383,6 +383,51 @@ namespace SharpMonkeyTest
                     OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0011
                 }
             };
+
+            newCase = new CompilerTestCase
+            {
+                input = "if(true) { 10;} else { 20 ;}; 333;",
+                expectedConstants = new List<Object>() {10, 20, 333},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpTrue), // 0000
+                    OpcodeUtils.MakeBytes(OpConstants.OpJumpNotTruthy, 10), // 0001 ,需要跳转到条件语句之后的那条语句，如果条件不成立就跳转
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0), // 0004
+                    OpcodeUtils.MakeBytes(OpConstants.OpJump, 13), // 0007
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1), // 00010
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0013
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2), // 0014
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0017
+                }
+            };
+            testTable.Add(newCase);
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
+
+
+        [Test]
+        public void TestConditionExpressions()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = " 1 ? 2 : 3;10;",
+                expectedConstants = new List<Object>() {1, 2, 3, 10},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0), // 0000
+                    OpcodeUtils.MakeBytes(OpConstants.OpJumpNotTruthy, 12), // 0003
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1), // 0006
+                    OpcodeUtils.MakeBytes(OpConstants.OpJump, 15), // 0009
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2), // 00012
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0015
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 3), // 00016
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0019
+                }
+            };
+
+            testTable.Add(newCase);
             testTable.Add(newCase);
             RunCompilerTests(testTable);
         }

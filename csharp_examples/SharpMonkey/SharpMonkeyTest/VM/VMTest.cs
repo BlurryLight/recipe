@@ -124,5 +124,28 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+
+        [Test]
+        public void TestIfExpression()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {input = "if (true) {10;}", expected = 10},
+                new() {input = "if (true) {10;} else { 20;}", expected = 10},
+                new() {input = "if (false) {10;} else { 20;}", expected = 20},
+                new() {input = "if ( 5 < 10) {10;} else { 20;}", expected = 10},
+                new() {input = "if ( 5 > 10) {10;} else { 20;}", expected = 20},
+                new() {input = "if ( 1 ) {10;} else { 20;}", expected = 10},
+                new() {input = "if ( 0 ) {10;} else { 20;}", expected = 20},
+
+                new() {input = "true ? 10 : 20;", expected = 10},
+                new() {input = "false ? 10 : 20;", expected = 20},
+                new() {input = "if ( true ? false : true ) {10;} else { 20;}", expected = 20},
+
+                // new() {input = "if ( false ) {10;} ", expected = 20}, ///???
+            };
+            RunVMTests(testTable);
+        }
     }
 }

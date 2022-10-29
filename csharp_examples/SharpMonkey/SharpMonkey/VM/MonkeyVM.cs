@@ -101,6 +101,25 @@ namespace SharpMonkey.VM
                         if (bPrefix == OpcodeUtils.OP_INCREMENT_PREFIX)
                             ExecutePrefixOperation(op);
                         break;
+                    case OpConstants.OpJump:
+                        var jumpPos = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        i = jumpPos - 1; // - 1是因为break以后会执行 i++
+                        break;
+                    case OpConstants.OpJumpNotTruthy:
+                        jumpPos = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        var condition = Pop();
+                        if (!EvaluatorHelper.IsTrueObject(condition))
+                        {
+                            i = jumpPos - 1;
+                        }
+                        else
+                        {
+                            // 无事发生
+                            i += 2;
+                        }
+
+                        break;
+
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
