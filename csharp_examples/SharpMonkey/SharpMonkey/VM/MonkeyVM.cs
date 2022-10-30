@@ -221,16 +221,31 @@ namespace SharpMonkey.VM
                 case MonkeyBoolean when right is MonkeyBoolean:
                     res = ExecuteBoolInfixExpression(op, left, right);
                     break;
-                // case MonkeyString when right is MonkeyString:
-                //     return EvalStringInfixExpression(op, left, right);
+                case MonkeyString when right is MonkeyString:
+                    res = ExecuteStringInfixExpression(op, left, right);
+                    break;
                 case MonkeyDouble when right is MonkeyInteger:
                 case MonkeyInteger when right is MonkeyDouble:
                 case MonkeyDouble when right is MonkeyDouble:
                     res = ExecuteDoubleInfixExpression(op, left, right);
                     break;
+                default:
+                    res = new MonkeyError($"unsupported infix: {left.Type()} {op} {right.Type()}");
+                    break;
             }
 
             Push(res);
+        }
+
+        private IMonkeyObject ExecuteStringInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)
+        {
+            var leftStr = (MonkeyString) left;
+            var rightStr = (MonkeyString) right;
+            return op switch
+            {
+                OpConstants.OpAdd => new MonkeyString(leftStr.Value + rightStr.Value),
+                _ => new MonkeyError($"unsupported String infix: {left.Type()} {op} {right.Type()}")
+            };
         }
 
         private IMonkeyObject ExecuteBoolInfixExpression(OpConstants op, IMonkeyObject left, IMonkeyObject right)

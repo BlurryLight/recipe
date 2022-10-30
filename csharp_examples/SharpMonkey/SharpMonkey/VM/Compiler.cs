@@ -220,6 +220,10 @@ namespace SharpMonkey.VM
                 case Ast.BooleanLiteral exp:
                     Emit(exp.Value ? (byte) OpConstants.OpTrue : (byte) OpConstants.OpFalse);
                     break;
+                case Ast.StringLiteral exp:
+                    var stringVal = new MonkeyString(exp.Value);
+                    Emit((byte) OpConstants.OpConstant, AddConstant(stringVal));
+                    break;
                 case Ast.PrefixExpression exp:
                     Compile(exp.Right);
                     switch (exp.Operator)

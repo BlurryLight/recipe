@@ -164,6 +164,9 @@ namespace SharpMonkeyTest
                     case double doubleVal:
                         TestDoubleObject(doubleVal, actual);
                         break;
+                    case string stringVal:
+                        TestStringObject(stringVal, actual);
+                        break;
                     default:
                         Assert.Fail("should not be here");
                         return;
@@ -171,17 +174,24 @@ namespace SharpMonkeyTest
             }
         }
 
+        public static void TestStringObject(string stringVal, IMonkeyObject actual)
+        {
+            var obj = actual as MonkeyString;
+            Assert.NotNull(obj, $"The actual Object type is {actual.Type()}:{actual.Inspect()}");
+            Assert.AreEqual(stringVal, obj.Value, $"obj.value {obj.Value} is not expected {stringVal} ");
+        }
+
         public static void TestDoubleObject(double doubleVal, IMonkeyObject actual)
         {
             var obj = actual as MonkeyDouble;
-            Assert.NotNull(obj);
+            Assert.NotNull(obj, $"The actual Object type is {actual.Type()}:{actual.Inspect()}");
             Assert.AreEqual(doubleVal, obj.Value, $"obj.value {obj.Value} is not expected {doubleVal} ");
         }
 
         public static void TestIntegerObject(long constant, IMonkeyObject actual)
         {
             var obj = actual as MonkeyInteger;
-            Assert.NotNull(obj);
+            Assert.NotNull(obj, $"The actual Object type is {actual.Type()}:{actual.Inspect()}");
             Assert.AreEqual(constant, obj.Value, $"obj.value {obj.Value} is not expected {constant} ");
         }
 
@@ -504,6 +514,38 @@ namespace SharpMonkeyTest
             };
             testTable.Add(newCase);
 
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
+        public void TestStringExpressions()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = " \"monkey string\" ",
+                expectedConstants = new List<Object>() {"monkey string"},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = " \"hello\" + \"monkey\" ",
+                expectedConstants = new List<Object>() {"hello", "monkey"},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
     }

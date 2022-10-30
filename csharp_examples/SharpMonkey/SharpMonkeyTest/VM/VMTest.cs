@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using NUnit.Framework;
 using SharpMonkey;
 using SharpMonkey.VM;
@@ -42,8 +43,14 @@ namespace SharpMonkeyTest
                 case bool boolVal:
                     Assert.AreEqual(boolVal, MonkeyBoolean.ImplicitConvertFrom(actual).Value);
                     break;
+                case string stringVal:
+                    CompilerTest.TestStringObject(stringVal, actual);
+                    break;
                 case MonkeyNull:
                     Assert.IsTrue(EvaluatorHelper.IsNullObject(actual));
+                    break;
+                default:
+                    Assert.Fail("Should not be here");
                     break;
             }
         }
@@ -170,6 +177,17 @@ namespace SharpMonkeyTest
                 new() {input = "let a = 1; a", expected = 1},
                 new() {input = "let a = 1; let b = a + 1; b", expected = 2},
                 new() {input = "let a = 1; let b = 3; a + b;", expected = 4},
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestStringExpressions()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {input = "\"Hello\"", expected = "Hello"},
+                new() {input = "\"Hello\" + \" Monkey\"", expected = "Hello Monkey"},
             };
             RunVMTests(testTable);
         }

@@ -45,13 +45,13 @@ namespace SharpMonkey
             {
                 if (args[1].Contains("evaluator"))
                 {
-                    Repl._useVM = false;
+                    Repl.UseVm = false;
                 }
             }
 
             Console.WriteLine("Welcome to monkey");
             Console.WriteLine("Feel free to type commands");
-            Console.WriteLine($"You are in mode {(Repl._useVM ? "VM" : "Evaluator")} ");
+            Console.WriteLine($"You are in mode {(Repl.UseVm ? "VM" : "Evaluator")} ");
             Repl.Start();
             return 0;
         }

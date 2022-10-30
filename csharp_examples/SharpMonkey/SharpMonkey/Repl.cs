@@ -5,13 +5,13 @@ using SharpMonkey.VM;
 
 namespace SharpMonkey
 {
-    public class Repl
+    public static class Repl
     {
         // for file
         // foreach (string line in File.ReadAllLines(fileName))
         private const string Prompt = ">>";
 
-        public static bool _useVM = true;
+        public static bool UseVm = true;
 
         private struct CompilerVMContext
         {
@@ -21,8 +21,8 @@ namespace SharpMonkey
             public SymbolTable CompilerSymbolTable;
 
             // for VM
-            public IMonkeyObject[] VMGlobals;
-            public bool isValid;
+            public IMonkeyObject[] VmGlobals;
+            public bool IsValid;
         }
 
         public static void Start()
@@ -32,9 +32,9 @@ namespace SharpMonkey
 
             // 同理，对于VM，也需要在REPL的不同行之间维持状态
 
-            CompilerVMContext VMContext = new CompilerVMContext
+            var vmContext = new CompilerVMContext
             {
-                isValid = false
+                IsValid = false
             };
             while (true)
             {
@@ -61,7 +61,7 @@ namespace SharpMonkey
                     }
                 }
 
-                if (!_useVM)
+                if (!UseVm)
                 {
                     var evaled = Evaluator.Eval(program, env);
                     if (evaled != null)
@@ -72,21 +72,21 @@ namespace SharpMonkey
                     try
                     {
                         // 继承状态 
-                        var compiler = VMContext.isValid
-                            ? new Compiler(VMContext.CompilerConstantsPool, VMContext.CompilerConstantIndex,
-                                VMContext.CompilerSymbolTable)
+                        var compiler = vmContext.IsValid
+                            ? new Compiler(vmContext.CompilerConstantsPool, vmContext.CompilerConstantIndex,
+                                vmContext.CompilerSymbolTable)
                             : new Compiler();
                         compiler.Compile(program);
-                        var vm = VMContext.isValid
-                            ? new MonkeyVM(compiler.Bytecode(), VMContext.VMGlobals)
+                        var vm = vmContext.IsValid
+                            ? new MonkeyVM(compiler.Bytecode(), vmContext.VmGlobals)
                             : new MonkeyVM(compiler.Bytecode());
 
                         // 记录状态
-                        VMContext.isValid = true;
-                        VMContext.CompilerConstantIndex = compiler.ConstantsPoolIndex;
-                        VMContext.CompilerConstantsPool = compiler.ConstantsPool;
-                        VMContext.CompilerSymbolTable = compiler.SymbolTable;
-                        VMContext.VMGlobals = vm.Globals;
+                        vmContext.IsValid = true;
+                        vmContext.CompilerConstantIndex = compiler.ConstantsPoolIndex;
+                        vmContext.CompilerConstantsPool = compiler.ConstantsPool;
+                        vmContext.CompilerSymbolTable = compiler.SymbolTable;
+                        vmContext.VmGlobals = vm.Globals;
 
                         vm.Run();
                         var evaled = vm.LastPoppedStackElem();
