@@ -19,8 +19,8 @@ namespace SharpMonkeyTest
 
         private struct VMTestCase
         {
-            public string input;
-            public Object expected;
+            public string Input;
+            public Object Expected;
         };
 
         private void TestExpectedObject(Object expected, IMonkeyObject actual)
@@ -49,6 +49,27 @@ namespace SharpMonkeyTest
                 case MonkeyNull:
                     Assert.IsTrue(EvaluatorHelper.IsNullObject(actual));
                     break;
+                case List<object> lst:
+                    var monkeyArray = (MonkeyArray) actual;
+                    Assert.AreEqual(lst.Count, monkeyArray.Elements.Count);
+                    for (int i = 0; i < lst.Count; i++)
+                    {
+                        TestExpectedObject(lst[i], monkeyArray.Elements[i]);
+                    }
+
+                    break;
+                case Dictionary<object, object> dict:
+                    var monkeyMap = (MonkeyMap) actual;
+                    Assert.AreEqual(dict.Count, monkeyMap.Pairs.Count);
+                    foreach (var pair in monkeyMap.Pairs)
+                    {
+                        Assert.IsTrue(dict.ContainsKey(pair.Key));
+                        //  假设测试样例中，value项都是integer
+                        long valueVal = ((MonkeyInteger) dict[pair.Key]).Value;
+                        TestExpectedObject(valueVal, pair.Value.ValueObj);
+                    }
+
+                    break;
                 default:
                     Assert.Fail("Should not be here");
                     break;
@@ -59,14 +80,14 @@ namespace SharpMonkeyTest
         {
             foreach (var testCase in cases)
             {
-                var p = CompilerTest.Parse(testCase.input);
+                var p = CompilerTest.Parse(testCase.Input);
                 var comp = new Compiler();
                 comp.Compile(p);
 
                 var vm = new MonkeyVM(comp.Bytecode());
                 vm.Run();
                 var stackTop = vm.LastPoppedStackElem();
-                TestExpectedObject(testCase.expected, stackTop);
+                TestExpectedObject(testCase.Expected, stackTop);
                 // 确认已经清栈
                 Assert.IsNull(vm.StackTop());
             }
@@ -78,19 +99,19 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "1", expected = 1},
-                new() {input = "2", expected = 2},
-                new() {input = "-2", expected = -2},
-                new() {input = "1 + 2", expected = 3},
-                new() {input = "2 * 2", expected = 4},
-                new() {input = "4 / 2", expected = 2},
-                new() {input = "5 - 2", expected = 3},
-                new() {input = "++5;", expected = 6},
-                new() {input = "--5;", expected = 4},
-                new() {input = "5++;", expected = 5},
-                new() {input = "(5++)++;", expected = 5},
-                new() {input = "++(5++);", expected = 6},
-                new() {input = "5--;", expected = 5},
+                new() {Input = "1", Expected = 1},
+                new() {Input = "2", Expected = 2},
+                new() {Input = "-2", Expected = -2},
+                new() {Input = "1 + 2", Expected = 3},
+                new() {Input = "2 * 2", Expected = 4},
+                new() {Input = "4 / 2", Expected = 2},
+                new() {Input = "5 - 2", Expected = 3},
+                new() {Input = "++5;", Expected = 6},
+                new() {Input = "--5;", Expected = 4},
+                new() {Input = "5++;", Expected = 5},
+                new() {Input = "(5++)++;", Expected = 5},
+                new() {Input = "++(5++);", Expected = 6},
+                new() {Input = "5--;", Expected = 5},
             };
             RunVMTests(testTable);
         }
@@ -100,17 +121,17 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "1.0", expected = 1.0},
-                new() {input = "2.0", expected = 2.0},
-                new() {input = "-2.0", expected = -2.0},
-                new() {input = "1 * 2.0", expected = 2.0},
-                new() {input = "1 + 2.0", expected = 3.0},
-                new() {input = "4 / 2.0", expected = 2.0},
-                new() {input = "5 - 2.5", expected = 2.5},
-                new() {input = "++5.0;", expected = 6.0},
-                new() {input = "5.0++;", expected = 5.0},
-                new() {input = "--5.0;", expected = 4.0},
-                new() {input = "5.0--;", expected = 5.0},
+                new() {Input = "1.0", Expected = 1.0},
+                new() {Input = "2.0", Expected = 2.0},
+                new() {Input = "-2.0", Expected = -2.0},
+                new() {Input = "1 * 2.0", Expected = 2.0},
+                new() {Input = "1 + 2.0", Expected = 3.0},
+                new() {Input = "4 / 2.0", Expected = 2.0},
+                new() {Input = "5 - 2.5", Expected = 2.5},
+                new() {Input = "++5.0;", Expected = 6.0},
+                new() {Input = "5.0++;", Expected = 5.0},
+                new() {Input = "--5.0;", Expected = 4.0},
+                new() {Input = "5.0--;", Expected = 5.0},
             };
             RunVMTests(testTable);
         }
@@ -120,36 +141,36 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "true", expected = true},
-                new() {input = "false", expected = false},
-                new() {input = "!true", expected = false},
-                new() {input = "!!true", expected = true},
-                new() {input = "!false", expected = true},
-                new() {input = "!!false", expected = false},
-                new() {input = "!5", expected = false},
-                new() {input = "!0", expected = true},
-                new() {input = "!!5", expected = true},
-                new() {input = "1 < 2", expected = true},
-                new() {input = "1 > 2", expected = false},
-                new() {input = "true == true", expected = true},
-                new() {input = "true != true", expected = false},
-                new() {input = "false != true", expected = true},
-                new() {input = "false != false", expected = false},
-                new() {input = "(1 < 2 ) != true", expected = false},
-                new() {input = "((1 < 2 ) && (2 < 3)) != true", expected = false},
-                new() {input = "(1 < 2 ) == true", expected = true},
-                new() {input = "(1 > 2 ) || (2 > 1) == true", expected = true},
+                new() {Input = "true", Expected = true},
+                new() {Input = "false", Expected = false},
+                new() {Input = "!true", Expected = false},
+                new() {Input = "!!true", Expected = true},
+                new() {Input = "!false", Expected = true},
+                new() {Input = "!!false", Expected = false},
+                new() {Input = "!5", Expected = false},
+                new() {Input = "!0", Expected = true},
+                new() {Input = "!!5", Expected = true},
+                new() {Input = "1 < 2", Expected = true},
+                new() {Input = "1 > 2", Expected = false},
+                new() {Input = "true == true", Expected = true},
+                new() {Input = "true != true", Expected = false},
+                new() {Input = "false != true", Expected = true},
+                new() {Input = "false != false", Expected = false},
+                new() {Input = "(1 < 2 ) != true", Expected = false},
+                new() {Input = "((1 < 2 ) && (2 < 3)) != true", Expected = false},
+                new() {Input = "(1 < 2 ) == true", Expected = true},
+                new() {Input = "(1 > 2 ) || (2 > 1) == true", Expected = true},
 
-                new() {input = "if(false){10;}", expected = false},
-                new() {input = "!(if(false){10;})", expected = true},
-                new() {input = "null", expected = false},
-                new() {input = "!null", expected = true},
+                new() {Input = "if(false){10;}", Expected = false},
+                new() {Input = "!(if(false){10;})", Expected = true},
+                new() {Input = "null", Expected = false},
+                new() {Input = "!null", Expected = true},
 
-                new() {input = "false && (1 / 0) ", expected = false}, // will not throw exception
-                new() {input = "(false && false)  && (1 / 0) ", expected = false},
-                new() {input = "(false || true )  || 1  ", expected = true},
-                new() {input = "true && (1 / 1) ", expected = true},
-                new() {input = "false && (true) ", expected = false},
+                new() {Input = "false && (1 / 0) ", Expected = false}, // will not throw exception
+                new() {Input = "(false && false)  && (1 / 0) ", Expected = false},
+                new() {Input = "(false || true )  || 1  ", Expected = true},
+                new() {Input = "true && (1 / 1) ", Expected = true},
+                new() {Input = "false && (true) ", Expected = false},
             };
             RunVMTests(testTable);
         }
@@ -160,19 +181,19 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "if (true) {10;}", expected = 10},
-                new() {input = "if (true) {10;} else { 20;}", expected = 10},
-                new() {input = "if (false) {10;} else { 20;}", expected = 20},
-                new() {input = "if ( 5 < 10) {10;} else { 20;}", expected = 10},
-                new() {input = "if ( 5 > 10) {10;} else { 20;}", expected = 20},
-                new() {input = "if ( 1 ) {10;} else { 20;}", expected = 10},
-                new() {input = "if ( 0 ) {10;} else { 20;}", expected = 20},
+                new() {Input = "if (true) {10;}", Expected = 10},
+                new() {Input = "if (true) {10;} else { 20;}", Expected = 10},
+                new() {Input = "if (false) {10;} else { 20;}", Expected = 20},
+                new() {Input = "if ( 5 < 10) {10;} else { 20;}", Expected = 10},
+                new() {Input = "if ( 5 > 10) {10;} else { 20;}", Expected = 20},
+                new() {Input = "if ( 1 ) {10;} else { 20;}", Expected = 10},
+                new() {Input = "if ( 0 ) {10;} else { 20;}", Expected = 20},
 
-                new() {input = "true ? 10 : 20;", expected = 10},
-                new() {input = "false ? 10 : 20;", expected = 20},
-                new() {input = "if ( true ? false : true ) {10;} else { 20;}", expected = 20},
+                new() {Input = "true ? 10 : 20;", Expected = 10},
+                new() {Input = "false ? 10 : 20;", Expected = 20},
+                new() {Input = "if ( true ? false : true ) {10;} else { 20;}", Expected = 20},
 
-                new() {input = "if ( false ) {10;} ", expected = MonkeyNull.NullObject},
+                new() {Input = "if ( false ) {10;} ", Expected = MonkeyNull.NullObject},
             };
             RunVMTests(testTable);
         }
@@ -182,15 +203,15 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "let a = 1; a", expected = 1},
-                new() {input = "let a = 1; let b = a + 1; b", expected = 2},
-                new() {input = "let a = 1; let b = 3; a + b;", expected = 4},
-                new() {input = "let a = 1; a++;", expected = 1},
-                new() {input = "let a = 1; a++;a;", expected = 2},
-                new() {input = "let a = 1; ++a;", expected = 2},
-                new() {input = "let a = 1; ++a;a", expected = 2},
-                new() {input = "let a = 1; --(++a);", expected = 1},
-                new() {input = "let a = 1; --(++a);a", expected = 1},
+                new() {Input = "let a = 1; a", Expected = 1},
+                new() {Input = "let a = 1; let b = a + 1; b", Expected = 2},
+                new() {Input = "let a = 1; let b = 3; a + b;", Expected = 4},
+                new() {Input = "let a = 1; a++;", Expected = 1},
+                new() {Input = "let a = 1; a++;a;", Expected = 2},
+                new() {Input = "let a = 1; ++a;", Expected = 2},
+                new() {Input = "let a = 1; ++a;a", Expected = 2},
+                new() {Input = "let a = 1; --(++a);", Expected = 1},
+                new() {Input = "let a = 1; --(++a);a", Expected = 1},
             };
             RunVMTests(testTable);
         }
@@ -200,8 +221,41 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                new() {input = "\"Hello\"", expected = "Hello"},
-                new() {input = "\"Hello\" + \" Monkey\"", expected = "Hello Monkey"},
+                new() {Input = "\"Hello\"", Expected = "Hello"},
+                new() {Input = "\"Hello\" + \" Monkey\"", Expected = "Hello Monkey"},
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestArrayLiterals()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "[1,2]", Expected = new List<object> {1, 2}},
+                new() {Input = "[]", Expected = new List<object> { }},
+                new() {Input = "[1 + 2,\"hello\",3.0]", Expected = new List<object> {3, "hello", 3.0}},
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestHashLiterals()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "{}", Expected = new Dictionary<object, object>() { }},
+                new()
+                {
+                    Input = "{1:2}",
+                    Expected = new Dictionary<object, object>() {{new MonkeyInteger(1).HashKey(), new MonkeyInteger(2)}}
+                },
+                new()
+                {
+                    Input = "{\"hello\":2}",
+                    Expected = new Dictionary<object, object>()
+                        {{new MonkeyString("hello").HashKey(), new MonkeyInteger(2)}}
+                },
             };
             RunVMTests(testTable);
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace SharpMonkey.VM
 {
@@ -154,10 +155,53 @@ namespace SharpMonkey.VM
                         i += 2;
                         break;
 
+                    case OpConstants.OpArray:
+                        var numElements = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        ExecuteBuildArray(numElements);
+                        i += 2;
+                        break;
+                    case OpConstants.OpHash:
+                        numElements = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        ExecuteBuildMap(numElements);
+                        i += 2;
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void ExecuteBuildMap(ushort numElements)
+        {
+            Debug.Assert(numElements % 2 == 0);
+            var pairs = new Dictionary<HashKey, MonkeyMap.HashPairs>();
+            _sp -= numElements;
+            for (int i = 0; i < numElements; i += 2)
+            {
+                var key = _stack[_sp + i];
+                var value = _stack[_sp + i + 1];
+                var hashKey = ((IMonkeyHash) key).HashKey();
+                pairs.Add(hashKey, new MonkeyMap.HashPairs() {KeyObj = key, ValueObj = value});
+            }
+
+            var monkeyMap = new MonkeyMap(pairs);
+            Push(monkeyMap);
+        }
+
+        private void ExecuteBuildArray(ushort numElements)
+        {
+            var lst = new List<IMonkeyObject>(numElements);
+            // _sp一开始指向 List最后一个元素之后的一个元素
+            // [1,2,3] _sp = 3
+            // 减去num以后指向0，恰好是数组的开始
+            _sp -= numElements;
+            for (int i = 0; i < numElements; i++)
+            {
+                lst.Add(_stack[_sp + i]);
+            }
+
+            var monkeyArray = new MonkeyArray(lst);
+            Push(monkeyArray);
         }
 
         private void ExecutePostfixOperation(OpConstants op)

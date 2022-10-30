@@ -286,6 +286,23 @@ namespace SharpMonkey.VM
                     }
 
                     break;
+                case Ast.ArrayLiteral exp:
+                    foreach (var elem in exp.Elements)
+                    {
+                        Compile(elem);
+                    }
+
+                    Emit((byte) OpConstants.OpArray, exp.Elements.Count);
+                    break;
+                case Ast.MapLiteral exp:
+                    foreach (var pair in exp.Pairs)
+                    {
+                        Compile(pair.Key);
+                        Compile(pair.Value);
+                    }
+
+                    Emit((byte) OpConstants.OpHash, exp.Pairs.Count * 2);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
