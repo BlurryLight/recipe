@@ -165,10 +165,21 @@ namespace SharpMonkey.VM
                         ExecuteBuildMap(numElements);
                         i += 2;
                         break;
+                    case OpConstants.OpIndex:
+                        var index = Pop();
+                        var left = Pop();
+                        Push(ExecuteIndexExpression(left, index));
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private IMonkeyObject ExecuteIndexExpression(IMonkeyObject left, IMonkeyObject index)
+        {
+            // 这个实现和Evaluator是一样的，直接复用吧
+            return Evaluator.EvalIndexExpressionImmutable(left, index);
         }
 
         private void ExecuteBuildMap(ushort numElements)

@@ -27,6 +27,12 @@ namespace SharpMonkeyTest
         {
             if (actual is MonkeyError)
             {
+                if (expected is MonkeyError)
+                {
+                    Assert.AreEqual(expected.ToString(), actual.ToString());
+                    return;
+                }
+
                 Assert.Fail($"{actual.Inspect()}");
             }
 
@@ -256,6 +262,24 @@ namespace SharpMonkeyTest
                     Expected = new Dictionary<object, object>()
                         {{new MonkeyString("hello").HashKey(), new MonkeyInteger(2)}}
                 },
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestIndexExpressions()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "{1:2,2:3}[1]", Expected = 2},
+                new() {Input = "{1:2,2:3}[2]", Expected = 3},
+                new() {Input = "[1,2,3][0]", Expected = 1},
+
+                // error
+                new() {Input = "[][0]", Expected = new MonkeyError("Array[0] index out of range")},
+                new() {Input = "[][-1]", Expected = new MonkeyError("Array[-1] index out of range")},
+                new() {Input = "{}[0]", Expected = new MonkeyError("Map[0] doesn't exist")},
+                new() {Input = "{}[\"a\"]", Expected = new MonkeyError("Map[\"a\"] doesn't exist")},
             };
             RunVMTests(testTable);
         }

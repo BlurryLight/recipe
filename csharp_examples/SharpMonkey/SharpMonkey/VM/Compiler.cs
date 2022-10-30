@@ -303,6 +303,11 @@ namespace SharpMonkey.VM
 
                     Emit((byte) OpConstants.OpHash, exp.Pairs.Count * 2);
                     break;
+                case Ast.IndexExpression exp:
+                    Compile(exp.Left);
+                    Compile(exp.Index);
+                    Emit((byte) OpConstants.OpIndex);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");

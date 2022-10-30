@@ -531,13 +531,13 @@ namespace SharpMonkey
             return new MonkeyMap(pairs: pairs);
         }
 
-        private static IMonkeyObject EvalIndexExpressionImmutable(IMonkeyObject left, IMonkeyObject index)
+        public static IMonkeyObject EvalIndexExpressionImmutable(IMonkeyObject left, IMonkeyObject index)
         {
             switch (left)
             {
                 case MonkeyString stringObj when index is MonkeyInteger arrayIndex:
                 {
-                    if (arrayIndex.Value >= stringObj.Value.Length)
+                    if (arrayIndex.Value >= stringObj.Value.Length || arrayIndex.Value < 0)
                     {
                         return new MonkeyError($"String[{arrayIndex.Value}] index out of range");
                     }
@@ -547,7 +547,7 @@ namespace SharpMonkey
                 }
                 case MonkeyArray arrayObj when index is MonkeyInteger arrayIndex:
                 {
-                    if (arrayIndex.Value >= arrayObj.Elements.Count)
+                    if (arrayIndex.Value >= arrayObj.Elements.Count || arrayIndex.Value < 0)
                     {
                         return new MonkeyError($"Array[{arrayIndex.Value}] index out of range");
                     }

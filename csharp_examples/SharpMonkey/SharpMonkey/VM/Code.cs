@@ -37,6 +37,7 @@ namespace SharpMonkey.VM
         OpGetGlobal,
         OpArray,
         OpHash,
+        OpIndex,
     }
 
     public class Definition
@@ -89,6 +90,7 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpGetGlobal, new Definition(OpConstants.OpGetGlobal.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpArray, new Definition(OpConstants.OpArray.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpHash, new Definition(OpConstants.OpHash.ToString(), new List<int> {2})},
+            {(Opcode) OpConstants.OpIndex, new Definition(OpConstants.OpIndex.ToString(), new List<int> { })},
         };
 
         public static Definition Lookup(Opcode code)
