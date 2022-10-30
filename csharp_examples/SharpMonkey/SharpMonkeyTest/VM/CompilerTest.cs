@@ -280,7 +280,7 @@ namespace SharpMonkeyTest
 
             newCase = new CompilerTestCase
             {
-                input = "1 < 2;++3;",
+                input = "1 < 2;++3;3++;--3;3--",
                 expectedConstants = new List<Object> {2, 1, 3},
                 expectedInstructions = new List<Instructions>
                 {
@@ -290,6 +290,17 @@ namespace SharpMonkeyTest
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
                     OpcodeUtils.MakeBytes(OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_PREFIX),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_POSTFIX),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpDecrement, OpcodeUtils.OP_INCREMENT_PREFIX),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpDecrement, OpcodeUtils.OP_INCREMENT_POSTFIX),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };

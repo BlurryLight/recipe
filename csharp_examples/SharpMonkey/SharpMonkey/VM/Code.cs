@@ -29,11 +29,13 @@ namespace SharpMonkey.VM
         OpMinus,
         OpBang,
         OpIncrement,
+        OpDecrement,
         OpJumpNotTruthy, // JNZ in X86
         OpJump, // JMP in X86
         OpNull,
         OpSetGlobal,
         OpGetGlobal,
+        OpArray,
     }
 
     public class Definition
@@ -74,6 +76,8 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpBang, new Definition(OpConstants.OpBang.ToString(), new List<int>())},
             // 第一个字节决定 是Prefix还是PostFix
             {(Opcode) OpConstants.OpIncrement, new Definition(OpConstants.OpIncrement.ToString(), new List<int>() {1})},
+            {(Opcode) OpConstants.OpDecrement, new Definition(OpConstants.OpDecrement.ToString(), new List<int>() {1})},
+
             {(Opcode) OpConstants.OpJump, new Definition(OpConstants.OpJump.ToString(), new List<int> {2})},
             {
                 (Opcode) OpConstants.OpJumpNotTruthy,
@@ -82,6 +86,7 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpNull, new Definition(OpConstants.OpNull.ToString(), new List<int>())},
             {(Opcode) OpConstants.OpSetGlobal, new Definition(OpConstants.OpSetGlobal.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpGetGlobal, new Definition(OpConstants.OpGetGlobal.ToString(), new List<int> {2})},
+            {(Opcode) OpConstants.OpArray, new Definition(OpConstants.OpArray.ToString(), new List<int> { })},
         };
 
         public static Definition Lookup(Opcode code)

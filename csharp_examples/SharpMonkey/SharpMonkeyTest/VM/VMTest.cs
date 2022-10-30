@@ -86,6 +86,11 @@ namespace SharpMonkeyTest
                 new() {input = "4 / 2", expected = 2},
                 new() {input = "5 - 2", expected = 3},
                 new() {input = "++5;", expected = 6},
+                new() {input = "--5;", expected = 4},
+                new() {input = "5++;", expected = 5},
+                new() {input = "(5++)++;", expected = 5},
+                new() {input = "++(5++);", expected = 6},
+                new() {input = "5--;", expected = 5},
             };
             RunVMTests(testTable);
         }
@@ -103,6 +108,9 @@ namespace SharpMonkeyTest
                 new() {input = "4 / 2.0", expected = 2.0},
                 new() {input = "5 - 2.5", expected = 2.5},
                 new() {input = "++5.0;", expected = 6.0},
+                new() {input = "5.0++;", expected = 5.0},
+                new() {input = "--5.0;", expected = 4.0},
+                new() {input = "5.0--;", expected = 5.0},
             };
             RunVMTests(testTable);
         }
@@ -177,6 +185,12 @@ namespace SharpMonkeyTest
                 new() {input = "let a = 1; a", expected = 1},
                 new() {input = "let a = 1; let b = a + 1; b", expected = 2},
                 new() {input = "let a = 1; let b = 3; a + b;", expected = 4},
+                new() {input = "let a = 1; a++;", expected = 1},
+                new() {input = "let a = 1; a++;a;", expected = 2},
+                new() {input = "let a = 1; ++a;", expected = 2},
+                new() {input = "let a = 1; ++a;a", expected = 2},
+                new() {input = "let a = 1; --(++a);", expected = 1},
+                new() {input = "let a = 1; --(++a);a", expected = 1},
             };
             RunVMTests(testTable);
         }

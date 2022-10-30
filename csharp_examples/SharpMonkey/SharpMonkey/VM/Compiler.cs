@@ -237,6 +237,9 @@ namespace SharpMonkey.VM
                         case Constants.Increment:
                             Emit((byte) OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_PREFIX);
                             break;
+                        case Constants.Decrement:
+                            Emit((byte) OpConstants.OpDecrement, OpcodeUtils.OP_INCREMENT_PREFIX);
+                            break;
                         default:
                             throw new NotImplementedException($"not implemented for PrefixOperator{exp.Operator}");
                     }
@@ -267,6 +270,21 @@ namespace SharpMonkey.VM
                 case Ast.Identifier ident:
                     symbol = SymbolTable.Resolve(ident.Value);
                     Emit((byte) OpConstants.OpGetGlobal, symbol.Index);
+                    break;
+                case Ast.PostfixExpression exp:
+                    Compile(exp.Left);
+                    switch (exp.Operator)
+                    {
+                        case Constants.Increment:
+                            Emit((byte) OpConstants.OpIncrement, OpcodeUtils.OP_INCREMENT_POSTFIX);
+                            break;
+                        case Constants.Decrement:
+                            Emit((byte) OpConstants.OpDecrement, OpcodeUtils.OP_INCREMENT_POSTFIX);
+                            break;
+                        default:
+                            throw new NotImplementedException($"not implemented for PostOperator{exp.Operator}");
+                    }
+
                     break;
                 default:
                     throw new NotImplementedException(
