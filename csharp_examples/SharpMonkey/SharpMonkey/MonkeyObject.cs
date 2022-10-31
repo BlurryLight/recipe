@@ -8,7 +8,7 @@ namespace SharpMonkey
 {
     using ObjectType = System.String;
 
-    public static class ObjType
+    public static partial class ObjType
     {
         public const string IntegerObj = "Integer";
         public const string DoubleObj = "Double";

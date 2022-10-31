@@ -38,6 +38,9 @@ namespace SharpMonkey.VM
         OpArray,
         OpHash,
         OpIndex,
+        OpCall,
+        OpReturnValue,
+        OpReturn,
     }
 
     public class Definition
@@ -91,6 +94,12 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpArray, new Definition(OpConstants.OpArray.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpHash, new Definition(OpConstants.OpHash.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpIndex, new Definition(OpConstants.OpIndex.ToString(), new List<int> { })},
+            {(Opcode) OpConstants.OpCall, new Definition(OpConstants.OpCall.ToString(), new List<int> { })},
+            {(Opcode) OpConstants.OpReturn, new Definition(OpConstants.OpReturn.ToString(), new List<int> { })},
+            {
+                (Opcode) OpConstants.OpReturnValue,
+                new Definition(OpConstants.OpReturnValue.ToString(), new List<int> { })
+            },
         };
 
         public static Definition Lookup(Opcode code)

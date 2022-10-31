@@ -152,13 +152,13 @@ namespace SharpMonkeyTest
             Assert.AreEqual(testCaseExpectedConstants.Count, bytecodeConstants.Count);
             for (var i = 0; i < testCaseExpectedConstants.Count; i++)
             {
-                var constant = testCaseExpectedConstants[i];
+                var expected = testCaseExpectedConstants[i];
                 var actual = bytecodeConstants[i];
-                switch (constant)
+                switch (expected)
                 {
                     case int:
                     case long:
-                        long val = Convert.ToInt64(constant);
+                        long val = Convert.ToInt64(expected);
                         TestIntegerObject(val, actual);
                         break;
                     case double doubleVal:
@@ -166,6 +166,10 @@ namespace SharpMonkeyTest
                         break;
                     case string stringVal:
                         TestStringObject(stringVal, actual);
+                        break;
+                    case List<Instructions> insVal:
+                        var compiledFunc = (MonkeyCompiledFunction) actual;
+                        TestInstructions(insVal, compiledFunc.Instructions);
                         break;
                     default:
                         Assert.Fail("should not be here");
@@ -705,6 +709,35 @@ namespace SharpMonkeyTest
                 }
             };
             testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
+        public void TestFunctions()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "fn(){return 5 + 10;}",
+                expectedConstants = new List<Object>()
+                {
+                    5, 10,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
             RunCompilerTests(testTable);
         }
     }
