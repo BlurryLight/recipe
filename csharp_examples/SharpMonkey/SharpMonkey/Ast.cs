@@ -512,10 +512,8 @@ namespace SharpMonkey
                 }
 
                 outBuilder.Append(TokenLiteral());
-                outBuilder.Append('(');
-                outBuilder.Append(string.Join(", ", paramStrs));
-                outBuilder.Append(") ");
-                outBuilder.Append(FuncBody.ToPrintableString());
+                outBuilder.Append($"({string.Join(", ", paramStrs)})");
+                outBuilder.Append($"{{ {FuncBody.ToPrintableString()} }}");
                 return outBuilder.ToString();
             }
         }

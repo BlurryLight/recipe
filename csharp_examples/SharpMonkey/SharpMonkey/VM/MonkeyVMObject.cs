@@ -13,6 +13,9 @@ namespace SharpMonkey
 
     public class MonkeyCompiledFunction : IMonkeyObject, IMonkeyHash
     {
+#if DEBUG
+        public string Source;
+#endif
         public Instructions Instructions { get; }
         private HashKey? _hashVal = null;
 
@@ -28,7 +31,10 @@ namespace SharpMonkey
 
         public string Inspect()
         {
-            throw new NotImplementedException();
+#if DEBUG
+            return Source;
+#endif
+            return "CompiledFunctionObject";
         }
 
         public HashKey HashKey()

@@ -738,6 +738,88 @@ namespace SharpMonkeyTest
             };
             testTable.Add(newCase);
 
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){ 5 + 10;}",
+                expectedConstants = new List<Object>()
+                {
+                    5, 10,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){ 5; 10;}",
+                expectedConstants = new List<Object>()
+                {
+                    5, 10,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){}",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturn),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){ let a = 1;}",
+                expectedConstants = new List<Object>()
+                {
+                    1,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0), // TOOD: Should be local
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturn),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
     }

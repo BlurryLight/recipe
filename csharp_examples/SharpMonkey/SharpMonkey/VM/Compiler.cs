@@ -18,13 +18,27 @@ namespace SharpMonkey.VM
         public int Pos;
     }
 
+    public class CompilationScope
+    {
+        public Instructions Instructions;
+        public EmittedInstruction LastInstruction;
+        public EmittedInstruction PreviousInstruction;
+
+        public CompilationScope(Instructions instructions, EmittedInstruction lastInstruction,
+            EmittedInstruction previousInstruction)
+        {
+            Instructions = instructions;
+            LastInstruction = lastInstruction;
+            PreviousInstruction = previousInstruction;
+        }
+    }
+
     public class Compiler
     {
-        private readonly Instructions _instructions;
+        private List<CompilationScope> _scopes;
+        private int _scopeIndex = 0;
         public readonly List<IMonkeyObject> ConstantsPool;
         public readonly Dictionary<HashKey, int> ConstantsPoolIndex;
-        private EmittedInstruction _lastInstruction;
-        private EmittedInstruction _previousInstruction;
         public readonly SymbolTable SymbolTable;
 
         /// <summary>
@@ -56,11 +70,29 @@ namespace SharpMonkey.VM
         /// </summary>
         /// <param name="ins"></param>
         /// <returns></returns>
-        private int AddInstruction(List<byte> ins)
+        private int AddInstruction(IEnumerable<byte> ins)
         {
-            var pos = _instructions.Count;
-            _instructions.AddRange(ins);
+            var pos = CurrentInstructions().Count;
+            CurrentInstructions().AddRange(ins);
             return pos;
+        }
+
+        private void EnterNewScope()
+        {
+            var scope = new CompilationScope(
+                new Instructions(),
+                new EmittedInstruction(),
+                new EmittedInstruction());
+            _scopes.Add(scope);
+            _scopeIndex++;
+        }
+
+        private Instructions LeaveScope()
+        {
+            var ins = CurrentScope().Instructions;
+            _scopes.RemoveAt(_scopes.Count - 1);
+            _scopeIndex--;
+            return ins;
         }
 
         private int Emit(Opcode op, params int[] operands)
@@ -73,62 +105,80 @@ namespace SharpMonkey.VM
 
         private void SetLastInstruction(Opcode op, int pos)
         {
-            _previousInstruction = _lastInstruction;
-            _lastInstruction.Op = op;
-            _lastInstruction.Pos = pos;
+            var scope = _scopes[_scopeIndex];
+            var lastInstruction = new EmittedInstruction() {Op = op, Pos = pos};
+            scope.PreviousInstruction = scope.LastInstruction;
+            scope.LastInstruction = lastInstruction;
         }
 
-        private void RemoveLastOpPop()
+        private bool LastInstructionIs(OpConstants op)
         {
-            _instructions.RemoveAt(_instructions.Count - 1);
-            _lastInstruction = _previousInstruction;
+            return CurrentScope().LastInstruction.Op == (byte) op;
         }
 
-        private void RemoveInnerBlockOpPop()
+        private void RemoveLastOp()
         {
-            if (_lastInstruction.Op == (byte) OpConstants.OpPop)
+            var prev = CurrentScope().PreviousInstruction;
+            var ins = CurrentScope().Instructions;
+
+            ins.RemoveAt(ins.Count - 1);
+            CurrentScope().LastInstruction = prev;
+        }
+
+        private void RemoveLastPop()
+        {
+            if (LastInstructionIs(OpConstants.OpPop))
             {
-                RemoveLastOpPop();
+                RemoveLastOp();
             }
         }
 
         // 把从StartPos开始的字节码，替换为ins内的字节码
         private void ReplaceInstructionsRange(int startPos, Instructions ins)
         {
+            var destIns = CurrentInstructions();
             // C# has no support for Buffer.Copy for List<byte>
             for (int i = 0; i < ins.Count; i++)
             {
-                _instructions[startPos + i] = ins[i];
+                destIns[startPos + i] = ins[i];
             }
         }
 
         private void ChangeOperand(int opPos, params int[] operands)
         {
-            var op = _instructions[opPos];
+            var op = CurrentInstructions()[opPos];
             var newIns = OpcodeUtils.MakeBytes(op, operands);
             ReplaceInstructionsRange(opPos, newIns);
         }
 
-        public Compiler()
+        private CompilationScope CurrentScope()
         {
-            SymbolTable = new SymbolTable();
-            _instructions = new Instructions();
-            ConstantsPool = new List<IMonkeyObject>();
-            ConstantsPoolIndex = new Dictionary<HashKey, int>();
-            _lastInstruction = new EmittedInstruction();
-            _previousInstruction = new EmittedInstruction();
+            return _scopes[_scopeIndex];
         }
 
-        public Compiler(List<IMonkeyObject> constantsPool, Dictionary<HashKey, int> constantsPoolIndex,
-            SymbolTable symbolTable)
+        private Instructions CurrentInstructions()
         {
-            ConstantsPool = constantsPool;
-            ConstantsPoolIndex = constantsPoolIndex;
-            SymbolTable = symbolTable;
+            return _scopes[_scopeIndex].Instructions;
+        }
 
-            _instructions = new Instructions();
-            _lastInstruction = new EmittedInstruction();
-            _previousInstruction = new EmittedInstruction();
+        public Compiler()
+        {
+            var instructions = new Instructions();
+            var lastInstruction = new EmittedInstruction();
+            var previousInstruction = new EmittedInstruction();
+            var mainScope = new CompilationScope(instructions, lastInstruction, previousInstruction);
+            _scopes = new List<CompilationScope>() {mainScope};
+            SymbolTable = new SymbolTable();
+            ConstantsPool = new List<IMonkeyObject>();
+            ConstantsPoolIndex = new Dictionary<HashKey, int>();
+        }
+
+        public Compiler(Compiler other)
+        {
+            ConstantsPool = other.ConstantsPool;
+            ConstantsPoolIndex = other.ConstantsPoolIndex;
+            SymbolTable = other.SymbolTable;
+            _scopes = other._scopes;
         }
 
         public void Compile(Ast.INode node)
@@ -308,6 +358,32 @@ namespace SharpMonkey.VM
                     Compile(exp.Index);
                     Emit((byte) OpConstants.OpIndex);
                     break;
+                case Ast.FunctionLiteral exp:
+                    EnterNewScope();
+                    Compile(exp.FuncBody);
+                    if (LastInstructionIs(OpConstants.OpPop))
+                    {
+                        // 隐式返回，需要把最后一个Pop换成Return
+                        CurrentInstructions()[^1] = (byte) OpConstants.OpReturnValue;
+                        CurrentScope().LastInstruction.Op = (byte) OpConstants.OpReturnValue;
+                    }
+
+                    // 如果函数没有返回值，插入一个 Null返回指令
+                    if (!LastInstructionIs(OpConstants.OpReturnValue))
+                    {
+                        Emit((byte) OpConstants.OpReturn);
+                    }
+
+                    var compiledFunction = new MonkeyCompiledFunction(LeaveScope());
+#if DEBUG
+                    compiledFunction.Source = exp.ToPrintableString();
+#endif
+                    Emit((byte) OpConstants.OpConstant, AddConstant(compiledFunction));
+                    break;
+                case Ast.ReturnStatement stmt:
+                    Compile(stmt.ReturnValue);
+                    Emit((byte) OpConstants.OpReturnValue);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
@@ -324,11 +400,11 @@ namespace SharpMonkey.VM
             // 因为if是带有返回值的ExressionStatement
             // 所以如果If内部的Block里带有返回值，需要清除内层的OpPop， Consequence/Alternative两个内层都要清理，只保留外层的 if()else{}的那个OpPop，以维持栈平衡
             Compile(exp.Consequence);
-            RemoveInnerBlockOpPop();
+            RemoveLastPop();
             var jumpAlternativePlaceholder =
                 Emit((byte) OpConstants.OpJump,
                     54321);
-            var alternativeBeginPos = _instructions.Count;
+            var alternativeBeginPos = CurrentInstructions().Count;
             ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
             if (exp.Alternative == null)
             {
@@ -337,10 +413,10 @@ namespace SharpMonkey.VM
             else
             {
                 Compile(exp.Alternative);
-                RemoveInnerBlockOpPop();
+                RemoveLastPop();
             }
 
-            var alternativeEndPos = _instructions.Count;
+            var alternativeEndPos = CurrentInstructions().Count;
             ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
         }
 
@@ -352,16 +428,16 @@ namespace SharpMonkey.VM
                 Emit((byte) OpConstants.OpJumpNotTruthy,
                     54321);
             Compile(exp.ThenArm);
-            RemoveInnerBlockOpPop();
+            RemoveLastPop();
             var jumpAlternativePlaceholder =
                 Emit((byte) OpConstants.OpJump,
                     54321);
-            var alternativeBeginPos = _instructions.Count;
+            var alternativeBeginPos = CurrentInstructions().Count;
             ChangeOperand(jumpConsequencePlaceholder, alternativeBeginPos);
             Compile(exp.ElseArm);
-            RemoveInnerBlockOpPop();
+            RemoveLastPop();
 
-            var alternativeEndPos = _instructions.Count;
+            var alternativeEndPos = CurrentInstructions().Count;
             ChangeOperand(jumpAlternativePlaceholder, alternativeEndPos);
         }
 
@@ -369,7 +445,7 @@ namespace SharpMonkey.VM
         {
             return new Bytecode()
             {
-                Instructions = _instructions,
+                Instructions = CurrentInstructions(),
                 Constants = ConstantsPool,
             };
         }

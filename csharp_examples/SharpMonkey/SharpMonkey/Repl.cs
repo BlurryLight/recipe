@@ -16,9 +16,7 @@ namespace SharpMonkey
         private struct CompilerVMContext
         {
             // for compiler
-            public List<IMonkeyObject> CompilerConstantsPool;
-            public Dictionary<HashKey, int> CompilerConstantIndex;
-            public SymbolTable CompilerSymbolTable;
+            public Compiler LastCompiler;
 
             // for VM
             public IMonkeyObject[] VmGlobals;
@@ -73,8 +71,7 @@ namespace SharpMonkey
                     {
                         // 继承状态 
                         var compiler = vmContext.IsValid
-                            ? new Compiler(vmContext.CompilerConstantsPool, vmContext.CompilerConstantIndex,
-                                vmContext.CompilerSymbolTable)
+                            ? new Compiler(vmContext.LastCompiler)
                             : new Compiler();
                         compiler.Compile(program);
                         var vm = vmContext.IsValid
@@ -83,9 +80,7 @@ namespace SharpMonkey
 
                         // 记录状态
                         vmContext.IsValid = true;
-                        vmContext.CompilerConstantIndex = compiler.ConstantsPoolIndex;
-                        vmContext.CompilerConstantsPool = compiler.ConstantsPool;
-                        vmContext.CompilerSymbolTable = compiler.SymbolTable;
+                        vmContext.LastCompiler = compiler;
                         vmContext.VmGlobals = vm.Globals;
 
                         vm.Run();
