@@ -384,6 +384,10 @@ namespace SharpMonkey.VM
                     Compile(stmt.ReturnValue);
                     Emit((byte) OpConstants.OpReturnValue);
                     break;
+                case Ast.CallExpression exp:
+                    Compile(exp.Function);
+                    Emit((byte) OpConstants.OpCall);
+                    break;
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");

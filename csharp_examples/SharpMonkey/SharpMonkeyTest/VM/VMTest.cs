@@ -283,5 +283,33 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestFunctionCall()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "fn(){}();", Expected = MonkeyNull.NullObject},
+                new() {Input = "fn(){24;}();", Expected = 24},
+                new() {Input = "fn(){return 24;}();", Expected = 24},
+                new() {Input = "let a = fn(){return 24;}; a();", Expected = 24},
+                new()
+                {
+                    Input = "let one = fn(){1;}; let two = fn(){return 2;}; let three = fn(){ one() + two();}();",
+                    Expected = 3
+                },
+                new()
+                {
+                    Input = "let a = fn(){ return 99; 1 / 0;return 100;};a()", // will not throw any error
+                    Expected = 99
+                },
+                new()
+                {
+                    Input = "let a = fn(){return 100;}; let b = fn(){ return a;}; b()() - 1;",
+                    Expected = 99
+                },
+            };
+            RunVMTests(testTable);
+        }
     }
 }

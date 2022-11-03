@@ -820,6 +820,50 @@ namespace SharpMonkeyTest
                 }
             };
             testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){24;}();",
+                expectedConstants = new List<Object>()
+                {
+                    24,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "let obj = fn(){24;}; obj();",
+                expectedConstants = new List<Object>()
+                {
+                    24,
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
     }

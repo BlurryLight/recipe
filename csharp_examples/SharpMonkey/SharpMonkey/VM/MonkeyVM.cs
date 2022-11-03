@@ -10,19 +10,39 @@ namespace SharpMonkey.VM
     public class MonkeyVM
     {
         private const int KStackSize = 2048;
+        private const int KFrameSize = 1024;
         private const int KGlobalSize = UInt16.MaxValue;
-        private Instructions _instructions;
         private readonly List<IMonkeyObject> _constantsPool;
         private IMonkeyObject[] _stack; // 以数组尾部为顶形成的栈
         private int _sp = 0;
         public readonly IMonkeyObject[] Globals;
+        private Stack<Frame> Frames;
+
+        public Frame CurrentFrame()
+        {
+            return Frames.Peek();
+        }
+
+        public void PushFrame(Frame frame)
+        {
+            Frames.Push(frame);
+        }
+
+        public Frame PopFrame()
+        {
+            return Frames.Pop();
+        }
 
         public MonkeyVM(Bytecode code)
         {
-            _instructions = code.Instructions;
             _constantsPool = code.Constants;
             _stack = new IMonkeyObject[KStackSize];
             Globals = new IMonkeyObject[KGlobalSize];
+            Frames = new Stack<Frame>(KFrameSize);
+
+            var mainFn = new MonkeyCompiledFunction(code.Instructions);
+            var mainFrame = new Frame(mainFn);
+            PushFrame(mainFrame);
             _sp = 0;
         }
 
@@ -30,7 +50,9 @@ namespace SharpMonkey.VM
         {
             Globals = globals;
 
-            _instructions = code.Instructions;
+            var mainFn = new MonkeyCompiledFunction(code.Instructions);
+            var mainFrame = new Frame(mainFn);
+            PushFrame(mainFrame);
             _constantsPool = code.Constants;
             _stack = new IMonkeyObject[KStackSize];
             _sp = 0;
@@ -75,14 +97,23 @@ namespace SharpMonkey.VM
         // 依次执行指令
         public void Run()
         {
-            for (int i = 0; i < _instructions.Count; i++)
+            int i;
+            OpConstants op;
+            Instructions ins;
+
+            // 第一次跑的时候，将起始地址设置为0
+            // 调用 PushFrame时，初始化的Frame IP 为 -1
+            // 然后再到下一个循环时触发 CurrentFrame().Ip++, 这样新的Frame就会从0开始了
+            for (CurrentFrame().Ip = 0; CurrentFrame().Ip < CurrentFrame().Instructions.Count; CurrentFrame().Ip++)
             {
-                var op = (OpConstants) _instructions[i];
+                ins = CurrentFrame().Instructions;
+                i = CurrentFrame().Ip;
+                op = (OpConstants) ins[i];
                 switch (op)
                 {
                     case OpConstants.OpConstant:
-                        var constIndex = OpcodeUtils.ReadUint16(_instructions, i + 1);
-                        i += 2;
+                        var constIndex = OpcodeUtils.ReadUint16(ins, i + 1);
+                        CurrentFrame().Ip += 2;
                         Push(_constantsPool[constIndex]);
                         break;
                     case OpConstants.OpAdd:
@@ -111,8 +142,8 @@ namespace SharpMonkey.VM
                         break;
                     case OpConstants.OpIncrement:
                     case OpConstants.OpDecrement:
-                        var bPrefix = _instructions[i + 1];
-                        i += 1;
+                        var bPrefix = ins[i + 1];
+                        CurrentFrame().Ip += 1;
                         if (bPrefix == OpcodeUtils.OP_INCREMENT_PREFIX)
                         {
                             ExecutePrefixOperation(op);
@@ -124,20 +155,20 @@ namespace SharpMonkey.VM
 
                         break;
                     case OpConstants.OpJump:
-                        var jumpPos = OpcodeUtils.ReadUint16(_instructions, i + 1);
-                        i = jumpPos - 1; // - 1是因为break以后会执行 i++
+                        var jumpPos = OpcodeUtils.ReadUint16(ins, i + 1);
+                        CurrentFrame().Ip = jumpPos - 1; // - 1是因为break以后会执行 i++
                         break;
                     case OpConstants.OpJumpNotTruthy:
-                        jumpPos = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        jumpPos = OpcodeUtils.ReadUint16(ins, i + 1);
                         var condition = Pop();
                         if (!EvaluatorHelper.IsTrueObject(condition))
                         {
-                            i = jumpPos - 1;
+                            CurrentFrame().Ip = jumpPos - 1;
                         }
                         else
                         {
                             // 无事发生
-                            i += 2;
+                            CurrentFrame().Ip += 2;
                         }
 
                         break;
@@ -145,30 +176,45 @@ namespace SharpMonkey.VM
                         Push(MonkeyNull.NullObject);
                         break;
                     case OpConstants.OpSetGlobal:
-                        var setGlobalIdx = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        var setGlobalIdx = OpcodeUtils.ReadUint16(ins, i + 1);
                         Globals[setGlobalIdx] = Pop();
-                        i += 2;
+                        CurrentFrame().Ip += 2;
                         break;
                     case OpConstants.OpGetGlobal:
-                        var getGlobalIdx = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        var getGlobalIdx = OpcodeUtils.ReadUint16(ins, i + 1);
                         Push(Globals[getGlobalIdx]);
-                        i += 2;
+                        CurrentFrame().Ip += 2;
                         break;
 
                     case OpConstants.OpArray:
-                        var numElements = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        var numElements = OpcodeUtils.ReadUint16(ins, i + 1);
                         ExecuteBuildArray(numElements);
-                        i += 2;
+                        CurrentFrame().Ip += 2;
                         break;
                     case OpConstants.OpHash:
-                        numElements = OpcodeUtils.ReadUint16(_instructions, i + 1);
+                        numElements = OpcodeUtils.ReadUint16(ins, i + 1);
                         ExecuteBuildMap(numElements);
-                        i += 2;
+                        CurrentFrame().Ip += 2;
                         break;
                     case OpConstants.OpIndex:
                         var index = Pop();
                         var left = Pop();
                         Push(ExecuteIndexExpression(left, index));
+                        break;
+                    case OpConstants.OpCall:
+                        var fn = (MonkeyCompiledFunction) _stack[_sp - 1];
+                        PushFrame(new Frame(fn));
+                        break;
+                    case OpConstants.OpReturnValue:
+                        var ret = Pop();
+                        PopFrame();
+                        Pop(); // remove the fn() obj
+                        Push(ret); // push the returnd value from the fn()
+                        break;
+                    case OpConstants.OpReturn:
+                        PopFrame();
+                        Pop();
+                        Push(MonkeyNull.NullObject);
                         break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
