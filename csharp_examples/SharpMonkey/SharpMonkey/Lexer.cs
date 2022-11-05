@@ -36,6 +36,21 @@ namespace SharpMonkey
             }
         }
 
+        private void SkipWhitespaceAndComments()
+        {
+            // 注释可能在任意空白的地方出现，所以前后都需要跳过WhiteSpace
+            SkipWhitespace();
+            if (CurCh == '/' && PeekNextChar() == '/')
+            {
+                while (CurCh != '\n')
+                {
+                    ReadChar();
+                }
+            }
+
+            SkipWhitespace();
+        }
+
         private char PeekNextChar()
         {
             if (ReadPos >= InputContent.Length)
@@ -79,7 +94,7 @@ namespace SharpMonkey
         public Token NextToken()
         {
             Token token;
-            SkipWhitespace();
+            SkipWhitespaceAndComments();
             switch (CurCh)
             {
                 case '=':
@@ -95,8 +110,10 @@ namespace SharpMonkey
                     token = new Token(Constants.Asterisk, CurCh.ToString());
                     break;
                 case '/':
+                {
                     token = new Token(Constants.Slash, CurCh.ToString());
                     break;
+                }
                 case ';':
                     token = new Token(Constants.Semicolon, CurCh.ToString());
                     break;

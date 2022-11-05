@@ -202,5 +202,22 @@ namespace SharpMonkeyTest
             Lexer lexer = new Lexer(input);
             CheckExpectedTokens(lexer, expectedTokens);
         }
+
+        [Test]
+        public void TestComments()
+        {
+            var input = "// let a = 1;\n  let b = 1;";
+            var expectedTokens = new List<Token>()
+            {
+                new Token(Constants.Let, "let"),
+                new Token(Constants.Ident, "b"),
+                new Token(Constants.Assign, "="),
+                new Token(Constants.Int, "1"),
+                new Token(Constants.Semicolon, ";"),
+                new Token(Constants.Eof, "EOF"),
+            };
+            Lexer lexer = new Lexer(input);
+            CheckExpectedTokens(lexer, expectedTokens);
+        }
     }
 }

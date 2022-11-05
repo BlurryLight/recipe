@@ -6,4 +6,22 @@
         <LangVersion>9</LangVersion>
     </PropertyGroup>
 
+    <ItemGroup>
+        <Content Include="..\examples\arrayLoop.monkey">
+            <Link>examples\arrayLoop.monkey</Link>
+        </Content>
+        <Content Include="..\examples\fibTest.monkey">
+            <Link>examples\fibTest.monkey</Link>
+        </Content>
+        <Content Include="..\examples\mapTest.monkey">
+            <Link>examples\mapTest.monkey</Link>
+        </Content>
+        <Content Include="..\examples\scopeTest.monkey">
+            <Link>examples\scopeTest.monkey</Link>
+        </Content>
+        <Content Include="..\examples\scopeTest2.monkey">
+            <Link>examples\scopeTest2.monkey</Link>
+        </Content>
+    </ItemGroup>
+
 </Project>
