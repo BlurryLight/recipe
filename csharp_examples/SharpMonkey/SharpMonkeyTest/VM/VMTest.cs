@@ -331,6 +331,12 @@ namespace SharpMonkeyTest
                 {
                     Input = "let a = fn(){let foo = 1;foo;}; let b = fn(){let foo = 2;foo;}; a() + b();", Expected = 3
                 },
+
+                // with args
+                new() {Input = "let identity = fn(a) {a;}; identity(4);", Expected = 4},
+                new() {Input = "let square = fn(a) {a * a;}; square(4);", Expected = 16},
+                new() {Input = "let sum = fn(a,b) {return a + b;}; sum(5,10);", Expected = 15},
+                new() {Input = "let sum = fn(a,b) {let c = a + b;c}; sum(5,10);", Expected = 15},
             };
             RunVMTests(testTable);
         }

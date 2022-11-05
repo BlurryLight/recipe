@@ -52,6 +52,7 @@ namespace SharpMonkey.VM
 
             var mainFn = new MonkeyCompiledFunction(code.Instructions);
             var mainFrame = new Frame(mainFn, 0);
+            Frames = new Stack<Frame>();
             PushFrame(mainFrame);
             _constantsPool = code.Constants;
             _stack = new IMonkeyObject[KStackSize];
@@ -202,9 +203,17 @@ namespace SharpMonkey.VM
                         Push(ExecuteIndexExpression(left, index));
                         break;
                     case OpConstants.OpCall:
-                        var fn = (MonkeyCompiledFunction) _stack[_sp - 1];
+                        var numArgs = (byte) ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        var fn = (MonkeyCompiledFunction) _stack[_sp - 1 - numArgs];
+                        if (numArgs != fn.NumParameters)
+                        {
+                            throw new ArgumentException(
+                                $"Wrong Number of arguments: {fn.Inspect()}, wanted {fn.NumParameters}, got: {numArgs} ");
+                        }
+
                         // call func的时候，为函数体内所有的局部变量分配空间
-                        PushFrame(new Frame(fn, _sp));
+                        PushFrame(new Frame(fn, _sp - numArgs));
                         _sp += fn.NumLocals;
                         break;
                     case OpConstants.OpSetLocal:

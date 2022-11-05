@@ -713,7 +713,7 @@ namespace SharpMonkeyTest
         }
 
         [Test]
-        public void TestFunctions()
+        public void TestFunctionsLiterals()
         {
             var testTable = new List<CompilerTestCase>();
             var newCase = new CompilerTestCase
@@ -801,7 +801,14 @@ namespace SharpMonkeyTest
             testTable.Add(newCase);
 
 
-            newCase = new CompilerTestCase
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
+        public void TestFunctionCalls()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
             {
                 input = "fn(){24;}();",
                 expectedConstants = new List<Object>()
@@ -816,7 +823,7 @@ namespace SharpMonkeyTest
                 expectedInstructions = new List<Instructions>
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
-                    OpcodeUtils.MakeBytes(OpConstants.OpCall),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -839,7 +846,67 @@ namespace SharpMonkeyTest
                     OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
                     OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
-                    OpcodeUtils.MakeBytes(OpConstants.OpCall),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "let obj = fn(a){a;}; obj(24);",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                    24
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    // binding fn to obj
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+
+                    // push fn and 24
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "let obj = fn(a,b,c){a;b;c;}; obj(11,22,33);",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 2),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                    11, 22, 33
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    // binding fn to obj
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+
+                    // push fn and arg1,arg2,arg3
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 3),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 3),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };

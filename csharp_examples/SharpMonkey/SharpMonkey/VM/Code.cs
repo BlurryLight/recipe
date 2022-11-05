@@ -96,7 +96,8 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpArray, new Definition(OpConstants.OpArray.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpHash, new Definition(OpConstants.OpHash.ToString(), new List<int> {2})},
             {(Opcode) OpConstants.OpIndex, new Definition(OpConstants.OpIndex.ToString(), new List<int> { })},
-            {(Opcode) OpConstants.OpCall, new Definition(OpConstants.OpCall.ToString(), new List<int> { })},
+            // Call的操作数是 这个函数调用有多少个参数
+            {(Opcode) OpConstants.OpCall, new Definition(OpConstants.OpCall.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpReturn, new Definition(OpConstants.OpReturn.ToString(), new List<int> { })},
             {
                 (Opcode) OpConstants.OpReturnValue,

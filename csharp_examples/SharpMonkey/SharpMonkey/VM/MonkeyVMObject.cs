@@ -18,12 +18,14 @@ namespace SharpMonkey
 #endif
         public Instructions Instructions { get; }
         public int NumLocals;
+        public int NumParameters;
         private HashKey? _hashVal = null;
 
         public MonkeyCompiledFunction(Instructions instructions)
         {
             Instructions = instructions;
             NumLocals = 0;
+            NumParameters = 0;
         }
 
         public string Type()
@@ -36,7 +38,7 @@ namespace SharpMonkey
 #if DEBUG
             return Source;
 #endif
-            return "CompiledFunctionObject";
+            return $"CompiledFunctionObject-{this.GetHashCode()}";
         }
 
         public HashKey HashKey()

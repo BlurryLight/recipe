@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace SharpMonkey.VM
 {
@@ -181,7 +182,11 @@ namespace SharpMonkey.VM
             ConstantsPool = other.ConstantsPool;
             ConstantsPoolIndex = other.ConstantsPoolIndex;
             CurSymbolTable = other.CurSymbolTable;
-            _scopes = other._scopes;
+            var instructions = new Instructions();
+            var lastInstruction = new EmittedInstruction();
+            var previousInstruction = new EmittedInstruction();
+            var mainScope = new CompilationScope(instructions, lastInstruction, previousInstruction);
+            _scopes = new List<CompilationScope>() {mainScope};
         }
 
         public void Compile(Ast.INode node)
@@ -371,6 +376,12 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.FunctionLiteral exp:
                     EnterNewScope();
+                    foreach (var par in exp.Parameters)
+                    {
+                        // 从左到右定义所有的形参变量名
+                        CurSymbolTable.Define(par.Value);
+                    }
+
                     Compile(exp.FuncBody);
                     if (LastInstructionIs(OpConstants.OpPop))
                     {
@@ -389,7 +400,8 @@ namespace SharpMonkey.VM
                     // LeaveScope会把符号表移动为上一层的符号表，所以在LeaveGroup之前要保存当前符号表的局部变量数
                     var compiledFunction = new MonkeyCompiledFunction(LeaveScope())
                     {
-                        NumLocals = numLocals
+                        NumLocals = numLocals,
+                        NumParameters = exp.Parameters.Count
                     };
 #if DEBUG
                     compiledFunction.Source = exp.ToPrintableString();
@@ -402,7 +414,19 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.CallExpression exp:
                     Compile(exp.Function);
-                    Emit((byte) OpConstants.OpCall);
+                    if (exp.Arguments.Count is not (>= 0 and <= byte.MaxValue))
+                    {
+                        throw new ArgumentException(
+                            $"Arguments Number should be in [0,255],now is {exp.Arguments.Count}");
+                    }
+
+                    // 依次把参数压栈
+                    foreach (var arg in exp.Arguments)
+                    {
+                        Compile(arg);
+                    }
+
+                    Emit((byte) OpConstants.OpCall, exp.Arguments.Count);
                     break;
                 default:
                     throw new NotImplementedException(
