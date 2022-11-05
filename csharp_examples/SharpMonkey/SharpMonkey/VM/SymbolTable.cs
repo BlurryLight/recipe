@@ -70,6 +70,7 @@ namespace SharpMonkey.VM
         public int NumDefinitions => _store.Count;
 
         private SymbolTable _outer; // parent SymbolTable
+        public SymbolTable Outer => _outer;
 
         public SymbolTable()
         {

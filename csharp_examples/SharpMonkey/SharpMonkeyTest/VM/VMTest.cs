@@ -311,5 +311,43 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestFunctionCallLocals()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "fn(){let one = 1;one;}();", Expected = 1},
+                new() {Input = "fn(){let one = 1;let two = 2;one + two;}();", Expected = 3},
+                new()
+                {
+                    Input =
+                        "let oneAddTwo = fn(){let one = 1;let two = 2;one + two;};" +
+                        "let threeAddFour = fn(){let three = 3;let four = 4;three + four;};" +
+                        "oneAddTwo() + threeAddFour();",
+                    Expected = 10
+                },
+                new()
+                {
+                    Input = "let a = fn(){let foo = 1;foo;}; let b = fn(){let foo = 2;foo;}; a() + b();", Expected = 3
+                },
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestFirstClassFuncs()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new()
+                {
+                    Input =
+                        "let returnOne = fn(){ let returnOneInner = fn(){ return 1;}; returnOneInner;}; returnOne()();",
+                    Expected = 1
+                }
+            };
+            RunVMTests(testTable);
+        }
     }
 }

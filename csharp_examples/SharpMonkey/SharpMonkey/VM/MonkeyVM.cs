@@ -41,7 +41,7 @@ namespace SharpMonkey.VM
             Frames = new Stack<Frame>(KFrameSize);
 
             var mainFn = new MonkeyCompiledFunction(code.Instructions);
-            var mainFrame = new Frame(mainFn);
+            var mainFrame = new Frame(mainFn, 0);
             PushFrame(mainFrame);
             _sp = 0;
         }
@@ -51,7 +51,7 @@ namespace SharpMonkey.VM
             Globals = globals;
 
             var mainFn = new MonkeyCompiledFunction(code.Instructions);
-            var mainFrame = new Frame(mainFn);
+            var mainFrame = new Frame(mainFn, 0);
             PushFrame(mainFrame);
             _constantsPool = code.Constants;
             _stack = new IMonkeyObject[KStackSize];
@@ -203,17 +203,31 @@ namespace SharpMonkey.VM
                         break;
                     case OpConstants.OpCall:
                         var fn = (MonkeyCompiledFunction) _stack[_sp - 1];
-                        PushFrame(new Frame(fn));
+                        // call func的时候，为函数体内所有的局部变量分配空间
+                        PushFrame(new Frame(fn, _sp));
+                        _sp += fn.NumLocals;
+                        break;
+                    case OpConstants.OpSetLocal:
+                        byte setLocalIdx = (byte) ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        _stack[CurrentFrame().BasePointer + setLocalIdx] = Pop();
+                        break;
+                    case OpConstants.OpGetLocal:
+                        byte getLocalIdx = (byte) ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        Push(_stack[CurrentFrame().BasePointer + getLocalIdx]);
                         break;
                     case OpConstants.OpReturnValue:
                         var ret = Pop();
-                        PopFrame();
-                        Pop(); // remove the fn() obj
+                        var frame = PopFrame();
+                        // frame.BasePointer - 1会指向调用 OpCall时候的 fn object
+                        // 下一个Push会直接覆盖掉那个fn(),实现清栈的目的
+                        _sp = frame.BasePointer - 1;
                         Push(ret); // push the returnd value from the fn()
                         break;
                     case OpConstants.OpReturn:
-                        PopFrame();
-                        Pop();
+                        frame = PopFrame();
+                        _sp = frame.BasePointer - 1;
                         Push(MonkeyNull.NullObject);
                         break;
                     default:

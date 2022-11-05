@@ -17,11 +17,13 @@ namespace SharpMonkey
         public string Source;
 #endif
         public Instructions Instructions { get; }
+        public int NumLocals;
         private HashKey? _hashVal = null;
 
         public MonkeyCompiledFunction(Instructions instructions)
         {
             Instructions = instructions;
+            NumLocals = 0;
         }
 
         public string Type()

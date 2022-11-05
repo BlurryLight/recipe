@@ -39,7 +39,7 @@ namespace SharpMonkey.VM
         private int _scopeIndex = 0;
         public readonly List<IMonkeyObject> ConstantsPool;
         public readonly Dictionary<HashKey, int> ConstantsPoolIndex;
-        public readonly SymbolTable SymbolTable;
+        public SymbolTable CurSymbolTable;
 
         /// <summary>
         /// 添加一个常量对象到常量池里,并返回对象的索引
@@ -85,6 +85,8 @@ namespace SharpMonkey.VM
                 new EmittedInstruction());
             _scopes.Add(scope);
             _scopeIndex++;
+
+            CurSymbolTable = new SymbolTable(CurSymbolTable);
         }
 
         private Instructions LeaveScope()
@@ -92,6 +94,7 @@ namespace SharpMonkey.VM
             var ins = CurrentScope().Instructions;
             _scopes.RemoveAt(_scopes.Count - 1);
             _scopeIndex--;
+            CurSymbolTable = CurSymbolTable.Outer;
             return ins;
         }
 
@@ -168,7 +171,7 @@ namespace SharpMonkey.VM
             var previousInstruction = new EmittedInstruction();
             var mainScope = new CompilationScope(instructions, lastInstruction, previousInstruction);
             _scopes = new List<CompilationScope>() {mainScope};
-            SymbolTable = new SymbolTable();
+            CurSymbolTable = new SymbolTable();
             ConstantsPool = new List<IMonkeyObject>();
             ConstantsPoolIndex = new Dictionary<HashKey, int>();
         }
@@ -177,7 +180,7 @@ namespace SharpMonkey.VM
         {
             ConstantsPool = other.ConstantsPool;
             ConstantsPoolIndex = other.ConstantsPoolIndex;
-            SymbolTable = other.SymbolTable;
+            CurSymbolTable = other.CurSymbolTable;
             _scopes = other._scopes;
         }
 
@@ -314,12 +317,20 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.LetStatement stmt:
                     Compile(stmt.Value);
-                    var symbol = SymbolTable.Define(stmt.Name.Value);
-                    Emit((byte) OpConstants.OpSetGlobal, symbol.Index);
+                    var symbol = CurSymbolTable.Define(stmt.Name.Value);
+                    Emit(
+                        symbol.Scope == SymbolScope.Global
+                            ? (byte) OpConstants.OpSetGlobal
+                            : (byte) OpConstants.OpSetLocal,
+                        symbol.Index);
                     break;
                 case Ast.Identifier ident:
-                    symbol = SymbolTable.Resolve(ident.Value);
-                    Emit((byte) OpConstants.OpGetGlobal, symbol.Index);
+                    symbol = CurSymbolTable.Resolve(ident.Value);
+                    Emit(
+                        symbol.Scope == SymbolScope.Global
+                            ? (byte) OpConstants.OpGetGlobal
+                            : (byte) OpConstants.OpGetLocal,
+                        symbol.Index);
                     break;
                 case Ast.PostfixExpression exp:
                     Compile(exp.Left);
@@ -374,7 +385,12 @@ namespace SharpMonkey.VM
                         Emit((byte) OpConstants.OpReturn);
                     }
 
-                    var compiledFunction = new MonkeyCompiledFunction(LeaveScope());
+                    var numLocals = CurSymbolTable.NumDefinitions;
+                    // LeaveScope会把符号表移动为上一层的符号表，所以在LeaveGroup之前要保存当前符号表的局部变量数
+                    var compiledFunction = new MonkeyCompiledFunction(LeaveScope())
+                    {
+                        NumLocals = numLocals
+                    };
 #if DEBUG
                     compiledFunction.Source = exp.ToPrintableString();
 #endif
