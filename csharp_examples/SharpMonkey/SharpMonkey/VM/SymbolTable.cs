@@ -8,6 +8,7 @@ namespace SharpMonkey.VM
         Builtin,
         Global,
         Local,
+        Free
     }
 
     public class Symbol
@@ -68,6 +69,7 @@ namespace SharpMonkey.VM
     public class SymbolTable
     {
         private Dictionary<string, Symbol> _store;
+        public List<Symbol> FreeSymbolsToPush;
         public int NumDefinitions => _store.Count;
 
         private SymbolScope _scope;
@@ -80,6 +82,7 @@ namespace SharpMonkey.VM
             _store = new Dictionary<string, Symbol>();
             _scope = scope;
             _outer = null;
+            FreeSymbolsToPush = new List<Symbol>();
         }
 
         public SymbolTable(SymbolTable outer, SymbolScope scope)
@@ -91,6 +94,7 @@ namespace SharpMonkey.VM
                 throw new ArgumentException("BuiltinScope should have No parents");
             }
 
+            FreeSymbolsToPush = new List<Symbol>();
             _scope = scope;
         }
 
@@ -113,6 +117,23 @@ namespace SharpMonkey.VM
             return s;
         }
 
+        public Symbol DefineFree(Symbol original)
+        {
+            // 这里的逻辑非常绕。。
+            // 当内层闭包的函数体编译时，会碰见无法解析的符号，从上层的作用域寻找到符号后，会通过DefineFree来标志这个符号是一个自由变量
+            // _freeSymbols里保存的是上层作用域的符号，这样在调用内层的闭包时，上层才能正确压入闭包所需要的符号
+
+            // example:
+            // fn(a) { fn(b) {a + b}} 
+            // fn(b)()执行时，除了通过GetLocal获取b变量，必须从某个地方取得a变量的值
+            // 因此外部必须在执行fn(b)之前往栈里压入a的值
+            // 所以freeSymbols要记录a的值在上层作用域的索引，以正确执行 OpGetLocal，压入正确的值
+            var freeSymbol = new Symbol(original.Name, SymbolScope.Free, FreeSymbolsToPush.Count);
+            _store[original.Name] = freeSymbol;
+            FreeSymbolsToPush.Add(original);
+            return freeSymbol;
+        }
+
         public Symbol Resolve(string name)
         {
             bool found = _store.TryGetValue(name, out Symbol val);
@@ -123,7 +144,9 @@ namespace SharpMonkey.VM
                 throw new KeyNotFoundException($"Variable {name} is not defined!");
             }
 
-            return _outer.Resolve(name);
+            var foundSymbol = _outer.Resolve(name);
+            if (foundSymbol.Scope == SymbolScope.Global || foundSymbol.Scope == SymbolScope.Builtin) return foundSymbol;
+            return DefineFree(foundSymbol);
         }
     }
 }

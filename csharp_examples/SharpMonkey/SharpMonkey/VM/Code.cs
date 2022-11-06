@@ -45,6 +45,7 @@ namespace SharpMonkey.VM
         OpGetLocal,
         OpGetBuiltin,
         OpClosure,
+        OpGetFree,
     }
 
     public class Definition
@@ -109,6 +110,7 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpSetLocal, new Definition(OpConstants.OpSetLocal.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpGetLocal, new Definition(OpConstants.OpGetLocal.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpGetBuiltin, new Definition(OpConstants.OpGetBuiltin.ToString(), new List<int> {1})},
+            {(Opcode) OpConstants.OpGetFree, new Definition(OpConstants.OpGetFree.ToString(), new List<int> {1})},
 
             // 第一个参数表示 闭包所包含的CompiledFunction在常量池的哪一个位置
             // 第二个参数代表这个闭包捕获了多少变量(自由变量)

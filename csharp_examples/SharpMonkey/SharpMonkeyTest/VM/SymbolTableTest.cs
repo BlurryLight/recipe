@@ -78,10 +78,17 @@ namespace SharpMonkeyTest.VM
 
             Assert.AreEqual(expected["a"], secondScopeTable.Resolve("a"));
             Assert.AreEqual(expected["b"], secondScopeTable.Resolve("b"));
-            Assert.AreEqual(expected["c"], secondScopeTable.Resolve("c"));
-            Assert.AreEqual(expected["d"], secondScopeTable.Resolve("d"));
             Assert.AreEqual(expected["e"], secondScopeTable.Resolve("e"));
             Assert.AreEqual(expected["f"], secondScopeTable.Resolve("f"));
+
+            Assert.AreEqual(expected["c"], firstScopeTable.Resolve("c"));
+            Assert.AreEqual(expected["d"], firstScopeTable.Resolve("d"));
+
+            // 对于SecondScope，变量c,d来自上级FirstScope,不是Local的定义
+            var freeSymbolC = new Symbol("c", SymbolScope.Free, 0);
+            var freeSymbolD = new Symbol("d", SymbolScope.Free, 1);
+            Assert.AreEqual(freeSymbolC, secondScopeTable.Resolve("c"));
+            Assert.AreEqual(freeSymbolD, secondScopeTable.Resolve("d"));
         }
 
         [Test]
@@ -111,6 +118,32 @@ namespace SharpMonkeyTest.VM
                 Assert.AreEqual(expected["c"], table.Resolve("c"));
                 Assert.AreEqual(expected["d"], table.Resolve("d"));
             }
+        }
+
+        [Test]
+        public void TestSymbolFree()
+        {
+            var globalSymbolTable = new SymbolTable(SymbolScope.Global);
+            globalSymbolTable.Define("a");
+            var firstScopeTable = new SymbolTable(globalSymbolTable, SymbolScope.Local);
+            firstScopeTable.Define("c");
+            var secondScopeTable = new SymbolTable(firstScopeTable, SymbolScope.Local);
+            secondScopeTable.Define("e");
+            secondScopeTable.Define("f");
+
+            var expected = new Dictionary<string, Symbol>
+            {
+                {"a", new Symbol("a", SymbolScope.Global, 0)},
+                {"c", new Symbol("c", SymbolScope.Free, 0)},
+                {"e", new Symbol("e", SymbolScope.Local, 0)},
+                {"f", new Symbol("f", SymbolScope.Local, 1)},
+            };
+
+            Assert.AreEqual(expected["a"], secondScopeTable.Resolve("a"));
+            // 对于SecondScope而言，它上级的FirstScope的变量，对于它是既非Builtin，也非Global，也不是Local，所以是Free的
+            Assert.AreEqual(expected["c"], secondScopeTable.Resolve("c"));
+            Assert.AreEqual(expected["e"], secondScopeTable.Resolve("e"));
+            Assert.AreEqual(expected["f"], secondScopeTable.Resolve("f"));
         }
     }
 }

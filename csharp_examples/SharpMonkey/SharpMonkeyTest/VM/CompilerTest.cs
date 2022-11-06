@@ -1018,5 +1018,84 @@ namespace SharpMonkeyTest
             testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
+
+        [Test]
+        public void TestClosures()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "fn(a){ fn(b) { a + b};};",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        // fn(b) body
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetFree, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0), // push arg a
+                        OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(a){ fn(b) { fn(c) {a + b + c}; }; };",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        // fn(c) body
+                        // get (a + b)
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetFree, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetFree, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+
+                        // get c
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpAdd),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+
+                    // fn(b) body
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetFree, 0), // push arg a
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0), // push arg b
+                        OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 2),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+
+                    // fn(a) body
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0), // push arg a
+                        OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            // testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
     }
 }

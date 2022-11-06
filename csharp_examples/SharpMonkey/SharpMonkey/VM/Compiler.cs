@@ -404,6 +404,8 @@ namespace SharpMonkey.VM
                         Emit((byte) OpConstants.OpReturn);
                     }
 
+                    var freeSymbols = CurSymbolTable.FreeSymbolsToPush;
+                    var freeVariableNum = freeSymbols.Count;
                     var numLocals = CurSymbolTable.NumDefinitions;
                     // LeaveScope会把符号表移动为上一层的符号表，所以在LeaveGroup之前要保存当前符号表的局部变量数
                     var compiledFunction = new MonkeyCompiledFunction(LeaveScope())
@@ -414,10 +416,15 @@ namespace SharpMonkey.VM
 #if DEBUG
                     compiledFunction.Source = exp.ToPrintableString();
 #endif
+                    // 在闭包上层压入所有自由变量的值
+                    foreach (var fs in freeSymbols)
+                    {
+                        EmitSymbol(fs);
+                    }
+
                     // Emit((byte) OpConstants.OpConstant, AddConstant(compiledFunction));
                     // 为了支持闭包，我们把所有函数都视作闭包，把普通函数视作闭包的一种无捕获的特殊情形
                     // 指令替换为OpClosure
-                    var freeVariableNum = 0;
                     Emit((byte) OpConstants.OpClosure, AddConstant(compiledFunction), freeVariableNum);
                     break;
                 case Ast.ReturnStatement stmt:
@@ -458,6 +465,9 @@ namespace SharpMonkey.VM
                     break;
                 case SymbolScope.Builtin:
                     Emit((byte) OpConstants.OpGetBuiltin, symbol.Index);
+                    break;
+                case SymbolScope.Free:
+                    Emit((byte) OpConstants.OpGetFree, symbol.Index);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
