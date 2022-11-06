@@ -15,7 +15,7 @@ namespace SharpMonkeyTest.VM
                 {"b", new Symbol("b", SymbolScope.Global, 1)},
             };
 
-            var testCase = new SymbolTable();
+            var testCase = new SymbolTable(SymbolScope.Global);
             var symbolA = testCase.Define("a");
             Assert.AreEqual(1, testCase.NumDefinitions);
             var symbolB = testCase.Define("b");
@@ -33,7 +33,7 @@ namespace SharpMonkeyTest.VM
                 {"b", new Symbol("b", SymbolScope.Global, 1)},
             };
 
-            var testCase = new SymbolTable();
+            var testCase = new SymbolTable(SymbolScope.Global);
             testCase.Define("a");
             testCase.Define("b");
 
@@ -54,9 +54,9 @@ namespace SharpMonkeyTest.VM
                 {"f", new Symbol("f", SymbolScope.Local, 1)},
             };
 
-            var globalTable = new SymbolTable();
-            var firstScopeTable = new SymbolTable(globalTable);
-            var secondScopeTable = new SymbolTable(firstScopeTable);
+            var globalTable = new SymbolTable(SymbolScope.Global);
+            var firstScopeTable = new SymbolTable(globalTable, SymbolScope.Local);
+            var secondScopeTable = new SymbolTable(firstScopeTable, SymbolScope.Local);
 
             var symbolA = globalTable.Define("a");
             var symbolB = globalTable.Define("b");
@@ -82,6 +82,35 @@ namespace SharpMonkeyTest.VM
             Assert.AreEqual(expected["d"], secondScopeTable.Resolve("d"));
             Assert.AreEqual(expected["e"], secondScopeTable.Resolve("e"));
             Assert.AreEqual(expected["f"], secondScopeTable.Resolve("f"));
+        }
+
+        [Test]
+        public void TestSymbolBuiltin()
+        {
+            var expected = new Dictionary<string, Symbol>
+            {
+                {"a", new Symbol("a", SymbolScope.Builtin, 0)},
+                {"b", new Symbol("b", SymbolScope.Builtin, 1)},
+                {"c", new Symbol("c", SymbolScope.Builtin, 2)},
+                {"d", new Symbol("d", SymbolScope.Builtin, 3)},
+            };
+
+            var builtinSymbolTable = new SymbolTable(SymbolScope.Builtin);
+            var firstScopeTable = new SymbolTable(builtinSymbolTable, SymbolScope.Local);
+            var secondScopeTable = new SymbolTable(firstScopeTable, SymbolScope.Local);
+
+            foreach (var pair in expected)
+            {
+                builtinSymbolTable.DefineBuiltin(pair.Value.Index, pair.Key);
+            }
+
+            foreach (var table in new[] {builtinSymbolTable, firstScopeTable, secondScopeTable})
+            {
+                Assert.AreEqual(expected["a"], table.Resolve("a"));
+                Assert.AreEqual(expected["b"], table.Resolve("b"));
+                Assert.AreEqual(expected["c"], table.Resolve("c"));
+                Assert.AreEqual(expected["d"], table.Resolve("d"));
+            }
         }
     }
 }

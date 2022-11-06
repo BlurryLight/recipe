@@ -3,10 +3,11 @@ using System.Collections.Generic;
 
 namespace SharpMonkey.VM
 {
-    public enum SymbolScope
+    public enum SymbolScope : byte
     {
+        Builtin,
         Global,
-        Local
+        Local,
     }
 
     public class Symbol
@@ -69,24 +70,45 @@ namespace SharpMonkey.VM
         private Dictionary<string, Symbol> _store;
         public int NumDefinitions => _store.Count;
 
+        private SymbolScope _scope;
+
         private SymbolTable _outer; // parent SymbolTable
         public SymbolTable Outer => _outer;
 
-        public SymbolTable()
+        public SymbolTable(SymbolScope scope)
         {
             _store = new Dictionary<string, Symbol>();
+            _scope = scope;
             _outer = null;
         }
 
-        public SymbolTable(SymbolTable outer)
+        public SymbolTable(SymbolTable outer, SymbolScope scope)
         {
             _outer = outer;
             _store = new Dictionary<string, Symbol>();
+            if (scope < SymbolScope.Global)
+            {
+                throw new ArgumentException("BuiltinScope should have No parents");
+            }
+
+            _scope = scope;
         }
 
         public Symbol Define(string name)
         {
-            Symbol s = new Symbol(name, _outer == null ? SymbolScope.Global : SymbolScope.Local, NumDefinitions);
+            Symbol s = new Symbol(name, _scope, NumDefinitions);
+            _store.Add(name, s);
+            return s;
+        }
+
+        public Symbol DefineBuiltin(int index, string name)
+        {
+            if (_scope != SymbolScope.Builtin)
+            {
+                throw new Exception("DefineBuiltin is only available for BuiltinScope");
+            }
+
+            Symbol s = new Symbol(name, SymbolScope.Builtin, index);
             _store.Add(name, s);
             return s;
         }

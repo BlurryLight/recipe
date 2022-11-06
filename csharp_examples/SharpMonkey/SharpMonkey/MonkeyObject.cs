@@ -310,15 +310,20 @@ namespace SharpMonkey
 
     public class MonkeyBuiltinFunc : IMonkeyObject
     {
-        public static readonly Dictionary<string, MonkeyBuiltinFunc> Builtins = new()
+        public static readonly List<KeyValuePair<string, MonkeyBuiltinFunc>> BuiltinArrays = new()
         {
-            ["len"] = new MonkeyBuiltinFunc(BuiltinFunctions.Len),
-            ["first"] = new MonkeyBuiltinFunc(BuiltinFunctions.First),
-            ["last"] = new MonkeyBuiltinFunc(BuiltinFunctions.Last),
-            ["rest"] = new MonkeyBuiltinFunc(BuiltinFunctions.Rest),
-            ["push"] = new MonkeyBuiltinFunc(BuiltinFunctions.Push),
-            ["puts"] = new MonkeyBuiltinFunc(BuiltinFunctions.Puts),
+            // the order must be preserved
+            // otherwise it will break the ABI
+            new KeyValuePair<string, MonkeyBuiltinFunc>("len", new MonkeyBuiltinFunc(BuiltinFunctions.Len)),
+            new KeyValuePair<string, MonkeyBuiltinFunc>("first", new MonkeyBuiltinFunc(BuiltinFunctions.First)),
+            new KeyValuePair<string, MonkeyBuiltinFunc>("last", new MonkeyBuiltinFunc(BuiltinFunctions.Last)),
+            new KeyValuePair<string, MonkeyBuiltinFunc>("rest", new MonkeyBuiltinFunc(BuiltinFunctions.Rest)),
+            new KeyValuePair<string, MonkeyBuiltinFunc>("push", new MonkeyBuiltinFunc(BuiltinFunctions.Push)),
+            new KeyValuePair<string, MonkeyBuiltinFunc>("puts", new MonkeyBuiltinFunc(BuiltinFunctions.Puts)),
         };
+
+        public static readonly Dictionary<string, MonkeyBuiltinFunc> Builtins =
+            BuiltinArrays.ToDictionary(x => x.Key, x => x.Value);
 
         public delegate IMonkeyObject BuiltinFunc(params IMonkeyObject[] monkeyObjects);
 

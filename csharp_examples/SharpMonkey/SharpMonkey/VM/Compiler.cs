@@ -40,6 +40,7 @@ namespace SharpMonkey.VM
         private int _scopeIndex = 0;
         public readonly List<IMonkeyObject> ConstantsPool;
         public readonly Dictionary<HashKey, int> ConstantsPoolIndex;
+        private static SymbolTable _BuiltinSymbolTable = null;
         public SymbolTable CurSymbolTable;
 
         /// <summary>
@@ -87,7 +88,7 @@ namespace SharpMonkey.VM
             _scopes.Add(scope);
             _scopeIndex++;
 
-            CurSymbolTable = new SymbolTable(CurSymbolTable);
+            CurSymbolTable = new SymbolTable(CurSymbolTable, SymbolScope.Local);
         }
 
         private Instructions LeaveScope()
@@ -165,28 +166,39 @@ namespace SharpMonkey.VM
             return _scopes[_scopeIndex].Instructions;
         }
 
-        public Compiler()
+        private void InitProperties()
         {
             var instructions = new Instructions();
             var lastInstruction = new EmittedInstruction();
             var previousInstruction = new EmittedInstruction();
             var mainScope = new CompilationScope(instructions, lastInstruction, previousInstruction);
             _scopes = new List<CompilationScope>() {mainScope};
-            CurSymbolTable = new SymbolTable();
+        }
+
+        public Compiler()
+        {
+            InitProperties();
+            if (_BuiltinSymbolTable == null)
+            {
+                _BuiltinSymbolTable = new SymbolTable(SymbolScope.Builtin);
+                for (int i = 0; i < MonkeyBuiltinFunc.BuiltinArrays.Count; i++)
+                {
+                    _BuiltinSymbolTable.DefineBuiltin(i, MonkeyBuiltinFunc.BuiltinArrays[i].Key);
+                }
+            }
+
+            // 全局SymbolTable继承自BuiltinTable
+            CurSymbolTable = new SymbolTable(_BuiltinSymbolTable, SymbolScope.Global);
             ConstantsPool = new List<IMonkeyObject>();
             ConstantsPoolIndex = new Dictionary<HashKey, int>();
         }
 
         public Compiler(Compiler other)
         {
+            InitProperties();
             ConstantsPool = other.ConstantsPool;
             ConstantsPoolIndex = other.ConstantsPoolIndex;
             CurSymbolTable = other.CurSymbolTable;
-            var instructions = new Instructions();
-            var lastInstruction = new EmittedInstruction();
-            var previousInstruction = new EmittedInstruction();
-            var mainScope = new CompilationScope(instructions, lastInstruction, previousInstruction);
-            _scopes = new List<CompilationScope>() {mainScope};
         }
 
         public void Compile(Ast.INode node)
@@ -331,11 +343,7 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.Identifier ident:
                     symbol = CurSymbolTable.Resolve(ident.Value);
-                    Emit(
-                        symbol.Scope == SymbolScope.Global
-                            ? (byte) OpConstants.OpGetGlobal
-                            : (byte) OpConstants.OpGetLocal,
-                        symbol.Index);
+                    EmitSymbol(symbol);
                     break;
                 case Ast.PostfixExpression exp:
                     Compile(exp.Left);
@@ -431,6 +439,24 @@ namespace SharpMonkey.VM
                 default:
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
+            }
+        }
+
+        private void EmitSymbol(Symbol symbol)
+        {
+            switch (symbol.Scope)
+            {
+                case SymbolScope.Global:
+                    Emit((byte) OpConstants.OpGetGlobal, symbol.Index);
+                    break;
+                case SymbolScope.Local:
+                    Emit((byte) OpConstants.OpGetLocal, symbol.Index);
+                    break;
+                case SymbolScope.Builtin:
+                    Emit((byte) OpConstants.OpGetBuiltin, symbol.Index);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
 

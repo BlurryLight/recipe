@@ -967,5 +967,54 @@ namespace SharpMonkeyTest
             testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
+
+        [Test]
+        public void TestBuiltinFuncs()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "len([]);push([],1);",
+                expectedConstants = new List<Object>() {1},
+                expectedInstructions = new List<Instructions>
+                {
+                    // len([])
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetBuiltin, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpArray, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+
+                    // push
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetBuiltin, 4),
+                    OpcodeUtils.MakeBytes(OpConstants.OpArray, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "fn(){len ([])};",
+                expectedConstants = new List<Object>()
+                {
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetBuiltin, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpArray, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    }
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
     }
 }

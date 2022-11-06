@@ -43,6 +43,7 @@ namespace SharpMonkey.VM
         OpReturn,
         OpSetLocal,
         OpGetLocal,
+        OpGetBuiltin,
     }
 
     public class Definition
@@ -106,6 +107,7 @@ namespace SharpMonkey.VM
             // only support up to 255 local variables
             {(Opcode) OpConstants.OpSetLocal, new Definition(OpConstants.OpSetLocal.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpGetLocal, new Definition(OpConstants.OpGetLocal.ToString(), new List<int> {1})},
+            {(Opcode) OpConstants.OpGetBuiltin, new Definition(OpConstants.OpGetBuiltin.ToString(), new List<int> {1})},
         };
 
         public static Definition Lookup(Opcode code)
