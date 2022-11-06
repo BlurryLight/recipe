@@ -254,6 +254,11 @@ namespace SharpMonkey
 
             NextToken(); // move to expression
             statement.Value = ParseExpression(Priority.Lowest);
+            if (statement.Value is Ast.FunctionLiteral funcLiteral)
+            {
+                funcLiteral.FuncName = statement.Name.Value;
+            }
+
             return !ExpectPeek(Constants.Semicolon) ? null : statement;
         }
 

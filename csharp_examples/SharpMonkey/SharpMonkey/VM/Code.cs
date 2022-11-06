@@ -46,6 +46,7 @@ namespace SharpMonkey.VM
         OpGetBuiltin,
         OpClosure,
         OpGetFree,
+        OpCurrentClosure,
     }
 
     public class Definition
@@ -115,6 +116,10 @@ namespace SharpMonkey.VM
             // 第一个参数表示 闭包所包含的CompiledFunction在常量池的哪一个位置
             // 第二个参数代表这个闭包捕获了多少变量(自由变量)
             {(Opcode) OpConstants.OpClosure, new Definition(OpConstants.OpClosure.ToString(), new List<int> {2, 1})},
+            {
+                (Opcode) OpConstants.OpCurrentClosure,
+                new Definition(OpConstants.OpCurrentClosure.ToString(), new List<int> { })
+            },
         };
 
         public static Definition Lookup(Opcode code)
@@ -216,10 +221,10 @@ namespace SharpMonkey.VM
                 switch (width)
                 {
                     case 1:
-                        operands.Add(ins[i]);
+                        operands.Add(ins[offset]);
                         break;
                     case 2:
-                        operands.Add(BitConverter.ToUInt16(SubOperands(ins, i, 2)));
+                        operands.Add(BitConverter.ToUInt16(SubOperands(ins, offset, 2)));
                         break;
                 }
 

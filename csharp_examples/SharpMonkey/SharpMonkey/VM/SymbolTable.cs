@@ -8,7 +8,8 @@ namespace SharpMonkey.VM
         Builtin,
         Global,
         Local,
-        Free
+        Free,
+        Function
     }
 
     public class Symbol
@@ -33,7 +34,7 @@ namespace SharpMonkey.VM
 
         public readonly string Name;
         public readonly SymbolScope Scope;
-        public readonly int Index;
+        public int Index;
 
         public Symbol(string name, SymbolScope scope, int index)
         {
@@ -70,7 +71,7 @@ namespace SharpMonkey.VM
     {
         private Dictionary<string, Symbol> _store;
         public List<Symbol> FreeSymbolsToPush;
-        public int NumDefinitions => _store.Count;
+        public int NumDefinitions = 0;
 
         private SymbolScope _scope;
 
@@ -100,8 +101,15 @@ namespace SharpMonkey.VM
 
         public Symbol Define(string name)
         {
-            Symbol s = new Symbol(name, _scope, NumDefinitions);
-            _store.Add(name, s);
+            Symbol s = new Symbol(name, _scope, NumDefinitions++);
+            _store[name] = s;
+            return s;
+        }
+
+        public Symbol DefineFunctionName(string name)
+        {
+            Symbol s = new Symbol(name, SymbolScope.Function, NumDefinitions);
+            _store[name] = s;
             return s;
         }
 

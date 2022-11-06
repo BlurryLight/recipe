@@ -426,6 +426,7 @@ namespace SharpMonkey
                 case Ast.FunctionLiteral exp:
                 {
                     var funcObj = new MonkeyFuncLiteral(exp.Parameters, exp.FuncBody, env);
+                    funcObj.FuncName = exp.FuncName;
                     return funcObj;
                 }
                 case Ast.CallExpression exp:

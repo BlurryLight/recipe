@@ -490,6 +490,7 @@ namespace SharpMonkey
         {
             public Token Token; // fn
             public List<Identifier> Parameters;
+            public string FuncName = "UnNamed";
             public BlockStatement FuncBody;
 
             public string TokenLiteral()
@@ -512,6 +513,7 @@ namespace SharpMonkey
                 }
 
                 outBuilder.Append(TokenLiteral());
+                outBuilder.Append(FuncName);
                 outBuilder.Append($"({string.Join(", ", paramStrs)})");
                 outBuilder.Append($"{{ {FuncBody.ToPrintableString()} }}");
                 return outBuilder.ToString();

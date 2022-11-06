@@ -250,6 +250,10 @@ namespace SharpMonkey.VM
                         CurrentFrame().Ip += 1;
                         Push(CurrentFrame().ClosureFn.FreeVariables[freeIndex]);
                         break;
+                    case OpConstants.OpCurrentClosure:
+                        var currentClosure = CurrentFrame().ClosureFn;
+                        Push(currentClosure);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }

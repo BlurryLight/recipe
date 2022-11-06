@@ -258,6 +258,7 @@ namespace SharpMonkey
         public List<Ast.Identifier> Params;
         public Ast.BlockStatement Body;
         public Environment Env;
+        public string FuncName;
 
         public MonkeyFuncLiteral(List<Ast.Identifier> parameters, Ast.BlockStatement body, Environment env)
         {
@@ -280,7 +281,7 @@ namespace SharpMonkey
                 paramStrs.Add(p.ToPrintableString());
             }
 
-            outBuilder.Append($"fn({string.Join(", ", paramStrs)}) {{ {Body.ToPrintableString()} }}");
+            outBuilder.Append($"fn `{FuncName}` ({string.Join(", ", paramStrs)}) {{ {Body.ToPrintableString()} }}");
             return outBuilder.ToString();
         }
     }

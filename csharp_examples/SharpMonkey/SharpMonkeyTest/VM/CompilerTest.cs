@@ -1094,7 +1094,84 @@ namespace SharpMonkeyTest
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
-            // testTable.Add(newCase);
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
+        public void TestRecursiveClosures()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "let countDown = fn(x){ countDown(x - 1); }; countDown(1);",
+                expectedConstants = new List<Object>()
+                {
+                    1,
+                    // countDown Body
+                    new List<Instructions>()
+                    {
+                        // 在实现OpCurretClosure以前，在编译到countDown(x-1)时，会尝试索引CountDown符号
+                        // OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal,0),
+
+                        OpcodeUtils.MakeBytes(OpConstants.OpCurrentClosure), //把当前的函数压栈
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpSub),
+                        OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = "let wrapper = fn(){ let countDown = fn(x){ countDown(x - 1); }; countDown(1);}; " +
+                        "wrapper();",
+                expectedConstants = new List<Object>()
+                {
+                    1,
+                    // countDown Body
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpCurrentClosure),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpSub),
+                        OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                    // countDown fn
+                    new List<Instructions>()
+                    {
+                        OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpSetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
+                        OpcodeUtils.MakeBytes(OpConstants.OpReturnValue),
+                    },
+                },
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+            testTable.Add(newCase);
             RunCompilerTests(testTable);
         }
     }

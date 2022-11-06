@@ -333,8 +333,8 @@ namespace SharpMonkey.VM
                     Emit((byte) OpConstants.OpNull);
                     break;
                 case Ast.LetStatement stmt:
-                    Compile(stmt.Value);
                     var symbol = CurSymbolTable.Define(stmt.Name.Value);
+                    Compile(stmt.Value);
                     Emit(
                         symbol.Scope == SymbolScope.Global
                             ? (byte) OpConstants.OpSetGlobal
@@ -384,6 +384,11 @@ namespace SharpMonkey.VM
                     break;
                 case Ast.FunctionLiteral exp:
                     EnterNewScope();
+                    if (exp.FuncName != "UnNamed")
+                    {
+                        CurSymbolTable.DefineFunctionName(exp.FuncName);
+                    }
+
                     foreach (var par in exp.Parameters)
                     {
                         // 从左到右定义所有的形参变量名
@@ -468,6 +473,9 @@ namespace SharpMonkey.VM
                     break;
                 case SymbolScope.Free:
                     Emit((byte) OpConstants.OpGetFree, symbol.Index);
+                    break;
+                case SymbolScope.Function:
+                    Emit((byte) OpConstants.OpCurrentClosure);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

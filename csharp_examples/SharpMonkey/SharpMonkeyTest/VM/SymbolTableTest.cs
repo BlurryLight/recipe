@@ -145,5 +145,32 @@ namespace SharpMonkeyTest.VM
             Assert.AreEqual(expected["e"], secondScopeTable.Resolve("e"));
             Assert.AreEqual(expected["f"], secondScopeTable.Resolve("f"));
         }
+
+        [Test]
+        public void TestSymbolFunction()
+        {
+            var globalSymbolTable = new SymbolTable(SymbolScope.Function);
+            globalSymbolTable.Define("a");
+            var expected = new Dictionary<string, Symbol>
+            {
+                {"a", new Symbol("a", SymbolScope.Function, 0)},
+            };
+
+            Assert.AreEqual(expected["a"], globalSymbolTable.Resolve("a"));
+        }
+
+        [Test]
+        public void TestSymbolFunctionShadow()
+        {
+            var globalSymbolTable = new SymbolTable(SymbolScope.Global);
+            globalSymbolTable.DefineFunctionName("a");
+            globalSymbolTable.Define("a"); // shadow
+            var expected = new Dictionary<string, Symbol>
+            {
+                {"a", new Symbol("a", SymbolScope.Global, 0)},
+            };
+
+            Assert.AreEqual(expected["a"], globalSymbolTable.Resolve("a"));
+        }
     }
 }

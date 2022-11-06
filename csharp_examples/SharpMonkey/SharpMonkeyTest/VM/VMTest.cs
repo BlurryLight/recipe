@@ -390,5 +390,34 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestRecursiveFuncs()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new()
+                {
+                    Input = "let countDown = fn(x){ if(x == 0) { return 1;} else { countDown(x - 1);}}; countDown(1);",
+                    Expected = 1
+                },
+                new()
+                {
+                    Input =
+                        "let countDown = fn(x){ if(x == 0) { return 1;} else { countDown(x - 1);}}; fn(){ countDown(1);}();",
+                    Expected = 1
+                },
+
+                new()
+                {
+                    // 在函数内部定义递归函数
+                    Input =
+                        "let wrapper = fn(){ let countDown = fn(x){ if(x == 0) { return 1;} else { countDown(x - 1);}}; countDown(1);}; " +
+                        "wrapper();",
+                    Expected = 1
+                },
+            };
+            RunVMTests(testTable);
+        }
     }
 }

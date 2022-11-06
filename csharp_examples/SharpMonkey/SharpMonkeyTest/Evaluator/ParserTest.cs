@@ -495,6 +495,29 @@ namespace SharpMonkeyTest
             Assert.AreEqual("fn", exp.TokenLiteral());
             Assert.AreEqual(0, exp.Parameters.Count);
             Assert.AreEqual(0, exp.FuncBody.Statements.Count);
+            Assert.AreEqual("UnNamed", exp.FuncName);
+        }
+
+        [Test]
+        public void TestFunctionLiteralParsingName()
+        {
+            var Input = "let simpleFunc = fn() {};";
+            var p = new Parser(new Lexer(Input));
+            var program = p.ParseProgram();
+            CheckParserErrors(p);
+            Assert.AreEqual(0, p.Errors.Count);
+            Assert.AreEqual(1, program.Statements.Count);
+
+            var stmt = program.Statements[0] as Ast.LetStatement;
+            Assert.NotNull(stmt);
+
+            var exp = stmt.Value as Ast.FunctionLiteral;
+            Assert.NotNull(exp);
+
+            Assert.AreEqual("fn", exp.TokenLiteral());
+            Assert.AreEqual(0, exp.Parameters.Count);
+            Assert.AreEqual(0, exp.FuncBody.Statements.Count);
+            Assert.AreEqual("simpleFunc", exp.FuncName);
         }
 
 
