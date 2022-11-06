@@ -46,6 +46,14 @@ namespace SharpMonkey.VM
         OpGetBuiltin,
         OpClosure,
         OpGetFree,
+
+        // 闭包递归的问题是
+        // let obj  = fn(){obj();};
+        // 当编译最内层的`obj()`时候，其符号并不存在，编译器将其解析为一个自由变量，调用OpGetFree
+        // 在外部编译  fn(){obj();}时，我们需要填充自由变量，也就是先在栈中压入自由变量，再调用OpClosure打成闭包
+        // 问题是内层的obj 其实引用的是外层的OpClosure以后的产物，而填充OpGetLocal发生在OpClosure以前
+        // 所以需要一条额外的指令来处理这种情况，OpCurretClosure用于在闭包内层调用闭包本身的情况
+        // 最简单的示例见 `TestRecursiveClosures`的第一个测试用例
         OpCurrentClosure,
     }
 

@@ -1104,7 +1104,7 @@ namespace SharpMonkeyTest
             var testTable = new List<CompilerTestCase>();
             var newCase = new CompilerTestCase
             {
-                input = "let countDown = fn(x){ countDown(x - 1); }; countDown(1);",
+                input = "let countDown = fn(x){ countDown(x - 1); };",
                 expectedConstants = new List<Object>()
                 {
                     1,
@@ -1115,7 +1115,7 @@ namespace SharpMonkeyTest
                         // OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal,0),
 
                         OpcodeUtils.MakeBytes(OpConstants.OpCurrentClosure), //把当前的函数压栈
-                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0),
+                        OpcodeUtils.MakeBytes(OpConstants.OpGetLocal, 0), // index the `x` variable
                         OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
                         OpcodeUtils.MakeBytes(OpConstants.OpSub),
                         OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
@@ -1126,10 +1126,6 @@ namespace SharpMonkeyTest
                 {
                     OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
-                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
-                    OpcodeUtils.MakeBytes(OpConstants.OpCall, 1),
-                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
             testTable.Add(newCase);
