@@ -205,16 +205,7 @@ namespace SharpMonkey.VM
                     case OpConstants.OpCall:
                         var numArgs = (byte) ins[i + 1];
                         CurrentFrame().Ip += 1;
-                        var fn = (MonkeyCompiledFunction) _stack[_sp - 1 - numArgs];
-                        if (numArgs != fn.NumParameters)
-                        {
-                            throw new ArgumentException(
-                                $"Wrong Number of arguments: {fn.Inspect()}, wanted {fn.NumParameters}, got: {numArgs} ");
-                        }
-
-                        // call func的时候，为函数体内所有的局部变量分配空间
-                        PushFrame(new Frame(fn, _sp - numArgs));
-                        _sp += fn.NumLocals;
+                        ExecuteCall(numArgs);
                         break;
                     case OpConstants.OpSetLocal:
                         byte setLocalIdx = (byte) ins[i + 1];
@@ -239,10 +230,55 @@ namespace SharpMonkey.VM
                         _sp = frame.BasePointer - 1;
                         Push(MonkeyNull.NullObject);
                         break;
+                    case OpConstants.OpGetBuiltin:
+                        var builtinIndex = (byte) ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        var builtinFunc = MonkeyBuiltinFunc.BuiltinArrays[builtinIndex].Value;
+                        Push(builtinFunc);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void ExecuteCall(byte numArgs)
+        {
+            var functor = _stack[_sp - 1 - numArgs];
+            switch (functor)
+            {
+                case MonkeyCompiledFunction func:
+                    ExecuteFuncCall(func, numArgs);
+                    break;
+                case MonkeyBuiltinFunc builtinFunc:
+                    ExecuteBuiltinFuncCall(builtinFunc, numArgs);
+                    break;
+            }
+        }
+
+        private void ExecuteBuiltinFuncCall(MonkeyBuiltinFunc builtinFunc, byte numArgs)
+        {
+            // 通过slice取出参数
+            var args = _stack[(_sp - numArgs).._sp];
+            var result = builtinFunc.Func(args);
+            // 回退栈顶到BuiltInFuncObject所在的位置,准备用返回值覆盖它
+            _sp -= (numArgs + 1);
+            // 部分内置函数，比如puts,没有返回值，会返回Null
+            // 另一种做法可以修改puts的返回值为 MonkeyNull
+            Push(result ?? MonkeyNull.NullObject);
+        }
+
+        private void ExecuteFuncCall(MonkeyCompiledFunction fn, byte numArgs)
+        {
+            if (numArgs != fn.NumParameters)
+            {
+                throw new ArgumentException(
+                    $"Wrong Number of arguments: {fn.Inspect()}, wanted {fn.NumParameters}, got: {numArgs} ");
+            }
+
+            // call func的时候，为函数体内所有的局部变量分配空间
+            PushFrame(new Frame(fn, _sp - numArgs));
+            _sp += fn.NumLocals;
         }
 
         private IMonkeyObject ExecuteIndexExpression(IMonkeyObject left, IMonkeyObject index)

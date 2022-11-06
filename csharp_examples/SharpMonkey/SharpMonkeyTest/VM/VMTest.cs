@@ -64,6 +64,7 @@ namespace SharpMonkeyTest
                     }
 
                     break;
+                // test monkeymap
                 case Dictionary<object, object> dict:
                     var monkeyMap = (MonkeyMap) actual;
                     Assert.AreEqual(dict.Count, monkeyMap.Pairs.Count);
@@ -352,6 +353,24 @@ namespace SharpMonkeyTest
                         "let returnOne = fn(){ let returnOneInner = fn(){ return 1;}; returnOneInner;}; returnOne()();",
                     Expected = 1
                 }
+            };
+            RunVMTests(testTable);
+        }
+
+        [Test]
+        public void TestBuiltinFunctions()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "len(\"\");", Expected = 0},
+                new() {Input = "len(\"four\");", Expected = 4},
+                new() {Input = "len(\"hello world\");", Expected = 11},
+                new() {Input = "len([]);", Expected = 0},
+                new() {Input = "len([1]);", Expected = 1},
+                new() {Input = "first([1,2,3]);", Expected = 1},
+                new() {Input = "last([1,2,3]);", Expected = 3},
+                new() {Input = "rest([1,2,3]);", Expected = new List<object> {2, 3}},
+                new() {Input = "push([1,2,3],4);", Expected = new List<object> {1, 2, 3, 4}},
             };
             RunVMTests(testTable);
         }
