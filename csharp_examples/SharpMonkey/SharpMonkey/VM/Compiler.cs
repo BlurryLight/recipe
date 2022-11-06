@@ -345,6 +345,9 @@ namespace SharpMonkey.VM
                     symbol = CurSymbolTable.Resolve(ident.Value);
                     EmitSymbol(symbol);
                     break;
+                case Ast.AssignExpression exp:
+                    CompileAssignExpression(exp);
+                    break;
                 case Ast.PostfixExpression exp:
                     Compile(exp.Left);
                     switch (exp.Operator)
@@ -456,6 +459,23 @@ namespace SharpMonkey.VM
                     throw new NotImplementedException(
                         $"not implemented for type {node.GetType()}:{node.ToPrintableString()}");
             }
+        }
+
+        private void CompileAssignExpression(Ast.AssignExpression exp)
+        {
+            if (exp.Name is Ast.Identifier ident)
+            {
+                var symbol = CurSymbolTable.Resolve(ident.Value);
+                Compile(exp.Value);
+                Emit(
+                    symbol.Scope == SymbolScope.Global
+                        ? (byte) OpConstants.OpAssignGlobal
+                        : (byte) OpConstants.OpAssignLocal,
+                    symbol.Index);
+                return;
+            }
+
+            throw new NotImplementedException();
         }
 
         private void EmitSymbol(Symbol symbol)

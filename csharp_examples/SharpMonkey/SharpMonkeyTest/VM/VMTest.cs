@@ -434,5 +434,16 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestAssignments()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "let a = 1;let b = 2; a = b; a;", Expected = 2},
+                new() {Input = "let a = 1;let b = 2; a = b; b;", Expected = 2},
+            };
+            RunVMTests(testTable);
+        }
     }
 }

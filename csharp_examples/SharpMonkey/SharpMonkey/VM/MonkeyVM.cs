@@ -254,6 +254,15 @@ namespace SharpMonkey.VM
                         var currentClosure = CurrentFrame().ClosureFn;
                         Push(currentClosure);
                         break;
+                    case OpConstants.OpAssignGlobal:
+                        var globalIndex = OpcodeUtils.ReadUint16(ins, i + 1);
+                        CurrentFrame().Ip += 2;
+                        var right = Pop();
+                        Globals[globalIndex] = right;
+                        // a = b;是一个ExpressionStatement,Compiler会插入一个 OpPop
+                        // a=b;本身没有返回值，插入一个Null以平栈
+                        Push(MonkeyNull.NullObject);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }

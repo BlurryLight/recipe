@@ -55,6 +55,9 @@ namespace SharpMonkey.VM
         // 所以需要一条额外的指令来处理这种情况，OpCurretClosure用于在闭包内层调用闭包本身的情况
         // 最简单的示例见 `TestRecursiveClosures`的第一个测试用例
         OpCurrentClosure,
+
+        OpAssignGlobal,
+        OpAssignLocal,
     }
 
     public class Definition
@@ -127,6 +130,14 @@ namespace SharpMonkey.VM
             {
                 (Opcode) OpConstants.OpCurrentClosure,
                 new Definition(OpConstants.OpCurrentClosure.ToString(), new List<int> { })
+            },
+            {
+                (Opcode) OpConstants.OpAssignGlobal,
+                new Definition(OpConstants.OpAssignGlobal.ToString(), new List<int> {2})
+            },
+            {
+                (Opcode) OpConstants.OpAssignLocal,
+                new Definition(OpConstants.OpAssignLocal.ToString(), new List<int> {1})
             },
         };
 

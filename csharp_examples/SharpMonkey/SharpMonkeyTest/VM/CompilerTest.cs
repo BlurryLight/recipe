@@ -484,6 +484,31 @@ namespace SharpMonkeyTest
         }
 
         [Test]
+        public void TestAssignExpression()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "let a = 1; let b = 2; a = b;",
+                expectedConstants = new List<Object>() {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 1),
+
+                    OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpAssignGlobal, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop),
+                }
+            };
+
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
         public void TestGlobalLetStatements()
         {
             var testTable = new List<CompilerTestCase>();
