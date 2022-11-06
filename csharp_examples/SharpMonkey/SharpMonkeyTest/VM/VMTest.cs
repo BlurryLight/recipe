@@ -416,6 +416,21 @@ namespace SharpMonkeyTest
                         "wrapper();",
                     Expected = 1
                 },
+
+                new()
+                {
+                    Input = @"
+                    let fibonacci = fn(x)
+                    {
+                        if(x == 0 || x == 1)
+                        {
+                            return x;
+                        }
+                        return fibonacci(x - 1) + fibonacci(x - 2);
+                    };
+                    fibonacci(15);",
+                    Expected = 610
+                }
             };
             RunVMTests(testTable);
         }
