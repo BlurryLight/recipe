@@ -41,7 +41,8 @@ namespace SharpMonkey.VM
             Frames = new Stack<Frame>(KFrameSize);
 
             var mainFn = new MonkeyCompiledFunction(code.Instructions);
-            var mainFrame = new Frame(mainFn, 0);
+            var mainClosure = new MonkeyClosure() {Fn = mainFn};
+            var mainFrame = new Frame(mainClosure, 0);
             PushFrame(mainFrame);
             _sp = 0;
         }
@@ -51,7 +52,8 @@ namespace SharpMonkey.VM
             Globals = globals;
 
             var mainFn = new MonkeyCompiledFunction(code.Instructions);
-            var mainFrame = new Frame(mainFn, 0);
+            var mainClosure = new MonkeyClosure() {Fn = mainFn};
+            var mainFrame = new Frame(mainClosure, 0);
             Frames = new Stack<Frame>();
             PushFrame(mainFrame);
             _constantsPool = code.Constants;
@@ -236,10 +238,24 @@ namespace SharpMonkey.VM
                         var builtinFunc = MonkeyBuiltinFunc.BuiltinArrays[builtinIndex].Value;
                         Push(builtinFunc);
                         break;
+                    case OpConstants.OpClosure:
+                        var fnIndex = OpcodeUtils.ReadUint16(ins, i + 1);
+                        var freeVarNum = (byte) ins[i + 3];
+                        CurrentFrame().Ip += 3;
+                        PushClosure(fnIndex, freeVarNum);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void PushClosure(ushort fnIndex, byte freeVarNum)
+        {
+            var fn = (MonkeyCompiledFunction) _constantsPool[fnIndex];
+            // TODO: fill free variables
+            var closure = new MonkeyClosure() {Fn = fn};
+            Push(closure);
         }
 
         private void ExecuteCall(byte numArgs)
@@ -247,8 +263,8 @@ namespace SharpMonkey.VM
             var functor = _stack[_sp - 1 - numArgs];
             switch (functor)
             {
-                case MonkeyCompiledFunction func:
-                    ExecuteFuncCall(func, numArgs);
+                case MonkeyClosure closureFunc:
+                    ExecuteFuncCall(closureFunc, numArgs);
                     break;
                 case MonkeyBuiltinFunc builtinFunc:
                     ExecuteBuiltinFuncCall(builtinFunc, numArgs);
@@ -268,8 +284,9 @@ namespace SharpMonkey.VM
             Push(result ?? MonkeyNull.NullObject);
         }
 
-        private void ExecuteFuncCall(MonkeyCompiledFunction fn, byte numArgs)
+        private void ExecuteFuncCall(MonkeyClosure closure, byte numArgs)
         {
+            var fn = closure.Fn;
             if (numArgs != fn.NumParameters)
             {
                 throw new ArgumentException(
@@ -277,7 +294,7 @@ namespace SharpMonkey.VM
             }
 
             // call func的时候，为函数体内所有的局部变量分配空间
-            PushFrame(new Frame(fn, _sp - numArgs));
+            PushFrame(new Frame(closure, _sp - numArgs));
             _sp += fn.NumLocals;
         }
 

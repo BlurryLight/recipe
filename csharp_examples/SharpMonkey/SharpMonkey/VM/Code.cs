@@ -44,6 +44,7 @@ namespace SharpMonkey.VM
         OpSetLocal,
         OpGetLocal,
         OpGetBuiltin,
+        OpClosure,
     }
 
     public class Definition
@@ -108,6 +109,10 @@ namespace SharpMonkey.VM
             {(Opcode) OpConstants.OpSetLocal, new Definition(OpConstants.OpSetLocal.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpGetLocal, new Definition(OpConstants.OpGetLocal.ToString(), new List<int> {1})},
             {(Opcode) OpConstants.OpGetBuiltin, new Definition(OpConstants.OpGetBuiltin.ToString(), new List<int> {1})},
+
+            // 第一个参数表示 闭包所包含的CompiledFunction在常量池的哪一个位置
+            // 第二个参数代表这个闭包捕获了多少变量(自由变量)
+            {(Opcode) OpConstants.OpClosure, new Definition(OpConstants.OpClosure.ToString(), new List<int> {2, 1})},
         };
 
         public static Definition Lookup(Opcode code)
@@ -254,6 +259,8 @@ namespace SharpMonkey.VM
                     return $"{def.Name} NULL";
                 case 1:
                     return $"{def.Name} {operands[0]}";
+                case 2:
+                    return $"{def.Name} {operands[0]} {operands[1]}";
             }
 
             return $"Error: unhandled operandCount for {def.Name}\n";

@@ -9,6 +9,35 @@ namespace SharpMonkey
     public static partial class ObjType
     {
         public const string CompiledFunctionObject = "CompiledFunctionObject";
+        public const string Closure = "Closure";
+    }
+
+    public class MonkeyClosure : IMonkeyObject, IMonkeyHash
+    {
+        public MonkeyCompiledFunction Fn;
+        public List<IMonkeyObject> FreeVariables;
+        private HashKey? _hashVal = null;
+
+        public string Type()
+        {
+            return ObjType.Closure;
+        }
+
+        public string Inspect()
+        {
+            return $"Closure-{this.GetHashCode()}";
+        }
+
+        public HashKey HashKey()
+        {
+            if (_hashVal.HasValue) return _hashVal.Value;
+            _hashVal = new HashKey()
+            {
+                KeyObjType = Type(),
+                HashValue = Fn.GetHashCode() + FreeVariables.GetHashCode() + ObjType.Closure.GetHashCode()
+            };
+            return _hashVal.Value;
+        }
     }
 
     public class MonkeyCompiledFunction : IMonkeyObject, IMonkeyHash

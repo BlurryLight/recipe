@@ -7,7 +7,7 @@ namespace SharpMonkey.VM
 
     public class Frame
     {
-        public MonkeyCompiledFunction Fn;
+        public MonkeyClosure ClosureFn;
 
         public int Ip;
 
@@ -16,13 +16,13 @@ namespace SharpMonkey.VM
         // 在函数返回时清栈会清理所有函数相关的变量
         public int BasePointer;
 
-        public Frame(MonkeyCompiledFunction fn, int basePointer)
+        public Frame(MonkeyClosure closureFn, int basePointer)
         {
-            Fn = fn;
+            ClosureFn = closureFn;
             Ip = -1;
             BasePointer = basePointer;
         }
 
-        public Instructions Instructions => Fn.Instructions;
+        public Instructions Instructions => ClosureFn.Fn.Instructions;
     }
 }

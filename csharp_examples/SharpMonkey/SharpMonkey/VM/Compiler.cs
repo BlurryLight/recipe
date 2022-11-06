@@ -414,7 +414,11 @@ namespace SharpMonkey.VM
 #if DEBUG
                     compiledFunction.Source = exp.ToPrintableString();
 #endif
-                    Emit((byte) OpConstants.OpConstant, AddConstant(compiledFunction));
+                    // Emit((byte) OpConstants.OpConstant, AddConstant(compiledFunction));
+                    // 为了支持闭包，我们把所有函数都视作闭包，把普通函数视作闭包的一种无捕获的特殊情形
+                    // 指令替换为OpClosure
+                    var freeVariableNum = 0;
+                    Emit((byte) OpConstants.OpClosure, AddConstant(compiledFunction), freeVariableNum);
                     break;
                 case Ast.ReturnStatement stmt:
                     Compile(stmt.ReturnValue);

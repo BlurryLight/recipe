@@ -79,12 +79,14 @@ namespace SharpMonkeyTest
                 OpcodeUtils.MakeBytes(OpConstants.OpAdd),
                 OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
                 OpcodeUtils.MakeBytes(OpConstants.OpConstant, 65534),
+                OpcodeUtils.MakeBytes(OpConstants.OpClosure, 65534, 254),
                 OpcodeUtils.MakeBytes(OpConstants.OpPop),
             };
             var expected = $"0000 OpAdd NULL\n" +
                            $"0001 OpConstant 2\n" +
                            $"0004 OpConstant 65534\n" +
-                           $"0007 OpPop NULL\n";
+                           $"0007 OpClosure 65534 254\n" +
+                           $"0011 OpPop NULL\n";
             var concatted = concatInstructions(instructions);
             Assert.AreEqual(expected, OpcodeUtils.DecodeInstructions(concatted));
         }
@@ -732,7 +734,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -754,7 +756,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -776,7 +778,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -794,7 +796,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -822,7 +824,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpCall, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
@@ -843,7 +845,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpGetGlobal, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpCall, 0),
@@ -867,7 +869,7 @@ namespace SharpMonkeyTest
                 expectedInstructions = new List<Instructions>
                 {
                     // binding fn to obj
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
 
                     // push fn and 24
@@ -898,7 +900,7 @@ namespace SharpMonkeyTest
                 expectedInstructions = new List<Instructions>
                 {
                     // binding fn to obj
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpSetGlobal, 0),
 
                     // push fn and arg1,arg2,arg3
@@ -933,7 +935,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 1, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -960,7 +962,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 2, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
@@ -1009,7 +1011,7 @@ namespace SharpMonkeyTest
                 },
                 expectedInstructions = new List<Instructions>
                 {
-                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpClosure, 0, 0),
                     OpcodeUtils.MakeBytes(OpConstants.OpPop),
                 }
             };
