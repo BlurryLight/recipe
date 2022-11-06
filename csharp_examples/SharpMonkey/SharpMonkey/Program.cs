@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using SharpMonkey.VM;
 
 namespace SharpMonkey
 {
@@ -27,6 +28,7 @@ namespace SharpMonkey
                     }
                 }
 
+                /*
                 Environment env = new Environment();
                 var evaled = Evaluator.Eval(program, env);
                 if (evaled is MonkeyError)
@@ -34,7 +36,12 @@ namespace SharpMonkey
                     Console.WriteLine(evaled.Inspect());
                     return -1;
                 }
-
+                */
+                Console.WriteLine("We are in VM mode");
+                var compiler = new Compiler();
+                compiler.Compile(program);
+                var vm = new MonkeyVM(compiler.Bytecode());
+                vm.Run();
                 return 0;
             }
 

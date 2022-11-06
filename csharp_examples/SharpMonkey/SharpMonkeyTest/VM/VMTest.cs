@@ -374,5 +374,21 @@ namespace SharpMonkeyTest
             };
             RunVMTests(testTable);
         }
+
+        [Test]
+        public void TestClosures()
+        {
+            var testTable = new List<VMTestCase>
+            {
+                new() {Input = "let newClosure = fn(){ fn() { 99;}}; newClosure()();", Expected = 99},
+                new() {Input = "let newClosure = fn(a){ fn() { a + 99;}}; newClosure(1)();", Expected = 100},
+                new()
+                {
+                    Input = "let newClosure = fn(a){ fn(b) { fn(c) {a + b + c+ 100;}}}; newClosure(1)(2)(3);",
+                    Expected = 106
+                },
+            };
+            RunVMTests(testTable);
+        }
     }
 }

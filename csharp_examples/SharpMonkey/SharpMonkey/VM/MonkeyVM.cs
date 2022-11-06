@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace SharpMonkey.VM
 {
@@ -244,6 +245,11 @@ namespace SharpMonkey.VM
                         CurrentFrame().Ip += 3;
                         PushClosure(fnIndex, freeVarNum);
                         break;
+                    case OpConstants.OpGetFree:
+                        var freeIndex = (byte) ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        Push(CurrentFrame().ClosureFn.FreeVariables[freeIndex]);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
@@ -254,7 +260,13 @@ namespace SharpMonkey.VM
         {
             var fn = (MonkeyCompiledFunction) _constantsPool[fnIndex];
             // TODO: fill free variables
-            var closure = new MonkeyClosure() {Fn = fn};
+            var freeVars = new IMonkeyObject[freeVarNum];
+            for (int i = 0; i < freeVarNum; i++)
+            {
+                freeVars[i] = _stack[_sp - freeVarNum + i];
+            }
+
+            var closure = new MonkeyClosure() {Fn = fn, FreeVariables = freeVars.ToList()};
             Push(closure);
         }
 
