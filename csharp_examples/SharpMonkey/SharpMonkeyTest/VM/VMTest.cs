@@ -440,8 +440,19 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
+                // global
                 new() {Input = "let a = 1;let b = 2; a = b; a;", Expected = 2},
                 new() {Input = "let a = 1;let b = 2; a = b; b;", Expected = 2},
+                // local
+                new() {Input = "fn(){ let a = 2; a = 3; a;}();", Expected = 3},
+                new()
+                {
+                    Input = "fn(){ let a = 2; let b  = 4; b = a; a = a + b;[a,b];}();",
+                    Expected = new List<object> {4, 2}
+                },
+                // index
+                new() {Input = "let a = [1,2,3]; a[0] = 2;a", Expected = new List<object> {2, 2, 3}},
+                new() {Input = "let a = {1:2}; a[1] = 5;a[1]", Expected = 5}
             };
             RunVMTests(testTable);
         }

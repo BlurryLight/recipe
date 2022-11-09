@@ -263,10 +263,46 @@ namespace SharpMonkey.VM
                         // a=b;本身没有返回值，插入一个Null以平栈
                         Push(MonkeyNull.NullObject);
                         break;
+                    case OpConstants.OpAssignLocal:
+                        var localIndex = ins[i + 1];
+                        CurrentFrame().Ip += 1;
+                        _stack[CurrentFrame().BasePointer + localIndex] = Pop();
+                        Push(MonkeyNull.NullObject);
+                        break;
+                    case OpConstants.OpIndexSet:
+                        ExecuteIndexSet(ins, i);
+                        break;
                     default:
                         throw new NotImplementedException($"VM op {op.ToString()} not implemented!");
                 }
             }
+        }
+
+        private void ExecuteIndexSet(Instructions ins, int ip)
+        {
+            var value = Pop();
+            var index = Pop();
+            var left = Pop();
+            switch (left)
+            {
+                case MonkeyString:
+                    throw new Exception("String is immutable!");
+                case MonkeyArray arr when index is MonkeyInteger indexVal:
+                {
+                    arr.Elements[(int) indexVal.Value] = value;
+                    break;
+                }
+                case MonkeyMap map when index is IMonkeyHash hashIndex:
+                {
+                    map.Pairs[hashIndex.HashKey()] = new MonkeyMap.HashPairs() {KeyObj = index, ValueObj = value};
+                    break;
+                }
+
+                default:
+                    throw new Exception($"unsupported index assignment left type{left.Type()}: index: {index.Type()}");
+            }
+
+            Push(MonkeyNull.NullObject);
         }
 
         private void PushClosure(ushort fnIndex, byte freeVarNum)

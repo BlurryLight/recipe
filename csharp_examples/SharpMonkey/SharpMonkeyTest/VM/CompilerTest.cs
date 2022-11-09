@@ -483,6 +483,45 @@ namespace SharpMonkeyTest
             RunCompilerTests(testTable);
         }
 
+
+        [Test]
+        public void TestIndexAssignment()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = " [2][0] = 1;",
+                expectedConstants = new List<Object>() {2, 0, 1},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpArray, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpIndexSet),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop)
+                }
+            };
+            testTable.Add(newCase);
+
+            newCase = new CompilerTestCase
+            {
+                input = " \"str\"[0] = 1;", // will throw runtime error
+                expectedConstants = new List<Object>() {"str", 0, 1},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1),
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 2),
+                    OpcodeUtils.MakeBytes(OpConstants.OpIndexSet),
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop)
+                }
+            };
+            testTable.Add(newCase);
+
+            RunCompilerTests(testTable);
+        }
+
         [Test]
         public void TestAssignExpression()
         {

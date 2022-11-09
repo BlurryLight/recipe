@@ -475,6 +475,15 @@ namespace SharpMonkey.VM
                 return;
             }
 
+            if (exp.Name is Ast.IndexExpression idxExpression)
+            {
+                Compile(idxExpression.Left);
+                Compile(idxExpression.Index);
+                Compile(exp.Value);
+                Emit((byte) OpConstants.OpIndexSet);
+                return;
+            }
+
             throw new NotImplementedException();
         }
 

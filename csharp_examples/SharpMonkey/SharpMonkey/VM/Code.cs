@@ -58,6 +58,7 @@ namespace SharpMonkey.VM
 
         OpAssignGlobal,
         OpAssignLocal,
+        OpIndexSet,
     }
 
     public class Definition
@@ -139,6 +140,8 @@ namespace SharpMonkey.VM
                 (Opcode) OpConstants.OpAssignLocal,
                 new Definition(OpConstants.OpAssignLocal.ToString(), new List<int> {1})
             },
+
+            {(Opcode) OpConstants.OpIndexSet, new Definition(OpConstants.OpIndexSet.ToString(), new List<int> { })},
         };
 
         public static Definition Lookup(Opcode code)
