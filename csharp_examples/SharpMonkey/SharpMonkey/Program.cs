@@ -6,12 +6,26 @@ namespace SharpMonkey
 {
     class Program
     {
+        /*
+         */
         static int Main(string[] args)
         {
             Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs args)
             {
                 System.Environment.Exit(0);
             };
+
+            var helper = @"  Program.exe benchmark  // bench \n
+           Program.exe -e evaluator file // evaluator mode \n
+           Program.exe -e vm file // vm mode \n
+           Program.exe -e evaluator // evaluator repl \n
+           Program.exe -e vm // vm repl \n
+           Program.exe file // vm mode\n";
+            if (args.Length > 3)
+            {
+                Console.WriteLine(helper);
+                return 0;
+            }
 
             // benchmark
             if (args.Length == 1 && args[0] == "benchmark")
@@ -20,12 +34,9 @@ namespace SharpMonkey
                 return 0;
             }
 
-            // C#的Args[0]不是程序名，程序名需要用下面一行取得。
-            // C#的args从参数直接开始
-            // Environment.GetCommandLineArgs()[0];
-            if (args.Length == 1)
+            if (args.Length == 1 || (args.Length == 3 && args[0] == "-e" && args[1] == "vm"))
             {
-                string scriptContent = File.ReadAllText(args[0]);
+                string scriptContent = File.ReadAllText(args[^1]);
                 Parser parser = new Parser(new Lexer(scriptContent));
                 var program = parser.ParseProgram();
                 if (parser.Errors.Count > 0)
@@ -44,8 +55,33 @@ namespace SharpMonkey
                 return 0;
             }
 
-            // REPL mode
 
+            if ((args.Length == 3 && args[0] == "-e" && args[1] == "evaluator"))
+            {
+                Console.WriteLine("We are in Evaluator mode");
+                string scriptContent = File.ReadAllText(args[^1]);
+                Parser parser = new Parser(new Lexer(scriptContent));
+                var program = parser.ParseProgram();
+                if (parser.Errors.Count > 0)
+                {
+                    foreach (var msg in parser.Errors)
+                    {
+                        Console.WriteLine(msg);
+                    }
+                }
+
+                Environment env = new Environment();
+                var evaled = Evaluator.Eval(program, env);
+                if (evaled is MonkeyError)
+                {
+                    Console.WriteLine(evaled.Inspect());
+                    return -1;
+                }
+
+                return 0;
+            }
+
+            // REPL mode
             // -e evaluator
             if (args.Length == 2)
             {
@@ -53,12 +89,13 @@ namespace SharpMonkey
                 {
                     Repl.UseVm = false;
                 }
+
+                Console.WriteLine("Welcome to monkey");
+                Console.WriteLine("Feel free to type commands");
+                Console.WriteLine($"You are in mode {(Repl.UseVm ? "VM" : "Evaluator")} ");
+                Repl.Start();
             }
 
-            Console.WriteLine("Welcome to monkey");
-            Console.WriteLine("Feel free to type commands");
-            Console.WriteLine($"You are in mode {(Repl.UseVm ? "VM" : "Evaluator")} ");
-            Repl.Start();
             return 0;
         }
 

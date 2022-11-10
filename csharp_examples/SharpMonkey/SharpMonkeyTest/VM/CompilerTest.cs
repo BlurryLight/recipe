@@ -548,6 +548,30 @@ namespace SharpMonkeyTest
         }
 
         [Test]
+        public void TestWhileExpression()
+        {
+            var testTable = new List<CompilerTestCase>();
+            var newCase = new CompilerTestCase
+            {
+                input = "while(1){2;};",
+                expectedConstants = new List<Object>() {1, 2},
+                expectedInstructions = new List<Instructions>
+                {
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 0), // 0000
+                    OpcodeUtils.MakeBytes(OpConstants.OpJumpNotTruthy, 13), // 0003
+                    OpcodeUtils.MakeBytes(OpConstants.OpConstant, 1), // 0006
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0009
+                    OpcodeUtils.MakeBytes(OpConstants.OpJump, 0), // 0010
+                    OpcodeUtils.MakeBytes(OpConstants.OpNull), //0013
+                    OpcodeUtils.MakeBytes(OpConstants.OpPop), // 0014
+                }
+            };
+
+            testTable.Add(newCase);
+            RunCompilerTests(testTable);
+        }
+
+        [Test]
         public void TestGlobalLetStatements()
         {
             var testTable = new List<CompilerTestCase>();

@@ -102,14 +102,26 @@ namespace SharpMonkey.VM
         public Symbol Define(string name)
         {
             Symbol s = new Symbol(name, _scope, NumDefinitions++);
-            _store[name] = s;
+            // _store[name] = s;
+            if (_store.TryGetValue(name, out var oldSymbol))
+            {
+                if (oldSymbol.Scope == SymbolScope.Function)
+                {
+                    // 允许shadow 函数名字，其他的不行
+                    _store[name] = s;
+                    return s;
+                }
+            }
+
+            _store.Add(name, s);
             return s;
         }
 
         public Symbol DefineFunctionName(string name)
         {
             Symbol s = new Symbol(name, SymbolScope.Function, NumDefinitions);
-            _store[name] = s;
+            // _store[name] = s;
+            _store.Add(name, s);
             return s;
         }
 

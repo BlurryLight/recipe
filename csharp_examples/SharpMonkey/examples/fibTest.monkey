@@ -14,8 +14,8 @@ let fib = fn(n)
     return q;
 };
 
-let i = 0;
-while(i < 20)
-{
-    puts(fib(i++));
-}
+puts(fib(1)); // 1
+puts(fib(2)); // 1
+puts(fib(3)); // 2
+puts(fib(4)); // 3
+puts(fib(5)); // 5

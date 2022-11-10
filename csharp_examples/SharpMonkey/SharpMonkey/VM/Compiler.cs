@@ -322,6 +322,9 @@ namespace SharpMonkey.VM
                 case Ast.ConditionalExpression exp:
                     CompileConditionExpression(exp);
                     break;
+                case Ast.WhileExpression exp:
+                    CompileWhileExpression(exp);
+                    break;
                 case Ast.BlockStatement stmts:
                     foreach (var stmt in stmts.Statements)
                     {
@@ -509,6 +512,23 @@ namespace SharpMonkey.VM
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+
+        private void CompileWhileExpression(Ast.WhileExpression exp)
+        {
+            // 见单元测试
+            var beginPos = CurrentInstructions().Count;
+            Compile(exp.Condition);
+            var jumpConsequencePlaceholder =
+                Emit((byte) OpConstants.OpJumpNotTruthy,
+                    54321);
+            Compile(exp.Body);
+            Emit((byte) OpConstants.OpJump,
+                beginPos);
+            var jumpOutPos = CurrentInstructions().Count;
+            ChangeOperand(jumpConsequencePlaceholder, jumpOutPos);
+            Emit((byte) OpConstants.OpNull);
         }
 
         private void CompileIfExpression(Ast.IfExpression exp)

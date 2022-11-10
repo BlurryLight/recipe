@@ -400,25 +400,41 @@ namespace SharpMonkey.VM
 
         private void ExecutePostfixOperation(OpConstants op)
         {
-            var val = Pop();
-            switch (val)
+            var oldVal = _stack[_sp - 1];
+            IMonkeyObject res = null;
+            switch (oldVal)
             {
                 case MonkeyInteger intVal:
                 {
-                    var oldVal = new MonkeyInteger(intVal.Value);
-                    intVal.Value += (op == OpConstants.OpDecrement) ? -1 : 1;
-                    Push(oldVal);
+                    var newVal = new MonkeyInteger(intVal.Value);
+                    newVal.Value += (op == OpConstants.OpDecrement) ? -1 : 1;
+                    res = newVal;
                     break;
                 }
                 case MonkeyDouble doubleVal:
                 {
-                    var oldVal = new MonkeyDouble(doubleVal.Value);
-                    doubleVal.Value += (op == OpConstants.OpDecrement) ? -1 : 1;
-                    Push(oldVal);
+                    var newVal = new MonkeyDouble(doubleVal.Value);
+                    newVal.Value += (op == OpConstants.OpDecrement) ? -1 : 1;
+                    res = newVal;
                     break;
                 }
                 default:
-                    throw new NotImplementedException($"Post op {val.Type()}{op.ToString()} not implemented!");
+                    throw new NotImplementedException($"Post op {oldVal.Type()}{op.ToString()} not implemented!");
+            }
+
+            // 回到上一条指令的开始
+            var ins = CurrentFrame().Instructions;
+            var ip = CurrentFrame().Ip - 1;
+            if (ins[ip - 3] == (byte) OpConstants.OpGetGlobal)
+            {
+                var index = OpcodeUtils.ReadUint16(ins, ip - 2);
+                Globals[index] = res;
+            }
+
+            if (ins[ip - 2] == (byte) OpConstants.OpGetLocal)
+            {
+                var index = ins[ip - 1];
+                _stack[CurrentFrame().BasePointer + index] = res;
             }
         }
 
@@ -432,17 +448,19 @@ namespace SharpMonkey.VM
                 case OpConstants.OpMinus:
                     ExecutePrefixMinusOperation();
                     break;
-                case OpConstants.OpIncrement:
-                case OpConstants.OpDecrement:
-                    if (_stack[_sp - 1] is MonkeyInteger iVal)
-                    {
-                        iVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
-                    }
-
-                    if (_stack[_sp - 1] is MonkeyDouble dVal)
-                    {
-                        dVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
-                    }
+                    // case OpConstants.OpIncrement:
+                    // case OpConstants.OpDecrement:
+                    //     if (_stack[_sp - 1] is MonkeyInteger iVal)
+                    //     {
+                    //         // iVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
+                    //         _stack[_sp - 1] = new MonkeyInteger(iVal.Value + (op == OpConstants.OpDecrement ? -1 : 1));
+                    //     }
+                    //
+                    //     if (_stack[_sp - 1] is MonkeyDouble dVal)
+                    //     {
+                    //         // dVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
+                    //         _stack[_sp - 1] = new MonkeyDouble(dVal.Value + (op == OpConstants.OpDecrement ? -1 : 1));
+                    //     }
 
                     break;
             }

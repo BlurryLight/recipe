@@ -5,9 +5,9 @@ Learning interpreter from <https://interpreterbook.com/>.
 Monkey是一个偏向函数式的教学语言，用递归代替了循环，支持高阶函数、闭包、不可变内建数据结构和函数是第一类值等特性。
 根据个人习惯额外补充了一些特性。
 
-- 逻辑与/或 && || 
-- while循环
--  函数/while内层Block定义的变量不会覆盖外层的值
+- 逻辑与/或 && ||
+- while循环(不包含break)
+- 函数/while内层Block定义的变量不会覆盖外层的值
 - 三目条件表达式 `condition ? {then} : {else}`
 - 前后自增符 `++i`,`i++`
 - 浮点数Double及其运算符支持以及向Bool的转换

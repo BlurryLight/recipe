@@ -206,7 +206,7 @@ namespace SharpMonkeyTest
         [Test]
         public void TestComments()
         {
-            var input = "// let a = 1;\n  let b = 1;";
+            var input = "\n//let a = 1;\n  let b = 1;//while(a < 2)\n";
             var expectedTokens = new List<Token>()
             {
                 new Token(Constants.Let, "let"),
