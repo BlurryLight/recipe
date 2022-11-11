@@ -94,9 +94,25 @@ namespace SharpMonkeyTest
                 var vm = new MonkeyVM(comp.Bytecode());
                 vm.Run();
                 var stackTop = vm.LastPoppedStackElem();
-                TestExpectedObject(testCase.Expected, stackTop);
-                // 确认已经清栈
-                Assert.IsNull(vm.StackTop());
+                try
+                {
+                    TestExpectedObject(testCase.Expected, stackTop);
+                    // 确认已经清栈
+                    Assert.IsNull(vm.StackTop());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(testCase.Input);
+                    Console.WriteLine(">> consts");
+                    foreach (var i in comp.Bytecode().Constants)
+                    {
+                        Console.WriteLine(i.Inspect());
+                    }
+
+                    Console.WriteLine("<< consts");
+                    Console.WriteLine(OpcodeUtils.DecodeInstructions(comp.Bytecode().Instructions));
+                    throw;
+                }
             }
         }
 
@@ -213,18 +229,20 @@ namespace SharpMonkeyTest
                 new() {Input = "let a = 1; a", Expected = 1},
                 new() {Input = "let a = 1; let b = a + 1; b", Expected = 2},
                 new() {Input = "let a = 1; let b = 3; a + b;", Expected = 4},
-                // new() {Input = "let a = 1; a++;", Expected = 1},
-                // new() {Input = "let a = 1; a++;a;", Expected = 2},
-                // new() {Input = "let a = 1; ++a;", Expected = 2},
-                // new() {Input = "let a = 1; ++a;a", Expected = 2},
-                // new() {Input = "let a = 1; --(++a);", Expected = 1},
-                // new() {Input = "let a = 1; --(++a);a", Expected = 1},
-
+                new() {Input = "let a = 1; a++;", Expected = 1},
+                new() {Input = "let a = 1; a++;a;", Expected = 2},
+                new() {Input = "let a = 1; ++a;", Expected = 2},
+                new() {Input = "let a = 1; ++a;a", Expected = 2},
                 // test increment
                 new() {Input = "fn(){ let i = 1; i++; [1,i]}();", Expected = new List<object> {1, 2}},
                 new() {Input = "let i = 1;i++;[1,i];", Expected = new List<object> {1, 2}},
-                // new() {Input = "fn(){ let i = 1; i--; [1,i]}();",Expected = new List<object>{1,0}},
-                // new() {Input = "let i = 1;i--;[1,i];",Expected = new List<object>{1,0}},
+                new() {Input = "fn(){ let i = 1; i--; [1,i]}();", Expected = new List<object> {1, 0}},
+                new() {Input = "let i = 1;i--;[1,i];", Expected = new List<object> {1, 0}},
+
+                new() {Input = "fn(){ let i = 1; ++i; [1,i]}();", Expected = new List<object> {1, 2}},
+                new() {Input = "let i = 1;++i;[1,i];", Expected = new List<object> {1, 2}},
+                new() {Input = "fn(){ let i = 1; --i; [1,i]}();", Expected = new List<object> {1, 0}},
+                new() {Input = "let i = 1;--i;[1,i];", Expected = new List<object> {1, 0}},
             };
             RunVMTests(testTable);
         }
@@ -469,10 +487,14 @@ namespace SharpMonkeyTest
         {
             var testTable = new List<VMTestCase>
             {
-                // new() {Input = "let a = 5;let i = 0;while(a--){i++;};i", Expected = 5},
-                // new() {Input = "let a = 1;while(a < 5){a++;};a;", Expected = 5},
-                // // new() {Input = "let a = 1;while(true){ a++;if(a > 5) {return 100;}};", Expected = 100},
-                // new() {Input = "let a = 1;let i = 0;while(i<1){ i++;a = 5;};a;", Expected = 5},
+                new() {Input = "let a = 5;let i = 0;while(a--){i++;};i", Expected = 5},
+                // new()
+                // {
+                //     Input = "let a = 5;let b  = 3;let i = 1;while(i--){let a = 1;a  = 2; b = a;puts(a);}; b",
+                //     Expected = new List<object> {5, 2}
+                // },
+                new() {Input = "let a = 1;while(a < 5){a++;};a;", Expected = 5},
+                new() {Input = "let a = 1;let i = 0;while(i<1){ i++;a = 5;};a;", Expected = 5},
                 new()
                 {
                     Input =

@@ -19,3 +19,11 @@ puts(fib(2)); // 1
 puts(fib(3)); // 2
 puts(fib(4)); // 3
 puts(fib(5)); // 5
+
+puts("\n");
+puts("Loop test");
+let i = 0;
+while(i++ < 20)
+{
+    puts(fib(i));
+}

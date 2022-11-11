@@ -148,15 +148,7 @@ namespace SharpMonkey.VM
                     case OpConstants.OpDecrement:
                         var bPrefix = ins[i + 1];
                         CurrentFrame().Ip += 1;
-                        if (bPrefix == OpcodeUtils.OP_INCREMENT_PREFIX)
-                        {
-                            ExecutePrefixOperation(op);
-                        }
-                        else
-                        {
-                            ExecutePostfixOperation(op);
-                        }
-
+                        ExecuteSelfIncrementOperation(op, bPrefix == OpcodeUtils.OP_INCREMENT_PREFIX);
                         break;
                     case OpConstants.OpJump:
                         var jumpPos = OpcodeUtils.ReadUint16(ins, i + 1);
@@ -308,7 +300,6 @@ namespace SharpMonkey.VM
         private void PushClosure(ushort fnIndex, byte freeVarNum)
         {
             var fn = (MonkeyCompiledFunction) _constantsPool[fnIndex];
-            // TODO: fill free variables
             var freeVars = new IMonkeyObject[freeVarNum];
             for (int i = 0; i < freeVarNum; i++)
             {
@@ -398,7 +389,7 @@ namespace SharpMonkey.VM
             Push(monkeyArray);
         }
 
-        private void ExecutePostfixOperation(OpConstants op)
+        private void ExecuteSelfIncrementOperation(OpConstants op, bool bPrefix)
         {
             var oldVal = _stack[_sp - 1];
             IMonkeyObject res = null;
@@ -420,6 +411,11 @@ namespace SharpMonkey.VM
                 }
                 default:
                     throw new NotImplementedException($"Post op {oldVal.Type()}{op.ToString()} not implemented!");
+            }
+
+            if (bPrefix)
+            {
+                _stack[_sp - 1] = res;
             }
 
             // 回到上一条指令的开始
@@ -448,23 +444,9 @@ namespace SharpMonkey.VM
                 case OpConstants.OpMinus:
                     ExecutePrefixMinusOperation();
                     break;
-                    // case OpConstants.OpIncrement:
-                    // case OpConstants.OpDecrement:
-                    //     if (_stack[_sp - 1] is MonkeyInteger iVal)
-                    //     {
-                    //         // iVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
-                    //         _stack[_sp - 1] = new MonkeyInteger(iVal.Value + (op == OpConstants.OpDecrement ? -1 : 1));
-                    //     }
-                    //
-                    //     if (_stack[_sp - 1] is MonkeyDouble dVal)
-                    //     {
-                    //         // dVal.Value += op == OpConstants.OpDecrement ? -1 : 1;
-                    //         _stack[_sp - 1] = new MonkeyDouble(dVal.Value + (op == OpConstants.OpDecrement ? -1 : 1));
-                    //     }
-
-                    break;
             }
         }
+
 
         private void ExecutePrefixMinusOperation()
         {

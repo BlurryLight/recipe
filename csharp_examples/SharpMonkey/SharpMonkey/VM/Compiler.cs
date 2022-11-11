@@ -517,6 +517,7 @@ namespace SharpMonkey.VM
 
         private void CompileWhileExpression(Ast.WhileExpression exp)
         {
+            // CurSymbolTable = new SymbolTable(CurSymbolTable, SymbolScope.Local);
             // 见单元测试
             var beginPos = CurrentInstructions().Count;
             Compile(exp.Condition);
@@ -529,6 +530,7 @@ namespace SharpMonkey.VM
             var jumpOutPos = CurrentInstructions().Count;
             ChangeOperand(jumpConsequencePlaceholder, jumpOutPos);
             Emit((byte) OpConstants.OpNull);
+            // CurSymbolTable = CurSymbolTable.Outer;
         }
 
         private void CompileIfExpression(Ast.IfExpression exp)

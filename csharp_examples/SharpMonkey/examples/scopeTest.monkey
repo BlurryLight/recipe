@@ -10,15 +10,6 @@ puts(sum_five(6));
 puts(sum_five(7));
 
 
-let i = 0;
-let b = 10;
-while(i < 3)
-{
-    let b = 20;
-    puts("inner b:",b + i++)
-}
-puts("old b:",b)
-
 
 let c = 10;
 puts("outer c before:", fn(){c;}());
