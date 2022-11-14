@@ -3,8 +3,11 @@
 //
 
 
-#ifndef DXWINDOW_D3DAPP_HH
-#define DXWINDOW_D3DAPP_HH
+#pragma once
+#if defined(DEBUG) || defined(_DEBUG)
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
 
 // clang-format off
 #include "defines.h"
@@ -13,6 +16,7 @@
 #include <string>
 
 namespace PD {
+    using Microsoft::WRL::ComPtr;
     class D3DApp : public Noncopyable {
         //    protected:
     public:
@@ -40,7 +44,7 @@ namespace PD {
         virtual void OnMouseMoveCallback(WPARAM btnState, int x, int y) {}
 
         bool InitMainWindow();
-        bool initDirect3D() { return true; }
+        bool initDirect3D();
 
 
     protected:
@@ -59,7 +63,14 @@ namespace PD {
         std::wstring AppWindowTitle_ = L"d3d test";
         int width_ = 800;
         int height_ = 600;
+
+        // DX12
+        ComPtr<IDXGIFactory4> mDxgiFactory;
+        ComPtr<IDXGISwapChain> mSwapChain;
+        ComPtr<ID3D12Device> mD3dDevice;
+        ComPtr<ID3D12Fence> mFence;
+        uint64_t mCurrentFence = 0;
+
     };
 }// namespace PD
 
-#endif// DXWINDOW_D3DAPP_HH

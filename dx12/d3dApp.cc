@@ -4,8 +4,14 @@
 
 #include "d3dApp.hh"
 #include <cassert>
+#include <iostream>
 #include <windowsx.h>
+
+using Microsoft::WRL::ComPtr;
+using namespace std;
+using namespace DirectX;
 using namespace PD;
+
 D3DApp *D3DApp::D3DApp_ = nullptr;
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return D3DApp::GetD3dDApp()->AppMessageProc(hwnd, uMsg, wParam, lParam);
@@ -222,4 +228,35 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
     }
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+bool PD::D3DApp::initDirect3D() {
+#if defined(DEBUG) | defined(_DEBUG)
+    ComPtr<ID3D12Debug> debugController = nullptr;
+    // 通过COM查询最新的接口实现并填充进去
+    ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+    assert(debugController.Get());
+    debugController->EnableDebugLayer();
+#endif
+    // https://learn.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-devices-enum
+    // For Direct3D 11.0 and later, we recommend that apps always use IDXGIFactory1 and CreateDXGIFactory1 instead.
+    HR(CreateDXGIFactory1(IID_PPV_ARGS(&mDxgiFactory)));
+    {
+        ComPtr<IDXGIAdapter> pAdapter = nullptr;
+        DXGI_ADAPTER_DESC adapterDesc;
+        for (UINT i = 0;
+             mDxgiFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND;
+             ++i) {
+            pAdapter->GetDesc(&adapterDesc);
+            std::wcout << "Avaliable Adapter: " << std::wstring(adapterDesc.Description) << std::endl;
+        }
+    }
+
+    HR(D3D12CreateDevice(
+            nullptr,// default adapter
+            D3D_FEATURE_LEVEL_11_0,
+            IID_PPV_ARGS(&mD3dDevice)));
+
+    HR(mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
+    return true;
 }
