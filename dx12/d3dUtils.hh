@@ -37,7 +37,7 @@ namespace PD {
 #define HR_RETURN(op)                                 \
     do {                                              \
         HRESULT hr__ = (op);                          \
-        if (FAILED(hr__ = (op))) {                    \
+        if (FAILED(hr__) {                    \
             DxTrace(__FILEW__, __LINE__, hr__, L#op); \
             return false;                             \
         }                                             \
@@ -46,7 +46,7 @@ namespace PD {
 #define HR(op)                                        \
     do {                                              \
         HRESULT hr__ = (op);                          \
-        if (FAILED(hr__ = (op))) {                    \
+        if (FAILED(hr__)) {                    \
             DxTrace(__FILEW__, __LINE__, hr__, L#op); \
             assert(0);                                \
         }                                             \

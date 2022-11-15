@@ -47,6 +47,8 @@ namespace PD {
         bool initDirect3D();
         bool CheckMSAASupport(DXGI_FORMAT format,int SampleConut);
 
+        void CreateCommandObjects();
+
 
     protected:
         static D3DApp *D3DApp_;
@@ -78,6 +80,9 @@ namespace PD {
         uint32_t mDsvDescriptorSize = 0;
         uint32_t mCbvSrvUavDescriptorSize = 0;
 
+        ComPtr<ID3D12CommandQueue> mCommandQueue;
+        ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
+        ComPtr<ID3D12GraphicsCommandList> mCommandList;
     };
 }// namespace PD
 

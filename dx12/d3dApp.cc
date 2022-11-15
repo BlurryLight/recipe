@@ -257,7 +257,7 @@ bool PD::D3DApp::initDirect3D() {
     }
 
     HR(D3D12CreateDevice(
-            pAdapter.Get(),
+            nullptr,
             D3D_FEATURE_LEVEL_11_0,
             IID_PPV_ARGS(&mD3dDevice)));
 
@@ -270,6 +270,8 @@ bool PD::D3DApp::initDirect3D() {
 
     // 检查是否支持MSAA
     assert(CheckMSAASupport(mBackBufferFormat, 4));
+
+    CreateCommandObjects();
     return true;
 }
 
@@ -294,4 +296,16 @@ bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format,int SampleConut)
     // 这个数字可以用在 DXGI_SAMPLE_DESC.Quality = NumQualitiLevels - 1;上
     // 但是这个值也许没有用了。。GTX 3080返回NumQualitiLevels = 1
 
+}
+
+void PD::D3DApp::CreateCommandObjects()
+{
+    D3D12_COMMAND_QUEUE_DESC Desc{};
+    Desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+    Desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+    HR(mD3dDevice->CreateCommandQueue(&Desc, IID_PPV_ARGS(&mCommandQueue)));
+    HR(mD3dDevice->CreateCommandAllocator(Desc.Type, IID_PPV_ARGS(&mDirectCmdListAlloc)));
+    HR(mD3dDevice->CreateCommandList(0, Desc.Type, mDirectCmdListAlloc.Get(), nullptr, 
+    IID_PPV_ARGS(&mCommandList)));
+    HR(mCommandList->Close());
 }
