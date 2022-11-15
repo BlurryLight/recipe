@@ -274,9 +274,9 @@ bool D3DApp::InitDirect3D() {
     std::cout << "Feature Level: other" << std::endl;
   }
 
-  SwapChain.As(&pSwapChain_);
-  d3dDevice.As(&pd3dDevice_);
-  d3dDeviceIMContext.As(&pd3dDeviceIMContext_);
+  HR(SwapChain.As(&pSwapChain_));
+  HR(d3dDevice.As(&pd3dDevice_));
+  HR(d3dDeviceIMContext.As(&pd3dDeviceIMContext_));
 
   D3D11_DEPTH_STENCIL_DESC dsDesc = CD3D11_DEPTH_STENCIL_DESC(D3D11_DEFAULT);
   HR(pd3dDevice_->CreateDepthStencilState(

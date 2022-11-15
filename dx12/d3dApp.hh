@@ -45,6 +45,7 @@ namespace PD {
 
         bool InitMainWindow();
         bool initDirect3D();
+        bool CheckMSAASupport(DXGI_FORMAT format,int SampleConut);
 
 
     protected:
@@ -69,7 +70,13 @@ namespace PD {
         ComPtr<IDXGISwapChain> mSwapChain;
         ComPtr<ID3D12Device> mD3dDevice;
         ComPtr<ID3D12Fence> mFence;
+
+        DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
         uint64_t mCurrentFence = 0;
+        uint32_t mRtvDescriptorSize = 0;
+        uint32_t mDsvDescriptorSize = 0;
+        uint32_t mCbvSrvUavDescriptorSize = 0;
 
     };
 }// namespace PD

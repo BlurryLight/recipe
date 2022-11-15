@@ -17,8 +17,9 @@
 		{
 			"type": "shell",
 			"problemMatcher": [],
-			"command": "ts-node",
+			"command": "npx",
 			"args": [
+				"ts-node",
 				"${file}"
 			],
 			"label": "ts-node"

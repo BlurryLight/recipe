@@ -240,23 +240,58 @@ bool PD::D3DApp::initDirect3D() {
 #endif
     // https://learn.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-devices-enum
     // For Direct3D 11.0 and later, we recommend that apps always use IDXGIFactory1 and CreateDXGIFactory1 instead.
+
+    ComPtr<IDXGIAdapter> pAdapter = nullptr;
     HR(CreateDXGIFactory1(IID_PPV_ARGS(&mDxgiFactory)));
     {
-        ComPtr<IDXGIAdapter> pAdapter = nullptr;
         DXGI_ADAPTER_DESC adapterDesc;
         for (UINT i = 0;
-             mDxgiFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND;
+             SUCCEEDED(mDxgiFactory->EnumAdapters(i, &pAdapter));
              ++i) {
             pAdapter->GetDesc(&adapterDesc);
+            if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
+                 continue; // Skip Microsoft Basic Render Driver
             std::wcout << "Avaliable Adapter: " << std::wstring(adapterDesc.Description) << std::endl;
+            break;
         }
     }
 
     HR(D3D12CreateDevice(
-            nullptr,// default adapter
+            pAdapter.Get(),
             D3D_FEATURE_LEVEL_11_0,
             IID_PPV_ARGS(&mD3dDevice)));
 
+
     HR(mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
+
+    mRtvDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	mDsvDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	mCbvSrvUavDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // 检查是否支持MSAA
+    assert(CheckMSAASupport(mBackBufferFormat, 4));
     return true;
+}
+
+bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format,int SampleConut)
+{
+    // https://zhuanlan.zhihu.com/p/263101710
+    D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+	msQualityLevels.Format = format;
+	msQualityLevels.SampleCount = SampleConut;
+	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	msQualityLevels.NumQualityLevels = 0;
+	ThrowIfFailed(mD3dDevice->CheckFeatureSupport(
+		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+		&msQualityLevels,
+		sizeof(msQualityLevels)));
+
+    return msQualityLevels.NumQualityLevels > 0;
+    // https://learn.microsoft.com/en-us/windows/win32/api/dxgicommon/ns-dxgicommon-dxgi_sample_desc
+    // NumQualitiLevels > 0 代表支持在该format和sample count 下 MSAA
+    // 对于DX11以上设备，所有格式都支持4x msaa
+    // 对于返回的NumQualitiLevels，其代表显卡支持的不同算法。Quality数值越高，其耗费越多
+    // 这个数字可以用在 DXGI_SAMPLE_DESC.Quality = NumQualitiLevels - 1;上
+    // 但是这个值也许没有用了。。GTX 3080返回NumQualitiLevels = 1
+
 }
