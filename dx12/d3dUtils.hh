@@ -12,6 +12,7 @@
 #include <dxgi1_4.h>
 #include <windows.h>
 #include <wrl.h>
+#include "d3dx12.h"
 
 namespace PD {
 

@@ -6,6 +6,7 @@
 #include <cassert>
 #include <iostream>
 #include <windowsx.h>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 using namespace std;
@@ -41,18 +42,13 @@ D3DApp::D3DApp(HINSTANCE hinstance) : hinstance_(hinstance) {
     assert(!D3DApp_);
     D3DApp_ = this;
 }
-D3DApp::~D3DApp() {
-}
+D3DApp::~D3DApp() {}
 HWND D3DApp::GetHMND() const {
     assert(hMainWindow_);
     return hMainWindow_;
 }
-float D3DApp::GetAspectRatio() const {
-    return (float) width_ / (float) (height_);
-}
-bool D3DApp::GetMSAAState() const {
-    return AppMSAA_;
-}
+float D3DApp::GetAspectRatio() const { return (float) width_ / (float) (height_); }
+bool D3DApp::GetMSAAState() const { return AppMSAA_; }
 bool D3DApp::SetMSAAState(bool val) {
     auto old = AppMSAA_;
     AppMSAA_ = val;
@@ -65,6 +61,87 @@ bool D3DApp::Initialize() {
     return true;
 }
 void D3DApp::OnResizeCallback() {
+    assert(mD3dDevice);
+    assert(mSwapChain);
+    assert(mDirectCmdListAlloc);
+
+    FlushCommandQueue();
+
+    // reset all SwapChain related resource
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+    for(auto& SWBuffer : mSwapChainBuffer)
+    {
+        SWBuffer.Reset();
+    }
+    mDepthStencilBuffer.Reset();
+
+    // recreate swapchain or first creat
+    HR(mSwapChain->ResizeBuffers(kSwapChainBufferCount, width_, height_, mBackBufferFormat,
+                                 DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+
+    mCurrBackBuffer = 0;
+    // SwapChain创建完以后只是单纯的Buffer
+    // 要把Buffer创建RTV，并绑定到Device上
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+    for(int i  =0 ;i < kSwapChainBufferCount;i++)
+    {
+        // 使得mSwapChainBuffer[i]的指针指向SwapChain内的Buffer
+        HR(mSwapChain->GetBuffer(i,IID_PPV_ARGS(&mSwapChainBuffer[i])));
+        // 由于rtvHeapHandle不是指针，所以不用传 &rtvHeapHandle
+        // 这里实际含义与指针差不多: 修改rtvHeapHandle的指向到新建的RtvView
+        mD3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
+        rtvHeapHandle.Offset(1, mRtvDescriptorSize);
+    }
+
+    // depth buffer 没有在交换链里，所以在这里手动创建纹理资源
+
+    D3D12_RESOURCE_DESC depthStencilDesc;
+    depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    depthStencilDesc.Alignment = 0;
+    depthStencilDesc.Width = width_;
+    depthStencilDesc.Height = height_;
+    depthStencilDesc.DepthOrArraySize = 1;
+    depthStencilDesc.MipLevels = 1;
+    // depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // TODO: 研究不同的
+    depthStencilDesc.Format = mDepthStencilFormat;
+    depthStencilDesc.SampleDesc.Count = AppMSAA_ ? 4 : 1;
+    depthStencilDesc.SampleDesc.Quality = 0;
+    depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    D3D12_CLEAR_VALUE optClear;
+    optClear.Format = mDepthStencilFormat;
+    optClear.DepthStencil.Depth = 1.0f;
+    optClear.DepthStencil.Stencil = 0;
+    // HeapProperty 指明了我们需要在GPU的哪个Heap上创建资源。 Default代表只在GPU上使用，UpLoad/ReadBack顾名思义
+    CD3DX12_HEAP_PROPERTIES heapPp(D3D12_HEAP_TYPE_DEFAULT);
+    HR(mD3dDevice->CreateCommittedResource(&heapPp, D3D12_HEAP_FLAG_NONE,
+                                           &depthStencilDesc, D3D12_RESOURCE_STATE_COMMON, &optClear,
+                                           IID_PPV_ARGS(&mDepthStencilBuffer)));
+    //  创建了纹理后还需要创建对应的View以绑定到pipeline上
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Format = mDepthStencilFormat;
+    dsvDesc.Texture2D.MipSlice = 0; // only one mip
+    mD3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
+
+    // 用Common创建然后转为可写状态
+    auto DepthBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON,
+                                                              D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    mCommandList->ResourceBarrier(1, &DepthBarrier);
+
+    //cmdlist停止记录
+    HR(mCommandList->Close());
+    std::vector<ID3D12CommandList*> cmdLists{mCommandList.Get()};
+    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
+    
+    // 提交cmdlist后，CPU等待GPU
+    FlushCommandQueue();
+
+    // TODO: viewport
+
 }
 bool D3DApp::InitMainWindow() {
     // Register the window class.
@@ -86,19 +163,18 @@ bool D3DApp::InitMainWindow() {
 
     // Create the window.
 
-    HWND hwnd = CreateWindowEx(
-            0,                      // Optional window styles.
-            CLASS_NAME,             // Window class
-            AppWindowTitle_.c_str(),// Window text
-            WS_OVERLAPPEDWINDOW,    // Window style
+    HWND hwnd = CreateWindowEx(0,                      // Optional window styles.
+                               CLASS_NAME,             // Window class
+                               AppWindowTitle_.c_str(),// Window text
+                               WS_OVERLAPPEDWINDOW,    // Window style
 
-            // Size and position
-            CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+                               // Size and position
+                               CW_USEDEFAULT, CW_USEDEFAULT, width, height,
 
-            nullptr,   // Parent window
-            nullptr,   // Menu
-            hinstance_,// Instance handle
-            nullptr    // Additional application data
+                               nullptr,   // Parent window
+                               nullptr,   // Menu
+                               hinstance_,// Instance handle
+                               nullptr    // Additional application data
     );
 
     if (hwnd == nullptr) {
@@ -250,23 +326,17 @@ bool PD::D3DApp::initDirect3D() {
     HR(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&mDxgiFactory)));
     {
         DXGI_ADAPTER_DESC1 adapterDesc;
-        for (UINT i = 0;
-             SUCCEEDED(mDxgiFactory->EnumAdapters1(i, &pAdapter));
-             ++i) {
+        for (UINT i = 0; SUCCEEDED(mDxgiFactory->EnumAdapters1(i, &pAdapter)); ++i) {
             pAdapter->GetDesc1(&adapterDesc);
             // old method
             // if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
-            if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-                continue;// Skip Microsoft Basic Render Driver
+            if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;// Skip Microsoft Basic Render Driver
             std::wcout << "Avaliable Adapter: " << std::wstring(adapterDesc.Description) << std::endl;
             break;
         }
     }
 
-    HR(D3D12CreateDevice(
-            nullptr,
-            D3D_FEATURE_LEVEL_11_0,
-            IID_PPV_ARGS(&mD3dDevice)));
+    HR(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&mD3dDevice)));
 
 
     HR(mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
@@ -280,6 +350,7 @@ bool PD::D3DApp::initDirect3D() {
 
     CreateCommandObjects();
     CreateSwapChain();
+    CreateRtvAndDsvDescriptorHeaps();
     return true;
 }
 
@@ -290,10 +361,8 @@ bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format, int SampleConut) {
     msQualityLevels.SampleCount = SampleConut;
     msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
     msQualityLevels.NumQualityLevels = 0;
-    ThrowIfFailed(mD3dDevice->CheckFeatureSupport(
-            D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-            &msQualityLevels,
-            sizeof(msQualityLevels)));
+    ThrowIfFailed(mD3dDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msQualityLevels,
+                                                  sizeof(msQualityLevels)));
 
     return msQualityLevels.NumQualityLevels > 0;
     // https://learn.microsoft.com/en-us/windows/win32/api/dxgicommon/ns-dxgicommon-dxgi_sample_desc
@@ -310,8 +379,7 @@ void PD::D3DApp::CreateCommandObjects() {
     Desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     HR(mD3dDevice->CreateCommandQueue(&Desc, IID_PPV_ARGS(&mCommandQueue)));
     HR(mD3dDevice->CreateCommandAllocator(Desc.Type, IID_PPV_ARGS(&mDirectCmdListAlloc)));
-    HR(mD3dDevice->CreateCommandList(0, Desc.Type, mDirectCmdListAlloc.Get(), nullptr,
-                                     IID_PPV_ARGS(&mCommandList)));
+    HR(mD3dDevice->CreateCommandList(0, Desc.Type, mDirectCmdListAlloc.Get(), nullptr, IID_PPV_ARGS(&mCommandList)));
     HR(mCommandList->Close());
 }
 
@@ -335,4 +403,54 @@ void PD::D3DApp::CreateSwapChain() {
     Desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
     HR(mDxgiFactory->CreateSwapChain(mCommandQueue.Get(), &Desc, mSwapChain.GetAddressOf()));
+}
+void PD::D3DApp::CreateRtvAndDsvDescriptorHeaps() {
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+    rtvHeapDesc.NumDescriptors = kSwapChainBufferCount;
+    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    rtvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&mRtvHeap)));
+
+    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
+    dsvHeapDesc.NumDescriptors = 1;
+    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    dsvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
+
+
+}
+
+void PD::D3DApp::FlushCommandQueue() {
+
+    mCurrentFence++;
+    HR(mCommandQueue->Signal(mFence.Get(),mCurrentFence));
+    if(mFence->GetCompletedValue() < mCurrentFence)
+    {
+        HANDLE eventHandle = CreateEventEx(nullptr,nullptr,0,EVENT_ALL_ACCESS);
+        HR(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+}
+
+ID3D12Resource* PD::D3DApp::CurrentBackBuffer() const {
+    auto Ptr = mSwapChainBuffer[mCurrBackBuffer].Get();
+    assert(Ptr);
+    return Ptr;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE PD::D3DApp::CurrentBackBufferView()const {
+    assert(mRtvHeap);
+    assert(mRtvDescriptorSize > 0);
+    // 简单的数组偏移，第一个为首地址，第二个为index，第三个为 sizeof(struct)
+   return CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+   mCurrBackBuffer,
+   mRtvDescriptorSize
+   );
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE PD::D3DApp::DepthStencilView()const {
+    return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 }

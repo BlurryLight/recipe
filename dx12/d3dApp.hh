@@ -49,7 +49,13 @@ namespace PD {
 
         void CreateCommandObjects();
         void CreateSwapChain();
+        void CreateRtvAndDsvDescriptorHeaps();
+        
+        void FlushCommandQueue();
 
+        ID3D12Resource* CurrentBackBuffer() const;
+        D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
+        D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 
     protected:
         static D3DApp *D3DApp_;
@@ -64,10 +70,17 @@ namespace PD {
         bool AppMSAA_ = false;
         UINT AppMSAAQuality_ = 0;
 
-        constexpr static int kSwapChainBufferCount = 2;
+
         std::wstring AppWindowTitle_ = L"d3d test";
         int width_ = 800;
         int height_ = 600;
+
+        constexpr static int kSwapChainBufferCount = 2;
+        // track current buffer
+        int mCurrBackBuffer = 0;
+        // 这两个指针指向SwapChain内部保存的Resource
+        Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[kSwapChainBufferCount];
+        Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
         // DX12
         ComPtr<IDXGIFactory4> mDxgiFactory;
@@ -78,6 +91,7 @@ namespace PD {
         DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
         DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
         uint64_t mCurrentFence = 0;
+        // 记录一个描述符有多大，方便后面在Heap里计算偏移量
         uint32_t mRtvDescriptorSize = 0;
         uint32_t mDsvDescriptorSize = 0;
         uint32_t mCbvSrvUavDescriptorSize = 0;
@@ -85,5 +99,8 @@ namespace PD {
         ComPtr<ID3D12CommandQueue> mCommandQueue;
         ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
         ComPtr<ID3D12GraphicsCommandList> mCommandList;
+
+        ComPtr<ID3D12DescriptorHeap> mRtvHeap;
+        ComPtr<ID3D12DescriptorHeap> mDsvHeap;
     };
 }// namespace PD
