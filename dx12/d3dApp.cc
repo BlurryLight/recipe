@@ -30,6 +30,7 @@ int D3DApp::MessageLoopRun() {
     return (int) msg.wParam;
 }
 HINSTANCE D3DApp::GetHInstance() const {
+    assert(hinstance_);
     return hinstance_;
 }
 D3DApp *D3DApp::GetD3dDApp() {
@@ -43,6 +44,7 @@ D3DApp::D3DApp(HINSTANCE hinstance) : hinstance_(hinstance) {
 D3DApp::~D3DApp() {
 }
 HWND D3DApp::GetHMND() const {
+    assert(hMainWindow_);
     return hMainWindow_;
 }
 float D3DApp::GetAspectRatio() const {
@@ -75,7 +77,7 @@ bool D3DApp::InitMainWindow() {
     wc.lpszClassName = CLASS_NAME;
     wc.lpszMenuName = nullptr;
 
-    RegisterClass(&wc);
+    assert(RegisterClass(&wc));
     // Compute window rectangle dimensions based on requested client area dimensions.
     RECT R = {0, 0, width_, height_};
     AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
@@ -91,7 +93,7 @@ bool D3DApp::InitMainWindow() {
             WS_OVERLAPPEDWINDOW,    // Window style
 
             // Size and position
-            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+            CW_USEDEFAULT, CW_USEDEFAULT, width, height,
 
             nullptr,   // Parent window
             nullptr,   // Menu
@@ -107,6 +109,7 @@ bool D3DApp::InitMainWindow() {
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
 
+    hMainWindow_ = hwnd;
 
     return true;
 }
@@ -231,26 +234,30 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 }
 
 bool PD::D3DApp::initDirect3D() {
-#if defined(DEBUG) | defined(_DEBUG)
-    ComPtr<ID3D12Debug> debugController = nullptr;
+#if defined(_DEBUG)
+    ComPtr<ID3D12Debug1> debugController = nullptr;
     // 通过COM查询最新的接口实现并填充进去
     ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
     assert(debugController.Get());
     debugController->EnableDebugLayer();
+    debugController->SetEnableGPUBasedValidation(true);
 #endif
     // https://learn.microsoft.com/en-us/windows/win32/direct3d11/overviews-direct3d-11-devices-enum
     // For Direct3D 11.0 and later, we recommend that apps always use IDXGIFactory1 and CreateDXGIFactory1 instead.
 
-    ComPtr<IDXGIAdapter> pAdapter = nullptr;
-    HR(CreateDXGIFactory1(IID_PPV_ARGS(&mDxgiFactory)));
+    // https://walbourn.github.io/anatomy-of-direct3d-12-create-device/
+    ComPtr<IDXGIAdapter1> pAdapter = nullptr;
+    HR(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&mDxgiFactory)));
     {
-        DXGI_ADAPTER_DESC adapterDesc;
+        DXGI_ADAPTER_DESC1 adapterDesc;
         for (UINT i = 0;
-             SUCCEEDED(mDxgiFactory->EnumAdapters(i, &pAdapter));
+             SUCCEEDED(mDxgiFactory->EnumAdapters1(i, &pAdapter));
              ++i) {
-            pAdapter->GetDesc(&adapterDesc);
-            if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
-                 continue; // Skip Microsoft Basic Render Driver
+            pAdapter->GetDesc1(&adapterDesc);
+            // old method
+            // if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
+            if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+                continue;// Skip Microsoft Basic Render Driver
             std::wcout << "Avaliable Adapter: " << std::wstring(adapterDesc.Description) << std::endl;
             break;
         }
@@ -265,28 +272,28 @@ bool PD::D3DApp::initDirect3D() {
     HR(mD3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
 
     mRtvDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	mDsvDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	mCbvSrvUavDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    mDsvDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    mCbvSrvUavDescriptorSize = mD3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // 检查是否支持MSAA
     assert(CheckMSAASupport(mBackBufferFormat, 4));
 
     CreateCommandObjects();
+    CreateSwapChain();
     return true;
 }
 
-bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format,int SampleConut)
-{
+bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format, int SampleConut) {
     // https://zhuanlan.zhihu.com/p/263101710
     D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
-	msQualityLevels.Format = format;
-	msQualityLevels.SampleCount = SampleConut;
-	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-	msQualityLevels.NumQualityLevels = 0;
-	ThrowIfFailed(mD3dDevice->CheckFeatureSupport(
-		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-		&msQualityLevels,
-		sizeof(msQualityLevels)));
+    msQualityLevels.Format = format;
+    msQualityLevels.SampleCount = SampleConut;
+    msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+    msQualityLevels.NumQualityLevels = 0;
+    ThrowIfFailed(mD3dDevice->CheckFeatureSupport(
+            D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+            &msQualityLevels,
+            sizeof(msQualityLevels)));
 
     return msQualityLevels.NumQualityLevels > 0;
     // https://learn.microsoft.com/en-us/windows/win32/api/dxgicommon/ns-dxgicommon-dxgi_sample_desc
@@ -295,17 +302,37 @@ bool PD::D3DApp::CheckMSAASupport(DXGI_FORMAT format,int SampleConut)
     // 对于返回的NumQualitiLevels，其代表显卡支持的不同算法。Quality数值越高，其耗费越多
     // 这个数字可以用在 DXGI_SAMPLE_DESC.Quality = NumQualitiLevels - 1;上
     // 但是这个值也许没有用了。。GTX 3080返回NumQualitiLevels = 1
-
 }
 
-void PD::D3DApp::CreateCommandObjects()
-{
+void PD::D3DApp::CreateCommandObjects() {
     D3D12_COMMAND_QUEUE_DESC Desc{};
     Desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     Desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     HR(mD3dDevice->CreateCommandQueue(&Desc, IID_PPV_ARGS(&mCommandQueue)));
     HR(mD3dDevice->CreateCommandAllocator(Desc.Type, IID_PPV_ARGS(&mDirectCmdListAlloc)));
-    HR(mD3dDevice->CreateCommandList(0, Desc.Type, mDirectCmdListAlloc.Get(), nullptr, 
-    IID_PPV_ARGS(&mCommandList)));
+    HR(mD3dDevice->CreateCommandList(0, Desc.Type, mDirectCmdListAlloc.Get(), nullptr,
+                                     IID_PPV_ARGS(&mCommandList)));
     HR(mCommandList->Close());
+}
+
+void PD::D3DApp::CreateSwapChain() {
+    mSwapChain.Reset();
+    DXGI_SWAP_CHAIN_DESC Desc;
+    Desc.BufferDesc.Width = width_;
+    Desc.BufferDesc.Height = height_;
+    Desc.BufferDesc.RefreshRate.Numerator = 60;
+    Desc.BufferDesc.RefreshRate.Denominator = 1;
+    Desc.BufferDesc.Format = mBackBufferFormat;
+    Desc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    Desc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    Desc.SampleDesc.Count = AppMSAA_ ? 4 : 1;
+    Desc.SampleDesc.Quality = 0;
+    Desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    Desc.BufferCount = kSwapChainBufferCount;
+    Desc.OutputWindow = GetHMND();
+    Desc.Windowed = true;
+    Desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    Desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+    HR(mDxgiFactory->CreateSwapChain(mCommandQueue.Get(), &Desc, mSwapChain.GetAddressOf()));
 }

@@ -13,3 +13,4 @@ buildw
 *.a
 *.so
 *.obj
+dx12/CMakeSettings.json

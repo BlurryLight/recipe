@@ -45,9 +45,10 @@ namespace PD {
 
         bool InitMainWindow();
         bool initDirect3D();
-        bool CheckMSAASupport(DXGI_FORMAT format,int SampleConut);
+        bool CheckMSAASupport(DXGI_FORMAT format, int SampleConut);
 
         void CreateCommandObjects();
+        void CreateSwapChain();
 
 
     protected:
@@ -63,6 +64,7 @@ namespace PD {
         bool AppMSAA_ = false;
         UINT AppMSAAQuality_ = 0;
 
+        constexpr static int kSwapChainBufferCount = 2;
         std::wstring AppWindowTitle_ = L"d3d test";
         int width_ = 800;
         int height_ = 600;
@@ -85,4 +87,3 @@ namespace PD {
         ComPtr<ID3D12GraphicsCommandList> mCommandList;
     };
 }// namespace PD
-
