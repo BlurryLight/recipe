@@ -20,13 +20,23 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 int D3DApp::MessageLoopRun() {
     // Run the message loop.
     MSG msg = {};
+
+    mTimer.Reset();
     while (msg.message != WM_QUIT) {
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
-            //do something in our loop
-            Draw();
+            mTimer.Tick();
+            // 当程序最小化时，mAppPaused,但是tick仍然在走
+            if (!mAppPaused) {
+                CalculateFrameStats();
+                //do something in our loop
+                Update(mTimer);
+                Draw(mTimer);
+            } else {
+                Sleep(100);
+            }
         }
     }
     return (int) msg.wParam;
@@ -208,10 +218,10 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         case WM_ACTIVATE:
             if (LOWORD(wParam) == WA_INACTIVE) {
                 mAppPaused = true;
-                //                mTimer.Stop();
+                mTimer.Stop();
             } else {
                 mAppPaused = false;
-                //                mTimer.Start();
+                mTimer.Start();
             }
             return 0;
 
@@ -266,7 +276,7 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         case WM_ENTERSIZEMOVE:
             mAppPaused = true;
             mAppResizing = true;
-            //            mTimer.Stop();
+            mTimer.Stop();
             return 0;
 
         // WM_EXITSIZEMOVE is sent when the user releases the resize bars.
@@ -274,7 +284,7 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         case WM_EXITSIZEMOVE:
             mAppPaused = false;
             mAppResizing = false;
-            //            mTimer.Start();
+            mTimer.Start();
             OnResizeCallback();
             return 0;
 
@@ -440,6 +450,23 @@ void PD::D3DApp::FlushCommandQueue() {
         HR(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
+    }
+}
+
+void PD::D3DApp::CalculateFrameStats() {
+    static uint64_t frameCnt = 0;
+    static float timeElapsed = 0.0f;// in seconds
+    frameCnt++;
+    if (mTimer.TotalTime() - timeElapsed > 1.0) {
+        float fps = frameCnt / 1.0f;
+        float ms_per_frame = 1000.0f / frameCnt;
+
+        std::string Title =
+                AppWindowTitle_ + " fps: " + std::to_string(fps) + " ms/frame: " + std::to_string(ms_per_frame);
+
+        SetWindowTextA(GetHMND(), Title.c_str());
+        frameCnt = 0;
+        timeElapsed += 1.0f;
     }
 }
 

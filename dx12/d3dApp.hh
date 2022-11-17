@@ -7,6 +7,7 @@
 
 #include "d3dUtils.hh"
 #include <string>
+#include "GameTimer.h"
 
 namespace PD {
     using Microsoft::WRL::ComPtr;
@@ -29,7 +30,8 @@ namespace PD {
         virtual bool Initialize();
         virtual LRESULT AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-        virtual void Draw() = 0;
+        virtual void Update(const GameTimer& timer){}
+        virtual void Draw(const GameTimer& timer) = 0;
 
     protected:
         virtual void OnResizeCallback();
@@ -47,6 +49,7 @@ namespace PD {
         void CreateRtvAndDsvDescriptorHeaps();
         
         void FlushCommandQueue();
+        void CalculateFrameStats();
 
         ID3D12Resource* CurrentBackBuffer() const;
         D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
@@ -64,6 +67,7 @@ namespace PD {
 
         bool mAppMSAA = false;
         UINT mAppMsAAQuality = 0;
+        GameTimer mTimer;
 
 
         std::string AppWindowTitle_ = "d3d test";
