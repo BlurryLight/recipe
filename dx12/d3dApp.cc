@@ -13,7 +13,7 @@ using namespace std;
 using namespace DirectX;
 using namespace PD;
 
-D3DApp *D3DApp::D3DApp_ = nullptr;
+D3DApp *D3DApp::mD3dApp = nullptr;
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return D3DApp::GetD3dDApp()->AppMessageProc(hwnd, uMsg, wParam, lParam);
 }
@@ -26,6 +26,7 @@ int D3DApp::MessageLoopRun() {
             DispatchMessage(&msg);
         } else {
             //do something in our loop
+            Draw();
         }
     }
     return (int) msg.wParam;
@@ -35,23 +36,23 @@ HINSTANCE D3DApp::GetHInstance() const {
     return hinstance_;
 }
 D3DApp *D3DApp::GetD3dDApp() {
-    assert(D3DApp_);
-    return D3DApp_;
+    assert(mD3dApp);
+    return mD3dApp;
 }
 D3DApp::D3DApp(HINSTANCE hinstance) : hinstance_(hinstance) {
-    assert(!D3DApp_);
-    D3DApp_ = this;
+    assert(!mD3dApp);
+    mD3dApp = this;
 }
 D3DApp::~D3DApp() {}
 HWND D3DApp::GetHMND() const {
     assert(hMainWindow_);
     return hMainWindow_;
 }
-float D3DApp::GetAspectRatio() const { return (float) width_ / (float) (height_); }
-bool D3DApp::GetMSAAState() const { return AppMSAA_; }
+float D3DApp::GetAspectRatio() const { return (float) mWidth / (float) (mHeight); }
+bool D3DApp::GetMSAAState() const { return mAppMSAA; }
 bool D3DApp::SetMSAAState(bool val) {
-    auto old = AppMSAA_;
-    AppMSAA_ = val;
+    auto old = mAppMSAA;
+    mAppMSAA = val;
     return old;
 }
 bool D3DApp::Initialize() {
@@ -64,6 +65,7 @@ void D3DApp::OnResizeCallback() {
     assert(mD3dDevice);
     assert(mSwapChain);
     assert(mDirectCmdListAlloc);
+    std::cerr << "resizing " << mWidth << " x " << mHeight << std::endl;
 
     FlushCommandQueue();
 
@@ -76,7 +78,7 @@ void D3DApp::OnResizeCallback() {
     mDepthStencilBuffer.Reset();
 
     // recreate swapchain or first creat
-    HR(mSwapChain->ResizeBuffers(kSwapChainBufferCount, width_, height_, mBackBufferFormat,
+    HR(mSwapChain->ResizeBuffers(kSwapChainBufferCount, mWidth, mHeight, mBackBufferFormat,
                                  DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
 
     mCurrBackBuffer = 0;
@@ -99,13 +101,13 @@ void D3DApp::OnResizeCallback() {
     D3D12_RESOURCE_DESC depthStencilDesc;
     depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     depthStencilDesc.Alignment = 0;
-    depthStencilDesc.Width = width_;
-    depthStencilDesc.Height = height_;
+    depthStencilDesc.Width = mWidth;
+    depthStencilDesc.Height = mHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
     // depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // TODO: 研究不同的
     depthStencilDesc.Format = mDepthStencilFormat;
-    depthStencilDesc.SampleDesc.Count = AppMSAA_ ? 4 : 1;
+    depthStencilDesc.SampleDesc.Count = mAppMSAA ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -140,7 +142,15 @@ void D3DApp::OnResizeCallback() {
     // 提交cmdlist后，CPU等待GPU
     FlushCommandQueue();
 
-    // TODO: viewport
+    mScreenViewport.Height = (float)mHeight;
+    mScreenViewport.Width = (float)mWidth;
+    mScreenViewport.TopLeftX = 0;
+    mScreenViewport.TopLeftY = 0;
+    // ? 这个Depth含义是什么，zbufer么
+    mScreenViewport.MinDepth = 0.0f;
+    mScreenViewport.MaxDepth = 1.0f;
+
+    mScissorRect = D3D12_RECT{0,0,mWidth,mHeight};
 
 }
 bool D3DApp::InitMainWindow() {
@@ -156,7 +166,7 @@ bool D3DApp::InitMainWindow() {
 
     assert(RegisterClass(&wc));
     // Compute window rectangle dimensions based on requested client area dimensions.
-    RECT R = {0, 0, width_, height_};
+    RECT R = {0, 0, mWidth, mHeight};
     AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
     int width = R.right - R.left;
     int height = R.bottom - R.top;
@@ -197,10 +207,10 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         // when it becomes active.
         case WM_ACTIVATE:
             if (LOWORD(wParam) == WA_INACTIVE) {
-                AppPaused_ = true;
+                mAppPaused = true;
                 //                mTimer.Stop();
             } else {
-                AppPaused_ = false;
+                mAppPaused = false;
                 //                mTimer.Start();
             }
             return 0;
@@ -208,61 +218,62 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         // WM_SIZE is sent when the user resizes the window.
         case WM_SIZE:
             // Save the new client area dimensions.
-            width_ = LOWORD(lParam);
-            height_ = HIWORD(lParam);
-            //            if (md3dDevice) {
-            //                if (wParam == SIZE_MINIMIZED) {
-            //                    mAppPaused = true;
-            //                    mMinimized = true;
-            //                    mMaximized = false;
-            //                } else if (wParam == SIZE_MAXIMIZED) {
-            //                    mAppPaused = false;
-            //                    mMinimized = false;
-            //                    mMaximized = true;
-            //                    OnResize();
-            //                } else if (wParam == SIZE_RESTORED) {
-            //
-            //                    // Restoring from minimized state?
-            //                    if (mMinimized) {
-            //                        mAppPaused = false;
-            //                        mMinimized = false;
-            //                        OnResize();
-            //                    }
-            //
-            //                    // Restoring from maximized state?
-            //                    else if (mMaximized) {
-            //                        mAppPaused = false;
-            //                        mMaximized = false;
-            //                        OnResize();
-            //                    } else if (mResizing) {
-            //                        // If user is dragging the resize bars, we do not resize
-            //                        // the buffers here because as the user continuously
-            //                        // drags the resize bars, a stream of WM_SIZE messages are
-            //                        // sent to the window, and it would be pointless (and slow)
-            //                        // to resize for each WM_SIZE message received from dragging
-            //                        // the resize bars.  So instead, we reset after the user is
-            //                        // done resizing the window and releases the resize bars, which
-            //                        // sends a WM_EXITSIZEMOVE message.
-            //                    } else// API call such as SetWindowPos or mSwapChain->SetFullscreenState.
-            //                    {
-            //                        OnResize();
-            //                    }
-            //                }
-            //            }
+            mWidth = LOWORD(lParam);
+            mHeight = HIWORD(lParam);
+            if (mD3dDevice) {
+                if (wParam == SIZE_MINIMIZED) {
+                    mAppPaused = true;
+                    mAppMinimized = true;
+                    mAppMaximized = false;
+                } else if (wParam == SIZE_MAXIMIZED) {
+                    mAppPaused = false;
+                    mAppMinimized = false;
+                    mAppMaximized = true;
+                    OnResizeCallback();
+                } else if (wParam == SIZE_RESTORED) {
+
+                    // Restoring from minimized state?
+                    if (mAppMinimized) {
+                        mAppPaused = false;
+                        mAppMinimized = false;
+                        OnResizeCallback();
+                    }
+
+                    // Restoring from maximized state?
+                    else if (mAppMaximized) {
+                        mAppPaused = false;
+                        mAppMaximized = false;
+                        OnResizeCallback();
+                    } else if (mAppResizing) {
+                        // If user is dragging the resize bars, we do not resize
+                        // the buffers here because as the user continuously
+                        // drags the resize bars, a stream of WM_SIZE messages are
+                        // sent to the window, and it would be pointless (and slow)
+                        // to resize for each WM_SIZE message received from dragging
+                        // the resize bars.  So instead, we reset after the user is
+                        // done resizing the window and releases the resize bars, which
+                        // sends a WM_EXITSIZEMOVE message.
+                    } else// API call such as SetWindowPos or mSwapChain->SetFullscreenState.
+                    {
+                        OnResizeCallback();
+                    }
+                }
+            }
+
             return 0;
 
         // WM_EXITSIZEMOVE is sent when the user grabs the resize bars.
         case WM_ENTERSIZEMOVE:
-            AppPaused_ = true;
-            AppResizing_ = true;
+            mAppPaused = true;
+            mAppResizing = true;
             //            mTimer.Stop();
             return 0;
 
         // WM_EXITSIZEMOVE is sent when the user releases the resize bars.
         // Here we reset everything based on the new window dimensions.
         case WM_EXITSIZEMOVE:
-            AppPaused_ = false;
-            AppResizing_ = false;
+            mAppPaused = false;
+            mAppResizing = false;
             //            mTimer.Start();
             OnResizeCallback();
             return 0;
@@ -386,14 +397,14 @@ void PD::D3DApp::CreateCommandObjects() {
 void PD::D3DApp::CreateSwapChain() {
     mSwapChain.Reset();
     DXGI_SWAP_CHAIN_DESC Desc;
-    Desc.BufferDesc.Width = width_;
-    Desc.BufferDesc.Height = height_;
+    Desc.BufferDesc.Width = mWidth;
+    Desc.BufferDesc.Height = mHeight;
     Desc.BufferDesc.RefreshRate.Numerator = 60;
     Desc.BufferDesc.RefreshRate.Denominator = 1;
     Desc.BufferDesc.Format = mBackBufferFormat;
     Desc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     Desc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    Desc.SampleDesc.Count = AppMSAA_ ? 4 : 1;
+    Desc.SampleDesc.Count = mAppMSAA ? 4 : 1;
     Desc.SampleDesc.Quality = 0;
     Desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     Desc.BufferCount = kSwapChainBufferCount;

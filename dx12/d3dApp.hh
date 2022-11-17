@@ -36,6 +36,8 @@ namespace PD {
         virtual bool Initialize();
         virtual LRESULT AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+        virtual void Draw() = 0;
+
     protected:
         virtual void OnResizeCallback();
         virtual void OnMouseDownCallback(WPARAM btnState, int x, int y) {
@@ -58,22 +60,22 @@ namespace PD {
         D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 
     protected:
-        static D3DApp *D3DApp_;
+        static D3DApp *mD3dApp;
         HINSTANCE hinstance_ = nullptr;
         HWND hMainWindow_ = nullptr;
-        bool AppPaused_ = false;
-        bool AppMinimized_ = false;
-        bool AppMaximized_ = false;
-        bool AppResizing_ = false;
-        bool AppFullScreen_ = false;
+        bool mAppPaused = false;
+        bool mAppMinimized = false;
+        bool mAppMaximized = false;
+        bool mAppResizing = false;
+        bool mAppFullScreen = false;
 
-        bool AppMSAA_ = false;
-        UINT AppMSAAQuality_ = 0;
+        bool mAppMSAA = false;
+        UINT mAppMsAAQuality = 0;
 
 
         std::wstring AppWindowTitle_ = L"d3d test";
-        int width_ = 800;
-        int height_ = 600;
+        int mWidth = 800;
+        int mHeight = 600;
 
         constexpr static int kSwapChainBufferCount = 2;
         // track current buffer
@@ -102,5 +104,9 @@ namespace PD {
 
         ComPtr<ID3D12DescriptorHeap> mRtvHeap;
         ComPtr<ID3D12DescriptorHeap> mDsvHeap;
+
+
+        D3D12_VIEWPORT mScreenViewport;
+        D3D12_RECT mScissorRect;
     };
 }// namespace PD
