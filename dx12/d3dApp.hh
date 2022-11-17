@@ -4,14 +4,7 @@
 
 
 #pragma once
-#if defined(DEBUG) || defined(_DEBUG)
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif
 
-// clang-format off
-#include "defines.h"
-// clang-format on
 #include "d3dUtils.hh"
 #include <string>
 
@@ -73,7 +66,7 @@ namespace PD {
         UINT mAppMsAAQuality = 0;
 
 
-        std::wstring AppWindowTitle_ = L"d3d test";
+        std::string AppWindowTitle_ = "d3d test";
         int mWidth = 800;
         int mHeight = 600;
 
