@@ -1,4 +1,4 @@
-#include "d3dApp.hh"
+#include <d3dApp.hh>
 
 using namespace PD;
 class InitDirect3DApp : public D3DApp {

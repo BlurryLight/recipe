@@ -11,6 +11,7 @@
 #include <DirectXPackedVector.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
+#include <iostream>
 #include <windows.h>
 #include <wrl.h>
 
@@ -55,3 +56,15 @@ namespace PD {
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x) HR(x)
 #endif
+
+inline std::string utf16_to_utf8_windows(std::wstring const &utf16s) {
+    int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) (utf16s.c_str()), -1, NULL, 0, NULL, NULL);
+    std::string res;
+    res.resize(count);
+    int flag = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) utf16s.c_str(), -1, res.data(), count, NULL, NULL);
+    if (!flag) {
+        std::cerr << "converted u16 to utf8 failed" << std::endl;
+        return "";
+    }
+    return res;
+}

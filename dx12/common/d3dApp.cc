@@ -5,6 +5,8 @@
 #include "d3dApp.hh"
 #include <cassert>
 #include <iostream>
+#include <spdlog/fmt/fmt.h>
+#include <spdlog/spdlog.h>
 #include <vector>
 #include <windowsx.h>
 
@@ -75,7 +77,7 @@ void D3DApp::OnResizeCallback() {
     assert(mD3dDevice);
     assert(mSwapChain);
     assert(mDirectCmdListAlloc);
-    std::cerr << "resizing " << mWidth << " x " << mHeight << std::endl;
+    spdlog::info("Resizing {} x {}", mWidth, mHeight);
 
     FlushCommandQueue();
 
@@ -142,7 +144,7 @@ void D3DApp::OnResizeCallback() {
     //cmdlist停止记录
     HR(mCommandList->Close());
     std::vector<ID3D12CommandList *> cmdLists{mCommandList.Get()};
-    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
+    mCommandQueue->ExecuteCommandLists((uint32_t) cmdLists.size(), cmdLists.data());
 
     // 提交cmdlist后，CPU等待GPU
     FlushCommandQueue();
@@ -352,7 +354,7 @@ bool PD::D3DApp::initDirect3D() {
             // old method
             // if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
             if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;// Skip Microsoft Basic Render Driver
-            std::wcout << "Avaliable Adapter: " << std::wstring(adapterDesc.Description) << std::endl;
+            spdlog::info("Available Adapter: {}", utf16_to_utf8_windows(adapterDesc.Description));
             break;
         }
     }
@@ -461,9 +463,9 @@ void PD::D3DApp::CalculateFrameStats() {
         float fps = frameCnt / 1.0f;
         float ms_per_frame = 1000.0f / frameCnt;
 
-        std::string Title =
-                AppWindowTitle_ + " fps: " + std::to_string(fps) + " ms/frame: " + std::to_string(ms_per_frame);
-
+        // std::string Title =
+        //         AppWindowTitle_ + " fps: " + std::to_string(fps) + " ms/frame: " + std::to_string(ms_per_frame);
+        std::string Title = fmt::format("{} FPS:{:03.2f}, Ms/Frame: {:03.2f}", AppWindowTitle_, fps, ms_per_frame);
         SetWindowTextA(GetHMND(), Title.c_str());
         frameCnt = 0;
         timeElapsed += 1.0f;

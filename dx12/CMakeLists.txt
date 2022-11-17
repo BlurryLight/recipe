@@ -1,12 +1,20 @@
 cmake_minimum_required(VERSION 3.12)
-project(DXWindow)
+# === vcpkg related
+set(vcpkg "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
+if(NOT CMAKE_TOOLCHAIN_FILE AND EXISTS "${vcpkg}")
+    set(CMAKE_TOOLCHAIN_FILE "${vcpkg}"
+        CACHE FILEPATH "CMake toolchain file")
+    message(STATUS "vcpkg toolchain found: ${CMAKE_TOOLCHAIN_FILE}")
+endif()
+
+project(DX12Window)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS on)
+include_directories(third_party)
 
+find_package(spdlog REQUIRED)
 
-set(SOURCE_FILES InitDirect3DApp.cpp d3dApp.cc d3dApp.hh d3dUtils.cc d3dUtils.hh GameTimer.cpp)
-add_executable(d3d12test WIN32 ${SOURCE_FILES})
-target_link_libraries(d3d12test winmm.lib d3dcompiler.lib D3D12.lib dxgi.lib)
-target_compile_options(d3d12test PRIVATE /utf-8)
-target_compile_definitions(d3d12test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+add_subdirectory(common)
+add_subdirectory(src)
 
