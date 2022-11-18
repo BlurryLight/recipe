@@ -30,9 +30,10 @@ public:
 
     void BuildDescriptorHeaps();
     void BuildConstantBuffers();
+    void BuildRootSignature();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-
-     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+    ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+    std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
 };
 
 inline bool MiniCube::Initialize() {
@@ -45,7 +46,8 @@ inline bool MiniCube::Initialize() {
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
     BuildDescriptorHeaps();
-    BuildConstantBuffers();    
+    BuildConstantBuffers();
+    BuildRootSignature();
     // end of record
     HR(mCommandList->Close());
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
@@ -73,7 +75,45 @@ inline void MiniCube::BuildDescriptorHeaps() {
 
 inline void MiniCube::BuildConstantBuffers() {
     spdlog::info("Building Constant Buffers");
+    assert(!mObjectCB);
+    mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(mD3dDevice.Get(), 1, true);
 
+    uint32_t ObjSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+
+    // 计算这个物体在整个cb内的偏移量，因为这个例子只有一个物体，所以偏移量是0
+    D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
+    int boxCBufIndex = 0;
+    cbAddress += boxCBufIndex * ObjSize;
+
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+    cbvDesc.BufferLocation = cbAddress;
+    cbvDesc.SizeInBytes = ObjSize;
+    mD3dDevice->CreateConstantBufferView(&cbvDesc, mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
+inline void MiniCube::BuildRootSignature() {
+    // 可以有多个root parameter，对应函数的多个形参数?
+    CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+    // 用cbvTable初始化 root parameter
+    // 这个参数包含1个 cbv descriptor
+    CD3DX12_DESCRIPTOR_RANGE cbvTable;
+    cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+    slotRootParameter->InitAsDescriptorTable(1, &cbvTable);
+
+    //TODO: flag
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+                                            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    ComPtr<ID3DBlob> serializedRootSig = nullptr;
+    ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
+
+    HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                             serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+    if (errorBlob) { spdlog::warn("Root Sig error: {}", (const char *) (errorBlob->GetBufferPointer())); }
+    HR(hr);
+
+    HR(mD3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(),
+                                       IID_PPV_ARGS(&mRootSignature)));
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

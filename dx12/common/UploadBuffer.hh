@@ -15,10 +15,10 @@ class UploadBuffer : Noncopyable
         assert(device);
         mElementByteSize = bIsConstantBuffer ? CalcConstantBufferBytesSize(sizeof(T)) : sizeof(T);
 
-        auto HeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-             auto HeapDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount);
+        auto HeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        auto HeapDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount);
         HR(device->CreateCommittedResource(&HeapProperties, D3D12_HEAP_FLAG_NONE, &HeapDesc,
-                                           D3D12_RESOURCE_STATE_COMMON, nullptr,
+                                           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
                                            IID_PPV_ARGS(mUploadBuffer.GetAddressOf())));
 
         // TODO: 阅读这个函数的文档
@@ -50,5 +50,5 @@ private:
     uint8_t* mMappedData = nullptr;
     uint32_t mElementByteSize = 0;
     bool mbIsConstantBuffer = false;
-}
+};
 }
