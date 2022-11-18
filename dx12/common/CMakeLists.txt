@@ -2,6 +2,7 @@ set(SRC
     d3dApp.cc
     d3dUtils.cc
     GameTimer.cc
+    ../third_party/MathHelper.cpp
 )
 
 add_library(d3d12lib STATIC ${SRC})
