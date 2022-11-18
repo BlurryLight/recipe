@@ -1,8 +1,25 @@
 #include <d3dApp.hh>
 #include <array>
 #include <spdlog/spdlog.h>
+#include "MathHelper.h"
+#include "UploadBuffer.hh"
 
 using namespace PD;
+
+using namespace DirectX;
+struct Vertex
+{
+    XMFLOAT3 Pos;
+    XMFLOAT4 Color;
+};
+
+struct ObjectConstants
+{
+
+    XMFLOAT4X4 MVP = MathHelper::Identity4x4();
+};
+
+
 class MiniCube: public D3DApp {
 
 public:
@@ -12,7 +29,10 @@ public:
     private:
 
     void BuildDescriptorHeaps();
+    void BuildConstantBuffers();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
+
+     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
 };
 
 inline bool MiniCube::Initialize() {
@@ -25,6 +45,7 @@ inline bool MiniCube::Initialize() {
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
     BuildDescriptorHeaps();
+    BuildConstantBuffers();    
     // end of record
     HR(mCommandList->Close());
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
@@ -48,6 +69,11 @@ inline void MiniCube::BuildDescriptorHeaps() {
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     cbvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
+}
+
+inline void MiniCube::BuildConstantBuffers() {
+    spdlog::info("Building Constant Buffers");
+
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

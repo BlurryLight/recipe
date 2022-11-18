@@ -68,3 +68,11 @@ inline std::string utf16_to_utf8_windows(std::wstring const &utf16s) {
     }
     return res;
 }
+
+// https://stackoverflow.com/questions/72556894/directx-12-ultimate-graphics-sample-generates-a-d3d12-cbv-invalid-resource-err
+// see D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT 256
+// ConstantBuffer must be  256-bytes alignment
+inline uint32_t CalcConstantBufferBytesSize(uint32_t byteSize)
+{
+    return (byteSize + 0xFF) & ~0xFF;
+}
