@@ -9,6 +9,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE AND EXISTS "${vcpkg}")
 endif()
 
 project(DX12Window)
+include(${CMAKE_SOURCE_DIR}/cmake/generate_header.cmake)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS on)
 include_directories(third_party)

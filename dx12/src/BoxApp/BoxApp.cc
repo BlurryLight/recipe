@@ -1,8 +1,10 @@
-#include <d3dApp.hh>
-#include <array>
-#include <spdlog/spdlog.h>
 #include "MathHelper.h"
 #include "UploadBuffer.hh"
+#include "resource_path_searcher.h"
+#include <array>
+#include <d3dApp.hh>
+#include <spdlog/spdlog.h>
+
 
 using namespace PD;
 
@@ -23,7 +25,7 @@ struct ObjectConstants
 class MiniCube: public D3DApp {
 
 public:
-    MiniCube(HINSTANCE hInstance) : D3DApp(hInstance) {}
+    MiniCube(HINSTANCE hInstance);
     virtual bool Initialize() override;
     void Draw(const GameTimer &gt) override;
     private:
@@ -31,10 +33,24 @@ public:
     void BuildDescriptorHeaps();
     void BuildConstantBuffers();
     void BuildRootSignature();
+    void BuildShaderAndInputLayout();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+    ResourcePathSearcher mResourceManager;
+
+    ComPtr<ID3DBlob> mvsByteCode;
+    ComPtr<ID3DBlob> mpsByteCode;
+
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 };
+
+inline MiniCube::MiniCube(HINSTANCE hInstance) : D3DApp(hInstance) {
+    auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
+    if (!path.is_absolute()) { path = fs::absolute(path); }
+    mResourceManager.add_path(path);
+    mResourceManager.add_path(path / L"Shaders");
+}
 
 inline bool MiniCube::Initialize() {
     if(!D3DApp::Initialize())
@@ -48,6 +64,7 @@ inline bool MiniCube::Initialize() {
     BuildDescriptorHeaps();
     BuildConstantBuffers();
     BuildRootSignature();
+    BuildShaderAndInputLayout();
     // end of record
     HR(mCommandList->Close());
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
@@ -114,6 +131,18 @@ inline void MiniCube::BuildRootSignature() {
 
     HR(mD3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(),
                                        IID_PPV_ARGS(&mRootSignature)));
+}
+
+inline void MiniCube::BuildShaderAndInputLayout() {
+    spdlog::info("Bulding Shaders");
+    auto ShaderPath = mResourceManager.find_path("color.hlsl");
+    mvsByteCode = CompileShader(ShaderPath, nullptr, "VS", "vs_5_0");
+    mpsByteCode = CompileShader(ShaderPath, nullptr, "PS", "ps_5_0");
+    assert(mvsByteCode);
+    assert(mpsByteCode);
+    spdlog::info("Bulding Input Layout");
+    mInputLayout = {{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

@@ -15,18 +15,6 @@
 #include <windows.h>
 #include <wrl.h>
 
-namespace PD {
-
-    struct Noncopyable {
-        Noncopyable() = default;
-        Noncopyable(const Noncopyable &) = delete;
-        Noncopyable &operator=(const Noncopyable &) = delete;
-    };
-    class d3dUtils {};
-
-    void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr, const wchar_t *proc);
-}// namespace PD
-
 // com release
 #define SAFE_RELEASE(p)                                                                                                \
     {                                                                                                                  \
@@ -57,22 +45,30 @@ namespace PD {
 #define ThrowIfFailed(x) HR(x)
 #endif
 
-inline std::string utf16_to_utf8_windows(std::wstring const &utf16s) {
-    int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) (utf16s.c_str()), -1, NULL, 0, NULL, NULL);
-    std::string res;
-    res.resize(count);
-    int flag = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) utf16s.c_str(), -1, res.data(), count, NULL, NULL);
-    if (!flag) {
-        std::cerr << "converted u16 to utf8 failed" << std::endl;
-        return "";
-    }
-    return res;
-}
 
-// https://stackoverflow.com/questions/72556894/directx-12-ultimate-graphics-sample-generates-a-d3d12-cbv-invalid-resource-err
-// see D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT 256
-// ConstantBuffer must be  256-bytes alignment
-inline uint32_t CalcConstantBufferBytesSize(uint32_t byteSize)
-{
-    return (byteSize + 0xFF) & ~0xFF;
-}
+using Microsoft::WRL::ComPtr;
+namespace PD {
+
+    struct Noncopyable {
+        Noncopyable() = default;
+        Noncopyable(const Noncopyable &) = delete;
+        Noncopyable &operator=(const Noncopyable &) = delete;
+    };
+    class d3dUtils {};
+
+    void DxTrace(const wchar_t *file, unsigned long line, HRESULT hr, const wchar_t *proc);
+
+    std::string utf16_to_utf8_windows(std::wstring const &utf16s);
+    std::wstring utf8_to_utf16_windows(std::string const &utf8s);
+    // https://stackoverflow.com/questions/72556894/directx-12-ultimate-graphics-sample-generates-a-d3d12-cbv-invalid-resource-err
+    // see D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT 256
+    // ConstantBuffer must be  256-bytes alignment
+    inline uint32_t CalcConstantBufferBytesSize(uint32_t byteSize) { return (byteSize + 0xFF) & ~0xFF; }
+    HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut, std::wstring_view hlslPath, std::string entryPoint,
+                                 std::string ShaderModel, ID3DBlob **ppBlobOut, bool force_compile = false,
+                                 const D3D_SHADER_MACRO *defines = nullptr);
+
+    ComPtr<ID3DBlob> CompileShader(const std::wstring &filename, const D3D_SHADER_MACRO *defines,
+                                   const std::string &entrypoint, const std::string &target);
+
+}// namespace PD

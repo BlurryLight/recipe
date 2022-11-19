@@ -43,6 +43,4 @@ out
 *clangd*
 cmake_vars.h
 .idea
-
-
-
+*.cso
