@@ -81,6 +81,9 @@ inline bool MiniCube::Initialize() {
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
     mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
     FlushCommandQueue();
+    // after flush, it's safe to release uploader resource
+    mBoxGeo->DisposeUploaders();
+
     return true;
 }
 
@@ -134,7 +137,9 @@ void MiniCube::Draw(const GameTimer &gt) {
     mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
     mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
     mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+    for (auto [key, value] : mBoxGeo->DrawArgs) {
+        mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocaion, value.BaseVertexLocation, 0);
+    }
 
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -219,32 +224,55 @@ inline void MiniCube::BuildShaderAndInputLayout() {
 
 inline void MiniCube::BuildBoxGeometry() {
     spdlog::info("Bulding BoxGemotries");
-    std::array<Vertex, 8> vertices = {Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
-                                      Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
-                                      Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
-                                      Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-                                      Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
-                                      Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
-                                      Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-                                      Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})};
 
-    std::array<std::uint16_t, 36> indices = {// front face
-                                             0, 1, 2, 0, 2, 3,
 
-                                             // back face
-                                             4, 6, 5, 4, 7, 6,
+    std::array<Vertex, 8> BoxVertices = {
+            Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
+            Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
+            Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
+            Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+            Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
+            Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+            Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+            Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
 
-                                             // left face
-                                             4, 5, 1, 4, 1, 0,
 
-                                             // right face
-                                             3, 2, 6, 3, 6, 7,
+    };
 
-                                             // top face
-                                             1, 5, 6, 1, 6, 2,
+    std::array<std::uint16_t, 36> BoxIndices = {// front face
+                                                0, 1, 2, 0, 2, 3,
 
-                                             // bottom face
-                                             4, 0, 3, 4, 3, 7};
+                                                // back face
+                                                4, 6, 5, 4, 7, 6,
+
+                                                // left face
+                                                4, 5, 1, 4, 1, 0,
+
+                                                // right face
+                                                3, 2, 6, 3, 6, 7,
+
+                                                // top face
+                                                1, 5, 6, 1, 6, 2,
+
+                                                // bottom face
+                                                4, 0, 3, 4, 3, 7};
+
+    std::array<Vertex, 3> TriVertices = {
+            Vertex({XMFLOAT3(-2.0f, -2.0f, 1.0f), XMFLOAT4(Colors::Red)}),
+            Vertex({XMFLOAT3(2.0f, -2.0f, 1.0f), XMFLOAT4(Colors::Blue)}),
+            Vertex({XMFLOAT3(0.0f, 2.0f, 1.0f), XMFLOAT4(Colors::Green)}),
+    };
+    // 对于Dx，顺时针是front face
+    // 对于openGL而言 front face是ccw
+    std::array<std::uint16_t, 3> TriIndices = {0, 2, 1};
+    std::vector<Vertex> vertices;
+    vertices.insert(vertices.end(), BoxVertices.begin(), BoxVertices.end());
+    vertices.insert(vertices.end(), TriVertices.begin(), TriVertices.end());
+    std::vector<std::uint16_t> indices;
+    indices.insert(indices.end(), BoxIndices.begin(), BoxIndices.end());
+    indices.insert(indices.end(), TriIndices.begin(), TriIndices.end());
+
+
     const UINT vbBytesSize = (UINT) vertices.size() * sizeof(Vertex);
     const UINT ibBytesSize = (UINT) indices.size() * sizeof(uint16_t);
     assert(!mBoxGeo);
@@ -269,12 +297,19 @@ inline void MiniCube::BuildBoxGeometry() {
     mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
     mBoxGeo->IndexbufferBytesSize = ibBytesSize;
 
-    spdlog::info("Building Submesh");
+    spdlog::info("Building Box Submesh");
     SubmeshGeometry submesh{};
     submesh.BaseVertexLocation = 0;
-    submesh.IndexCount = (UINT) indices.size();
+    submesh.IndexCount = (UINT) BoxIndices.size();
     submesh.StartIndexLocaion = 0;
     mBoxGeo->DrawArgs["box"] = submesh;
+
+
+    spdlog::info("Building Tri Submesh");
+    submesh.BaseVertexLocation = BoxVertices.size();
+    submesh.IndexCount = (UINT) TriIndices.size();
+    submesh.StartIndexLocaion = BoxIndices.size();
+    mBoxGeo->DrawArgs["tri"] = submesh;
 }
 
 inline void MiniCube::BuildPSO() {
@@ -287,11 +322,13 @@ inline void MiniCube::BuildPSO() {
 
     psoDesc.PS = {(void *) (mpsByteCode->GetBufferPointer()), mpsByteCode->GetBufferSize()};
 
-    // TOOD: rasterisze 里也有个depth stencil
+    // RasterzeState里的MultiSampleEnabled只与 line rendering有关?
+    // MultiSampleEnabled: Set to TRUE to use the quadrilateral line anti-aliasing algorithm and to FALSE to use the alpha line anti-aliasing algorithm.
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
+    // PSO这里指定的 Primitive 类型 和 IA那里指定的 TriangleStrip，需要是同一大类，但是不需完全匹配上
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
     psoDesc.NumRenderTargets = 1;
