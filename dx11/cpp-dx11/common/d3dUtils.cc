@@ -29,32 +29,6 @@ std::u16string utf8_to_utf16(std::string const &utf8) {
     throw std::runtime_error("incomplete conversion");
   return s;
 }
-std::u16string utf8_to_utf16_windows(std::string const &utf8) {
-  int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(),
-                                  -1, NULL, 0);
-  std::u16string res;
-  res.resize(count);
-  int flag = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(),
-                                 -1, (wchar_t *)(res.data()), count);
-  if (!flag) {
-    std::cerr << "converted u8 to utf16 failed" << std::endl;
-    return u"";
-  }
-  return res;
-}
-std::string utf16_to_utf8_windows(std::u16string const &utf16s) {
-  int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *)(utf16s.c_str()), -1,
-                                  NULL, 0, NULL, NULL);
-  std::string res;
-  res.resize(count);
-  int flag = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *)utf16s.c_str(), -1,
-                                 res.data(), count, NULL, NULL);
-  if (!flag) {
-    std::cerr << "converted u16 to utf8 failed" << std::endl;
-    return "";
-  }
-  return res;
-}
 namespace PD {
 void D3D11SetDebugObjectName(ID3D11DeviceChild *resource,
                              std::string_view name) {
