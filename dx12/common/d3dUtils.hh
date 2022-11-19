@@ -12,6 +12,7 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <iostream>
+#include <unordered_map>
 #include <windows.h>
 #include <wrl.h>
 
@@ -71,4 +72,59 @@ namespace PD {
     ComPtr<ID3DBlob> CompileShader(const std::wstring &filename, const D3D_SHADER_MACRO *defines,
                                    const std::string &entrypoint, const std::string &target);
 
+    ComPtr<ID3D12Resource> CreateDefaultBuffer(ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                                               const void *initData, uint64_t byteSize,
+                                               ComPtr<ID3D12Resource> &outUploader);
+
+    struct SubmeshGeometry {
+        UINT IndexCount = 0;
+        UINT StartIndexLocaion = 0;
+        INT BaseVertexLocation = 0;
+
+        DirectX::BoundingBox Bounds;
+    };
+
+    // dxd12book : define mesh
+    // 一个MeshGeometry可能有多个Submesh构成，他们共用一个 vbo和ibo，只是使用其中的不同小段
+    struct MeshGeometry {
+        std::string name;
+        // ID3DBlob 类似于 std::any? 需要手动转型
+        ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
+        ComPtr<ID3DBlob> IndexBufferCPU = nullptr;
+
+        ComPtr<ID3D12Resource> VertexBufferGPU = nullptr;
+        ComPtr<ID3D12Resource> IndexBufferGPU = nullptr;
+
+        ComPtr<ID3D12Resource> VertexBufferUploader = nullptr;
+        ComPtr<ID3D12Resource> IndexBufferUploader = nullptr;
+
+        // some propoerties
+        // 每个顶点之间的字节stride， sizeof(Vertex)
+        UINT VertexBytesStride = 0;
+        UINT VertexBufferByteSize = 0;
+        DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
+        UINT IndexbufferBytesSize = 0;
+        std::unordered_map<std::string, struct SubmeshGeometry> DrawArgs;
+
+        D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const {
+            D3D12_VERTEX_BUFFER_VIEW vbv;
+            vbv.BufferLocation = VertexBufferGPU->GetGPUVirtualAddress();
+            vbv.StrideInBytes = VertexBytesStride;
+            vbv.SizeInBytes = VertexBufferByteSize;
+            return vbv;
+        }
+
+        D3D12_INDEX_BUFFER_VIEW IndexBufferView() const {
+            D3D12_INDEX_BUFFER_VIEW ibv;
+            ibv.BufferLocation = IndexBufferGPU->GetGPUVirtualAddress();
+            ibv.Format = IndexFormat;
+            ibv.SizeInBytes = IndexbufferBytesSize;
+            return ibv;
+        }
+
+        void DisposeUploaders() {
+            SAFE_RELEASE(VertexBufferUploader);
+            SAFE_RELEASE(IndexBufferUploader);
+        }
+    };
 }// namespace PD

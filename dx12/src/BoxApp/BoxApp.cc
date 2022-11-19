@@ -34,6 +34,7 @@ public:
     void BuildConstantBuffers();
     void BuildRootSignature();
     void BuildShaderAndInputLayout();
+    void BuildBoxGeometry();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
@@ -41,6 +42,8 @@ public:
 
     ComPtr<ID3DBlob> mvsByteCode;
     ComPtr<ID3DBlob> mpsByteCode;
+
+    std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 };
@@ -65,6 +68,7 @@ inline bool MiniCube::Initialize() {
     BuildConstantBuffers();
     BuildRootSignature();
     BuildShaderAndInputLayout();
+    BuildBoxGeometry();
     // end of record
     HR(mCommandList->Close());
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
@@ -143,6 +147,66 @@ inline void MiniCube::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Input Layout");
     mInputLayout = {{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+}
+
+inline void MiniCube::BuildBoxGeometry() {
+    spdlog::info("Bulding BoxGemotries");
+    std::array<Vertex, 8> vertices = {Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
+                                      Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
+                                      Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
+                                      Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
+                                      Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
+                                      Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
+                                      Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
+                                      Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)})};
+
+    std::array<std::uint16_t, 36> indices = {// front face
+                                             0, 1, 2, 0, 2, 3,
+
+                                             // back face
+                                             4, 6, 5, 4, 7, 6,
+
+                                             // left face
+                                             4, 5, 1, 4, 1, 0,
+
+                                             // right face
+                                             3, 2, 6, 3, 6, 7,
+
+                                             // top face
+                                             1, 5, 6, 1, 6, 2,
+
+                                             // bottom face
+                                             4, 0, 3, 4, 3, 7};
+    const UINT vbBytesSize = (UINT) vertices.size() * sizeof(Vertex);
+    const UINT ibBytesSize = (UINT) indices.size() * sizeof(uint16_t);
+    assert(!mBoxGeo);
+    mBoxGeo = std::make_unique<MeshGeometry>();
+    mBoxGeo->name = "BoxGeo";
+
+    spdlog::info("Building Box VBO/IBO CPU");
+    HR(D3DCreateBlob(vbBytesSize, mBoxGeo->VertexBufferCPU.GetAddressOf()));
+    CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbBytesSize);
+
+    HR(D3DCreateBlob(ibBytesSize, mBoxGeo->IndexBufferCPU.GetAddressOf()));
+    CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibBytesSize);
+
+    spdlog::info("Building Box VBO/IBO GPU");
+    mBoxGeo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbBytesSize,
+                                                   mBoxGeo->VertexBufferUploader);
+
+    mBoxGeo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibBytesSize,
+                                                  mBoxGeo->IndexBufferUploader);
+    mBoxGeo->VertexBytesStride = sizeof(Vertex);
+    mBoxGeo->VertexBufferByteSize = vbBytesSize;
+    mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    mBoxGeo->IndexbufferBytesSize = ibBytesSize;
+
+    spdlog::info("Building Submesh");
+    SubmeshGeometry submesh{};
+    submesh.BaseVertexLocation = 0;
+    submesh.IndexCount = indices.size();
+    submesh.StartIndexLocaion = 0;
+    mBoxGeo->DrawArgs["box"] = submesh;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

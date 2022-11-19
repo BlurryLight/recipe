@@ -95,3 +95,39 @@ ComPtr<ID3DBlob> PD::CompileShader(const std::wstring &filename, const D3D_SHADE
     CreateShaderFromFile(csoPath, filename, entrypoint, target, Res.GetAddressOf(), true, defines);
     return Res;
 }
+
+ComPtr<ID3D12Resource> PD::CreateDefaultBuffer(ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                                               const void *initData, uint64_t byteSize,
+                                               ComPtr<ID3D12Resource> &outUploader) {
+    ComPtr<ID3D12Resource> defaultBuffer;
+
+    auto defaultHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    auto defaultResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+    // 创建了DefaultBuffer，但是内部是空的
+    HR(device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &defaultResourceDesc,
+                                       D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&defaultBuffer)));
+
+    auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto uploadResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
+
+    assert(!outUploader);
+    HR(device->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &uploadResourceDesc,
+                                       D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&outUploader)));
+
+    assert(defaultBuffer);
+    assert(outUploader);
+    D3D12_SUBRESOURCE_DATA subResourceData{};
+    subResourceData.pData = initData;
+    // 对于buffer，这两个属性都应该等于字节数
+    subResourceData.RowPitch = byteSize;
+    subResourceData.SlicePitch = byteSize;
+
+    cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(), D3D12_RESOURCE_STATE_COMMON,
+                                                                      D3D12_RESOURCE_STATE_COPY_DEST));
+    // 首先从CPU端拷贝到uploader里，再拷贝到default heap里
+    UpdateSubresources<1>(cmdList, defaultBuffer.Get(), outUploader.Get(), 0, 0, 1, &subResourceData);
+    cmdList->ResourceBarrier(1,
+                             &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                                                   D3D12_RESOURCE_STATE_GENERIC_READ));
+    return defaultBuffer;
+}
