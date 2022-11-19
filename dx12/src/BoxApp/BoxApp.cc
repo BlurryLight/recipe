@@ -27,6 +27,7 @@ class MiniCube: public D3DApp {
 public:
     MiniCube(HINSTANCE hInstance);
     virtual bool Initialize() override;
+    void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
     private:
 
@@ -35,7 +36,9 @@ public:
     void BuildRootSignature();
     void BuildShaderAndInputLayout();
     void BuildBoxGeometry();
+    void BuildPSO();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
+    ComPtr<ID3D12PipelineState> mPSO;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
     ResourcePathSearcher mResourceManager;
@@ -46,6 +49,9 @@ public:
     std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
+    XMFLOAT4X4 mView = MathHelper::Identity4x4();
+    XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 };
 
 inline MiniCube::MiniCube(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -69,6 +75,7 @@ inline bool MiniCube::Initialize() {
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildBoxGeometry();
+    BuildPSO();
     // end of record
     HR(mCommandList->Close());
     std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
@@ -77,7 +84,68 @@ inline bool MiniCube::Initialize() {
     return true;
 }
 
+inline void MiniCube::Update(const GameTimer &timer) {
+
+    XMVECTOR pos = XMVectorSet(0, 0, -5, 1.0f);
+    XMVECTOR target = XMVectorZero();
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+    XMStoreFloat4x4(&mView, view);
+
+    // The window resized, so update the aspect ratio and recompute the projection matrix.
+    float aspect = GetAspectRatio();
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
+    XMStoreFloat4x4(&mProj, P);
+
+
+    XMMATRIX world = XMLoadFloat4x4(&mWorld);
+    XMMATRIX proj = XMLoadFloat4x4(&mProj);
+    XMMATRIX worldViewProj = world * view * proj;
+
+    // Update the constant buffer with the latest worldViewProj matrix.
+    ObjectConstants objConstants;
+    XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
+    mObjectCB->CopyData(0, objConstants);
+}
+
 void MiniCube::Draw(const GameTimer &gt) {
+
+
+    HR(mDirectCmdListAlloc->Reset());
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                           D3D12_RESOURCE_STATE_PRESENT,
+                                                                           D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightBlue, 0, nullptr);
+    mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
+                                        0, nullptr);
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+    std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mCbvHeap.Get()};
+    mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
+    mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+    mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+    mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
+    mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+    mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                           D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                                           D3D12_RESOURCE_STATE_PRESENT));
+    HR(mCommandList->Close());
+    std::vector<ID3D12CommandList *> cmdLists{mCommandList.Get()};
+    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
+
+    // turn vsync on
+    HR(mSwapChain->Present(1, 0));
+    mCurrBackBuffer = (mCurrBackBuffer + 1) % kSwapChainBufferCount;
     FlushCommandQueue();
 }
 
@@ -204,9 +272,37 @@ inline void MiniCube::BuildBoxGeometry() {
     spdlog::info("Building Submesh");
     SubmeshGeometry submesh{};
     submesh.BaseVertexLocation = 0;
-    submesh.IndexCount = indices.size();
+    submesh.IndexCount = (UINT) indices.size();
     submesh.StartIndexLocaion = 0;
     mBoxGeo->DrawArgs["box"] = submesh;
+}
+
+inline void MiniCube::BuildPSO() {
+
+    spdlog::info("Building PSO");
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{0};
+    psoDesc.InputLayout = {mInputLayout.data(), (UINT) mInputLayout.size()};
+    psoDesc.pRootSignature = mRootSignature.Get();
+    psoDesc.VS = {(void *) (mvsByteCode->GetBufferPointer()), mvsByteCode->GetBufferSize()};
+
+    psoDesc.PS = {(void *) (mpsByteCode->GetBufferPointer()), mpsByteCode->GetBufferSize()};
+
+    // TOOD: rasterisze 里也有个depth stencil
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = mBackBufferFormat;
+    psoDesc.DSVFormat = mDepthStencilFormat;
+
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.SampleDesc.Count = GetMSAAState() ? 4 : 1;
+    psoDesc.SampleDesc.Quality = 0;
+
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

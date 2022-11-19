@@ -13,7 +13,7 @@ struct VertexOut {
 VertexOut VS(VertexIn vin) {
   VertexOut vout;
   vout.Color = vin.Color;
-  vout.PosH = mul(gWorldViewProj, vin.PosL);
+  vout.PosH = mul(vin.PosL, gWorldViewProj);
   return vout;
 };
 

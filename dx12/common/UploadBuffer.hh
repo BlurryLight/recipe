@@ -22,7 +22,7 @@ class UploadBuffer : Noncopyable
                                            IID_PPV_ARGS(mUploadBuffer.GetAddressOf())));
 
         // TODO: 阅读这个函数的文档
-        HR(mUploadBuffer->Map(0, nullptr, (void **) mMappedData));
+        HR(mUploadBuffer->Map(0, nullptr, (void **) &mMappedData));
     }
     ~UploadBuffer()
     {
@@ -30,7 +30,7 @@ class UploadBuffer : Noncopyable
         {
             mUploadBuffer->Unmap(0, nullptr);
         }
-        mMappedData = nullptr;
+        mMappedData = (uint8_t *) 0xDEADDEAD;
     }
 
     ID3D12Resource* Resource() const
@@ -41,6 +41,7 @@ class UploadBuffer : Noncopyable
     // 一次只能上传一个元素
     void CopyData(int elementIndex,const T& Data)
     {
+        assert(mMappedData);
         memmove(mMappedData + elementIndex * mElementByteSize, (const char*)&Data , sizeof(T));
     }
 

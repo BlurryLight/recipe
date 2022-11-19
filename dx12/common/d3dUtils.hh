@@ -78,6 +78,7 @@ namespace PD {
 
     struct SubmeshGeometry {
         UINT IndexCount = 0;
+        // 在多个mesh共用一个ibo/vbo时，需要指定baseIndex,并且无需改变index Buffer
         UINT StartIndexLocaion = 0;
         INT BaseVertexLocation = 0;
 
