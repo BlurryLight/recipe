@@ -135,7 +135,9 @@ void MiniCube::Draw(const GameTimer &gt) {
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
     mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
     mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
-    mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+    // mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+    // test: root signature
+    mCommandList->SetGraphicsRootConstantBufferView(0, mObjectCB->Resource()->GetGPUVirtualAddress());
     mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     for (auto [key, value] : mBoxGeo->DrawArgs) {
         mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocaion, value.BaseVertexLocation, 0);
@@ -191,9 +193,12 @@ inline void MiniCube::BuildRootSignature() {
 
     // 用cbvTable初始化 root parameter
     // 这个参数包含1个 cbv descriptor
-    CD3DX12_DESCRIPTOR_RANGE cbvTable;
-    cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-    slotRootParameter->InitAsDescriptorTable(1, &cbvTable);
+    // CD3DX12_DESCRIPTOR_RANGE cbvTable;
+    // cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+    // slotRootParameter->InitAsDescriptorTable(1, &cbvTable);
+
+    // test: root descriptor
+    slotRootParameter[0].InitAsConstantBufferView(0, 0);
 
     //TODO: flag
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
