@@ -263,6 +263,12 @@ protected:
     pd3dDeviceIMContext_->VSSetConstantBuffers(0, 1, pCBuffer_.GetAddressOf());
     pd3dDeviceIMContext_->PSSetShader(pPixelShader_.Get(), nullptr, 0);
 
+    ComPtr<ID3D11RasterizerState> RSState;
+    CD3D11_RASTERIZER_DESC rsDesc(D3D11_DEFAULT);
+    // rsDesc.CullMode = D3D11_CULL_FRONT;
+    // rsDesc.FillMode = D3D11_FILL_WIREFRAME;
+    HR(pd3dDevice_->CreateRasterizerState(&rsDesc, RSState.GetAddressOf()));
+    pd3dDeviceIMContext_->RSSetState(RSState.Get());
     D3D11SetDebugObjectName(pVertexLayout_.Get(), "VertexPosColorLayout");
     D3D11SetDebugObjectName(pVertexBuffer_.Get(), "VertexBuffer");
     D3D11SetDebugObjectName(pVertexShader_.Get(), "Trangle_VS");
