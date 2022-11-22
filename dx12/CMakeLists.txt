@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS on)
 include_directories(third_party)
 
+find_package(imgui CONFIG REQUIRED)
 find_package(spdlog REQUIRED)
 
 add_subdirectory(common)

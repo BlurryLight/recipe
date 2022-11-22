@@ -10,6 +10,10 @@
 #include <vector>
 #include <windowsx.h>
 
+#include "imgui.h"
+#include "imgui_impl_dx12.h"
+#include "imgui_impl_win32.h"
+
 using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
@@ -70,6 +74,13 @@ bool D3DApp::SetMSAAState(bool val) {
 bool D3DApp::Initialize() {
     if (!InitMainWindow()) return false;
     if (!initDirect3D()) return false;
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void) io;
+    ImGui::StyleColorsDark();
+
     OnResizeCallback();
     return true;
 }
@@ -211,7 +222,13 @@ bool D3DApp::InitMainWindow() {
 
     return true;
 }
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) return true;
 
     switch (msg) {
         // WM_ACTIVATE is sent when the window is activated or deactivated.

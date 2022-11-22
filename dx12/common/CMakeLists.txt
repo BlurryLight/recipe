@@ -18,3 +18,4 @@ target_link_libraries(d3d12lib PUBLIC winmm.lib d3dcompiler.lib D3D12.lib dxgi.l
 # for d3dx12.h
 target_link_libraries(d3d12lib PUBLIC dxguid.lib)
 target_link_libraries(d3d12lib PUBLIC spdlog::spdlog)
+target_link_libraries(d3d12lib PUBLIC imgui::imgui)
