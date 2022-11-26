@@ -89,7 +89,7 @@ int D3DApp::Run() {
 
   //使用GLFW完成操作后，通常是在应用程序退出之前，需要终止GLFW
   ImGui_ImplDX11_Shutdown();
-  // ImGui_ImplWin32_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
   glfwTerminate();
   return 0;
