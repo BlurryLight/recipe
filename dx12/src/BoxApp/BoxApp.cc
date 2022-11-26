@@ -151,6 +151,7 @@ inline void MiniCube::Update(const GameTimer &timer) {
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
+    ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::End();
     ImGui::Render();
 }
@@ -159,7 +160,21 @@ void MiniCube::Draw(const GameTimer &gt) {
 
 
     HR(mDirectCmdListAlloc->Reset());
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAPSO.Get() : mPSO.Get()));
+
+    auto MsaaRTVHandle =
+            CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
+    auto MsaaDSVHandle =
+            CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart(), 1, mDsvDescriptorSize);
+
+    if (GetMSAAState()) {
+        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
+                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
+        mCommandList->ClearRenderTargetView(MsaaRTVHandle, DirectX::Colors::LightBlue, 0, nullptr);
+        mCommandList->ClearDepthStencilView(MsaaDSVHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
+                                            0, nullptr);
+    }
 
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_PRESENT,
@@ -168,10 +183,17 @@ void MiniCube::Draw(const GameTimer &gt) {
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
+
     mCommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightBlue, 0, nullptr);
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
                                         0, nullptr);
-    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+    if (GetMSAAState()) {
+        mCommandList->OMSetRenderTargets(1, &MsaaRTVHandle, true, &MsaaDSVHandle);
+    } else {
+        mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    }
+
 
     std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mCbvHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
@@ -186,8 +208,29 @@ void MiniCube::Draw(const GameTimer &gt) {
         mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocaion, value.BaseVertexLocation, 0);
     }
 
+
+    if (GetMSAAState()) {
+        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
+                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
+
+
+        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST));
+        mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, mBackBufferFormat);
+
+
+        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST,
+                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
+    }
+
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    mCommandList->SetPipelineState(mPSO.Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+
 
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -378,7 +421,6 @@ inline void MiniCube::BuildPSO() {
     psoDesc.InputLayout = {mInputLayout.data(), (UINT) mInputLayout.size()};
     psoDesc.pRootSignature = mRootSignature.Get();
     psoDesc.VS = {(void *) (mvsByteCode->GetBufferPointer()), mvsByteCode->GetBufferSize()};
-
     psoDesc.PS = {(void *) (mpsByteCode->GetBufferPointer()), mpsByteCode->GetBufferSize()};
 
     // RasterzeState里的MultiSampleEnabled只与 line rendering有关?
@@ -395,10 +437,14 @@ inline void MiniCube::BuildPSO() {
     psoDesc.DSVFormat = mDepthStencilFormat;
 
     psoDesc.SampleMask = UINT_MAX;
-    psoDesc.SampleDesc.Count = GetMSAAState() ? 4 : 1;
+    psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleDesc.Quality = 0;
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+
+    spdlog::info("Building MSAA PSO");
+    psoDesc.SampleDesc.Count = 4;
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAPSO)));
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

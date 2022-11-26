@@ -23,7 +23,7 @@ namespace PD {
         HWND GetHMND() const;
         static D3DApp *GetD3dDApp();
         float GetAspectRatio() const;
-        bool GetMSAAState() const;
+        bool &GetMSAAState() const;
         bool SetMSAAState(bool val);// return old state
 
         int MessageLoopRun();
@@ -50,7 +50,8 @@ namespace PD {
         void CreateCommandObjects();
         void CreateSwapChain();
         void CreateRtvAndDsvDescriptorHeaps();
-        
+        void CreateMSAAObjects();
+
         void FlushCommandQueue();
         void CalculateFrameStats();
 
@@ -61,6 +62,9 @@ namespace PD {
         void ReleaseAllResource();
         virtual void ReleaseResource(){};
 
+    private:
+        mutable bool mAppMSAA = false;
+
     protected:
         static D3DApp *mD3dApp;
         HINSTANCE hinstance_ = nullptr;
@@ -70,15 +74,6 @@ namespace PD {
         bool mAppMaximized = false;
         bool mAppResizing = false;
         bool mAppFullScreen = false;
-
-        // TODO:
-        // DX12不支持创建 MSAA交换链
-        // Until I implement MSTexture Resolve, it must be false
-        // 如果要使用MSAA，需要先把结果渲染到 MS 纹理上,然后手动resolve到RT上
-        // https://github.com/microsoft/DirectXTK12/wiki/Line-drawing-and-anti-aliasing
-        // https://stackoverflow.com/questions/71506213/how-can-i-implement-msaa-on-dx12
-        // https://0-rpg.com/2022/08/05/dx/dx12-msaa/
-        bool mAppMSAA = false;
         UINT mAppMsAAQuality = 0;
         GameTimer mTimer;
 
@@ -121,5 +116,9 @@ namespace PD {
 
         ImGuiIO *mImGuiIO = nullptr;
         ComPtr<ID3D12DescriptorHeap> mImGuiCbvHeap;
+
+        ComPtr<ID3D12Resource> mMSAART;
+        ComPtr<ID3D12Resource> mMSAADepth;
+        ComPtr<ID3D12PipelineState> mMSAAPSO;
     };
 }// namespace PD

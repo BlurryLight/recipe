@@ -66,13 +66,8 @@ HWND D3DApp::GetHMND() const {
     return hMainWindow_;
 }
 float D3DApp::GetAspectRatio() const { return (float) mWidth / (float) (mHeight); }
-bool D3DApp::GetMSAAState() const {
-    assert(!mAppMSAA);
-    return mAppMSAA;
-}
+bool &D3DApp::GetMSAAState() const { return mAppMSAA; }
 bool D3DApp::SetMSAAState(bool val) {
-    //TODO:
-    assert(val != true);// "MSAA not supported"
     auto old = mAppMSAA;
     mAppMSAA = val;
     return old;
@@ -127,7 +122,7 @@ void D3DApp::OnResizeCallback() {
     depthStencilDesc.MipLevels = 1;
     // depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // TODO: 研究不同的
     depthStencilDesc.Format = mDepthStencilFormat;
-    depthStencilDesc.SampleDesc.Count = GetMSAAState() ? 4 : 1;
+    depthStencilDesc.SampleDesc.Count = 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -143,7 +138,7 @@ void D3DApp::OnResizeCallback() {
     //  创建了纹理后还需要创建对应的View以绑定到pipeline上
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-    dsvDesc.ViewDimension = GetMSAAState() ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     dsvDesc.Format = mDepthStencilFormat;
     dsvDesc.Texture2D.MipSlice = 0;// only one mip
     mD3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
@@ -174,6 +169,8 @@ void D3DApp::OnResizeCallback() {
     // https://www.khronos.org/opengl/wiki/Scissor_Test
     // per sample operation
     mScissorRect = D3D12_RECT{0, 0, mWidth, mHeight};
+
+    CreateMSAAObjects();
 }
 bool D3DApp::InitMainWindow() {
     // Register the window class.
@@ -480,18 +477,82 @@ void PD::D3DApp::CreateSwapChain() {
 }
 void PD::D3DApp::CreateRtvAndDsvDescriptorHeaps() {
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-    rtvHeapDesc.NumDescriptors = kSwapChainBufferCount;
+    rtvHeapDesc.NumDescriptors = kSwapChainBufferCount + 1;//  + 1 for msaa
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     rtvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&mRtvHeap)));
 
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
-    dsvHeapDesc.NumDescriptors = 1;
+    dsvHeapDesc.NumDescriptors = 1 + 1;// +1 for msaa
     dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     dsvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
+}
+
+void PD::D3DApp::CreateMSAAObjects() {
+
+    assert(mDsvHeap);
+    assert(mRtvHeap);
+    spdlog::info("Create MSAA Objects");
+    mMSAART.Reset();
+    mMSAADepth.Reset();
+    CD3DX12_HEAP_PROPERTIES heapPp(D3D12_HEAP_TYPE_DEFAULT);
+    {
+
+        // MSAA RT
+        D3D12_RESOURCE_DESC MsaaRTDesc = CD3DX12_RESOURCE_DESC::Tex2D(mBackBufferFormat, mWidth, mHeight,
+                                                                      1, // ArraySize
+                                                                      1, // MipLevels
+                                                                      4);// msaa samples
+
+        MsaaRTDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        D3D12_CLEAR_VALUE MsaaClearValue;
+        MsaaClearValue.Format = mBackBufferFormat;
+        MsaaClearValue.Color[0] = Colors::LightBlue[0];
+        MsaaClearValue.Color[1] = Colors::LightBlue[1];
+        MsaaClearValue.Color[2] = Colors::LightBlue[2];
+        MsaaClearValue.Color[3] = Colors::LightBlue[3];
+
+        HR(mD3dDevice->CreateCommittedResource(&heapPp, D3D12_HEAP_FLAG_NONE, &MsaaRTDesc,
+                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE, &MsaaClearValue,
+                                               IID_PPV_ARGS(&mMSAART)));
+        D3D12_RENDER_TARGET_VIEW_DESC msaaRTVDesc = {};
+        msaaRTVDesc.Format = mBackBufferFormat;
+        msaaRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
+        // skip 2 backbuffer
+        CD3DX12_CPU_DESCRIPTOR_HANDLE msaaRTVHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+                                                    kSwapChainBufferCount, mRtvDescriptorSize);
+        mD3dDevice->CreateRenderTargetView(mMSAART.Get(), &msaaRTVDesc, msaaRTVHandle);
+    }
+
+    // create DSV
+    {
+
+        D3D12_RESOURCE_DESC MsaaDepthDesc = CD3DX12_RESOURCE_DESC::Tex2D(mDepthStencilFormat, mWidth, mHeight,
+                                                                         1, // ArraySize
+                                                                         1, // MipLevels
+                                                                         4);// msaa samples
+
+        MsaaDepthDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+        D3D12_CLEAR_VALUE optClear;
+        optClear.Format = mDepthStencilFormat;
+        optClear.DepthStencil.Depth = 1.0f;
+        optClear.DepthStencil.Stencil = 0;
+        HR(mD3dDevice->CreateCommittedResource(&heapPp, D3D12_HEAP_FLAG_NONE, &MsaaDepthDesc,
+                                               D3D12_RESOURCE_STATE_DEPTH_WRITE, &optClear, IID_PPV_ARGS(&mMSAADepth)));
+        D3D12_DEPTH_STENCIL_VIEW_DESC MsaaDsvDesc;
+        MsaaDsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+        MsaaDsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
+        MsaaDsvDesc.Format = mDepthStencilFormat;
+        MsaaDsvDesc.Texture2D.MipSlice = 0;// only one mip
+
+        //DSV
+        CD3DX12_CPU_DESCRIPTOR_HANDLE msaaDSVHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart(), 1,
+                                                    mDsvDescriptorSize);
+        mD3dDevice->CreateDepthStencilView(mMSAADepth.Get(), &MsaaDsvDesc, msaaDSVHandle);
+    }
 }
 
 void PD::D3DApp::FlushCommandQueue() {
