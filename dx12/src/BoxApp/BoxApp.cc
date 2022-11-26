@@ -26,10 +26,10 @@ struct ObjectConstants
 };
 
 
-class MiniCube: public D3DApp {
-
+class MiniCube : public D3DApp {
 public:
     MiniCube(HINSTANCE hInstance);
+    virtual void ReleaseResource() override;
     virtual bool Initialize() override;
     void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
@@ -65,6 +65,18 @@ inline MiniCube::MiniCube(HINSTANCE hInstance) : D3DApp(hInstance) {
     mResourceManager.add_path(path / L"Shaders");
 }
 
+inline void MiniCube::ReleaseResource() {
+    mRootSignature.Reset();
+    mPSO.Reset();
+    mCbvHeap.Reset();
+
+    mvsByteCode.Reset();
+    mpsByteCode.Reset();
+
+    mBoxGeo.reset();
+    mObjectCB.reset();
+}
+
 inline bool MiniCube::Initialize() {
     if(!D3DApp::Initialize())
     {
@@ -80,11 +92,6 @@ inline bool MiniCube::Initialize() {
     BuildShaderAndInputLayout();
     BuildBoxGeometry();
     BuildPSO();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplWin32_Init(GetHMND());
-    ImGui_ImplDX12_Init(mD3dDevice.Get(), kSwapChainBufferCount, DXGI_FORMAT_R8G8B8A8_UNORM, mCbvHeap.Get(),
-                        mCbvHeap->GetCPUDescriptorHandleForHeapStart(), mCbvHeap->GetGPUDescriptorHandleForHeapStart());
 
     // end of record
     HR(mCommandList->Close());
@@ -121,10 +128,7 @@ inline void MiniCube::Update(const GameTimer &timer) {
     XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
     mObjectCB->CopyData(0, objConstants);
 
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-
+    ImGuiPrepareDraw();
     static bool flag = true;
     if (flag) ImGui::ShowDemoWindow(&flag);
     ImGui::Render();
@@ -161,7 +165,9 @@ void MiniCube::Draw(const GameTimer &gt) {
         mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocaion, value.BaseVertexLocation, 0);
     }
 
+    mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                                            D3D12_RESOURCE_STATE_PRESENT));
@@ -181,7 +187,7 @@ inline void MiniCube::BuildDescriptorHeaps() {
     spdlog::info("Building Descriptor Heaps");
     // 除了父类建立的 rtv,Dsv以外还需要建立 src/uav/cbv的描述符堆
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc{};
-    cbvHeapDesc.NumDescriptors = 2;
+    cbvHeapDesc.NumDescriptors = 1;
     cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     cbvHeapDesc.NodeMask = 0;
@@ -204,7 +210,7 @@ inline void MiniCube::BuildConstantBuffers() {
     cbvDesc.BufferLocation = cbAddress;
     cbvDesc.SizeInBytes = ObjSize;
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(mCbvHeap->GetCPUDescriptorHandleForHeapStart(), 1,
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(mCbvHeap->GetCPUDescriptorHandleForHeapStart(), 0,
                                             mCbvSrvUavDescriptorSize);
     mD3dDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
 }

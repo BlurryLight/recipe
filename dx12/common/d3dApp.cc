@@ -10,7 +10,6 @@
 #include <vector>
 #include <windowsx.h>
 
-#include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
 
@@ -45,6 +44,8 @@ int D3DApp::MessageLoopRun() {
             }
         }
     }
+
+    ReleaseAllResource();
     return (int) msg.wParam;
 }
 HINSTANCE D3DApp::GetHInstance() const {
@@ -74,12 +75,7 @@ bool D3DApp::SetMSAAState(bool val) {
 bool D3DApp::Initialize() {
     if (!InitMainWindow()) return false;
     if (!initDirect3D()) return false;
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void) io;
-    ImGui::StyleColorsDark();
+    initImGUI();
 
     OnResizeCallback();
     return true;
@@ -349,6 +345,12 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
+void PD::D3DApp::ImGuiPrepareDraw() {
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+}
+
 bool PD::D3DApp::initDirect3D() {
 #if defined(_DEBUG)
     ComPtr<ID3D12Debug1> debugController = nullptr;
@@ -391,6 +393,29 @@ bool PD::D3DApp::initDirect3D() {
     CreateCommandObjects();
     CreateSwapChain();
     CreateRtvAndDsvDescriptorHeaps();
+    return true;
+}
+
+bool PD::D3DApp::initImGUI() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    mImGuiIO = &ImGui::GetIO();
+    ImGui::StyleColorsDark();
+
+    spdlog::info("Building ImGUI Descriptor Heaps");
+    D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc{};
+    cbvHeapDesc.NumDescriptors = 1;
+    cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    cbvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mImGuiCbvHeap)));
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(GetHMND());
+    ImGui_ImplDX12_Init(mD3dDevice.Get(), kSwapChainBufferCount, mBackBufferFormat, mImGuiCbvHeap.Get(),
+                        mImGuiCbvHeap->GetCPUDescriptorHandleForHeapStart(),
+                        mImGuiCbvHeap->GetGPUDescriptorHandleForHeapStart());
+
     return true;
 }
 
@@ -505,4 +530,35 @@ D3D12_CPU_DESCRIPTOR_HANDLE PD::D3DApp::CurrentBackBufferView() const {
 
 D3D12_CPU_DESCRIPTOR_HANDLE PD::D3DApp::DepthStencilView() const {
     return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
+void PD::D3DApp::ReleaseAllResource() {
+    FlushCommandQueue();
+
+    ReleaseResource();
+
+    FlushCommandQueue();
+
+    // Cleanup
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+    mImGuiIO = nullptr;
+
+    // clean up rt
+    mSwapChainBuffer[0].Reset();
+    mSwapChainBuffer[1].Reset();
+    mDepthStencilBuffer.Reset();
+    mSwapChain.Reset();
+
+    mCommandQueue.Reset();
+    mCommandList.Reset();
+    mDirectCmdListAlloc.Reset();
+    mRtvHeap.Reset();
+    mDsvHeap.Reset();
+    mImGuiCbvHeap.Reset();
+
+    mFence.Reset();
+    mDxgiFactory.Reset();
+    mD3dDevice.Reset();
 }

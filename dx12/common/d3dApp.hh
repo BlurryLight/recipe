@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include "d3dUtils.hh"
-#include <string>
 #include "GameTimer.h"
+#include "d3dUtils.hh"
+#include "imgui.h"
+#include <string>
 
 namespace PD {
     using Microsoft::WRL::ComPtr;
@@ -30,6 +31,7 @@ namespace PD {
         virtual bool Initialize();
         virtual LRESULT AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+        void ImGuiPrepareDraw();
         virtual void Update(const GameTimer& timer){}
         virtual void Draw(const GameTimer& timer) = 0;
 
@@ -42,6 +44,7 @@ namespace PD {
 
         bool InitMainWindow();
         bool initDirect3D();
+        bool initImGUI();
         bool CheckMSAASupport(DXGI_FORMAT format, int SampleConut);
 
         void CreateCommandObjects();
@@ -54,6 +57,9 @@ namespace PD {
         ID3D12Resource* CurrentBackBuffer() const;
         D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
         D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
+
+        void ReleaseAllResource();
+        virtual void ReleaseResource(){};
 
     protected:
         static D3DApp *mD3dApp;
@@ -105,5 +111,8 @@ namespace PD {
 
         D3D12_VIEWPORT mScreenViewport;
         D3D12_RECT mScissorRect;
+
+        ImGuiIO *mImGuiIO = nullptr;
+        ComPtr<ID3D12DescriptorHeap> mImGuiCbvHeap;
     };
 }// namespace PD
