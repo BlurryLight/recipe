@@ -71,6 +71,13 @@ namespace PD {
         bool mAppResizing = false;
         bool mAppFullScreen = false;
 
+        // TODO:
+        // DX12不支持创建 MSAA交换链
+        // Until I implement MSTexture Resolve, it must be false
+        // 如果要使用MSAA，需要先把结果渲染到 MS 纹理上,然后手动resolve到RT上
+        // https://github.com/microsoft/DirectXTK12/wiki/Line-drawing-and-anti-aliasing
+        // https://stackoverflow.com/questions/71506213/how-can-i-implement-msaa-on-dx12
+        // https://0-rpg.com/2022/08/05/dx/dx12-msaa/
         bool mAppMSAA = false;
         UINT mAppMsAAQuality = 0;
         GameTimer mTimer;

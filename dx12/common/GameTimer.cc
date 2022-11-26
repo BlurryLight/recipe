@@ -5,46 +5,35 @@
 
 namespace PD {
 
-    GameTimer::GameTimer(): 
-    mSecondsPerCount(0.0),
-    mDeltaTime(-1),
-    mBaseTime(0.0),
-    mPausedTime(0),
-    mPrevTime(0),
-    mCurrTime(0),
-    mStopped(false)
-     {
+    GameTimer::GameTimer()
+        : mSecondsPerCount(0.0), mDeltaTime(-1), mBaseTime(0), mPausedTime(0), mPrevTime(0), mCurrTime(0),
+          mStopped(false) {
         int64_t countsPerSec{};
         QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
         mSecondsPerCount = 1.0 / (double)countsPerSec;
+    }
+
+     float GameTimer::TotalTime() const {
+
+         if (!mStopped) {
+             return (float(mCurrTime - mBaseTime - mPausedTime)) * (float) mSecondsPerCount;
+         } else {
+
+             return (float(mStopTime - mBaseTime - mPausedTime)) * (float) mSecondsPerCount;
+         }
      }
 
-    float GameTimer::TotalTime() {
-    
-        if(!mStopped)
-        {
-            return (float(mCurrTime - mBaseTime - mPausedTime)) * (float)mSecondsPerCount;
-        }
-        else
-        {
 
-            return (float(mStopTime - mBaseTime - mPausedTime)) * (float)mSecondsPerCount;
-        }
-    }
+     float GameTimer::DeltaTime() const { return (float) mDeltaTime; }
 
+     void GameTimer::Reset() {
 
-    float GameTimer::DeltaTime() {
-        return (float)mDeltaTime;
-    }
-
-    void GameTimer::Reset() {
-        
-        int64_t curTime{};
-        QueryPerformanceCounter((LARGE_INTEGER*)&curTime);
-        mBaseTime = curTime;
-        mPrevTime = curTime;
-        mStopTime = 0;
-        mStopped = false;
+         int64_t curTime{};
+         QueryPerformanceCounter((LARGE_INTEGER *) &curTime);
+         mBaseTime = curTime;
+         mPrevTime = curTime;
+         mStopTime = 0;
+         mStopped = false;
     }
 
     void GameTimer::Start() {

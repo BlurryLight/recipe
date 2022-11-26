@@ -66,8 +66,13 @@ HWND D3DApp::GetHMND() const {
     return hMainWindow_;
 }
 float D3DApp::GetAspectRatio() const { return (float) mWidth / (float) (mHeight); }
-bool D3DApp::GetMSAAState() const { return mAppMSAA; }
+bool D3DApp::GetMSAAState() const {
+    assert(!mAppMSAA);
+    return mAppMSAA;
+}
 bool D3DApp::SetMSAAState(bool val) {
+    //TODO:
+    assert(val != true);// "MSAA not supported"
     auto old = mAppMSAA;
     mAppMSAA = val;
     return old;
@@ -122,7 +127,7 @@ void D3DApp::OnResizeCallback() {
     depthStencilDesc.MipLevels = 1;
     // depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // TODO: 研究不同的
     depthStencilDesc.Format = mDepthStencilFormat;
-    depthStencilDesc.SampleDesc.Count = mAppMSAA ? 4 : 1;
+    depthStencilDesc.SampleDesc.Count = GetMSAAState() ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -138,7 +143,7 @@ void D3DApp::OnResizeCallback() {
     //  创建了纹理后还需要创建对应的View以绑定到pipeline上
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.ViewDimension = GetMSAAState() ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
     dsvDesc.Format = mDepthStencilFormat;
     dsvDesc.Texture2D.MipSlice = 0;// only one mip
     mD3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
@@ -160,10 +165,14 @@ void D3DApp::OnResizeCallback() {
     mScreenViewport.Width = (float) mWidth;
     mScreenViewport.TopLeftX = 0;
     mScreenViewport.TopLeftY = 0;
-    // ? 这个Depth含义是什么，zbufer么
+    // 通常是[0.0,1.0]，不要动
+    // 用于调整Zbuffer的range
     mScreenViewport.MinDepth = 0.0f;
     mScreenViewport.MaxDepth = 1.0f;
 
+    // will discard any pixel outside the scissor
+    // https://www.khronos.org/opengl/wiki/Scissor_Test
+    // per sample operation
     mScissorRect = D3D12_RECT{0, 0, mWidth, mHeight};
 }
 bool D3DApp::InitMainWindow() {
@@ -458,7 +467,7 @@ void PD::D3DApp::CreateSwapChain() {
     Desc.BufferDesc.Format = mBackBufferFormat;
     Desc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     Desc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    Desc.SampleDesc.Count = mAppMSAA ? 4 : 1;
+    Desc.SampleDesc.Count = 1;
     Desc.SampleDesc.Quality = 0;
     Desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     Desc.BufferCount = kSwapChainBufferCount;

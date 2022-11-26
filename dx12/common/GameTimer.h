@@ -7,8 +7,8 @@ namespace PD {
 
 
         // Total time since Reset() without stoped
-        float TotalTime();
-        float DeltaTime();
+        float TotalTime() const;
+        float DeltaTime() const;
         void Reset();
         void Start();
         void Stop();

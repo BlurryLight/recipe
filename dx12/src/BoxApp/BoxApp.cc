@@ -13,16 +13,24 @@
 using namespace PD;
 
 using namespace DirectX;
+using DirectX::PackedVector::XMCOLOR;
 struct Vertex
 {
     XMFLOAT3 Pos;
-    XMFLOAT4 Color;
+    // XMFLOAT4 Color;
+
+    // Chapter 6.13 ex10 packed COLOR
+    // ARGB8
+    // in DXGI_FORMAT: BGRA8
+    // DXGI is in little-0Endine
+    XMCOLOR Color;
 };
 
 struct ObjectConstants
 {
 
     XMFLOAT4X4 MVP = MathHelper::Identity4x4();
+    float gTime = 0;
 };
 
 
@@ -118,19 +126,32 @@ inline void MiniCube::Update(const GameTimer &timer) {
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 
+    static float phi = 0.0f, theta = 0.0f;
+    static float rotationSpeed = 0.1f;
+    phi += rotationSpeed * timer.DeltaTime(), theta += rotationSpeed * timer.DeltaTime();
 
-    XMMATRIX world = XMLoadFloat4x4(&mWorld);
+    XMMATRIX world = DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
+    XMStoreFloat4x4(&mWorld, world);
+    // XMMATRIX world = XMLoadFloat4x4(&mWorld);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
     XMMATRIX worldViewProj = world * view * proj;
 
     // Update the constant buffer with the latest worldViewProj matrix.
     ObjectConstants objConstants;
     XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
+
+    objConstants.gTime = timer.TotalTime();
     mObjectCB->CopyData(0, objConstants);
 
     ImGuiPrepareDraw();
     static bool flag = true;
     if (flag) ImGui::ShowDemoWindow(&flag);
+
+    ImGui::Begin("Hello, world!");
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+                ImGui::GetIO().Framerate);
+    ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
+    ImGui::End();
     ImGui::Render();
 }
 
@@ -251,24 +272,27 @@ inline void MiniCube::BuildShaderAndInputLayout() {
     assert(mvsByteCode);
     assert(mpsByteCode);
     spdlog::info("Bulding Input Layout");
-    mInputLayout = {{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-                    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+    mInputLayout = {
+            {"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
 }
 
 inline void MiniCube::BuildBoxGeometry() {
     spdlog::info("Bulding BoxGemotries");
 
 
-    std::array<Vertex, 8> BoxVertices = {
-            Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)}),
-            Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black)}),
-            Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red)}),
-            Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)}),
-            Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue)}),
-            Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow)}),
-            Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan)}),
-            Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta)}),
+    // Chapter 6.13 ex10 packed COLOR
 
+    std::array<Vertex, 8> BoxVertices = {
+            Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMCOLOR(Colors::White)}),
+            Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Black)}),
+            Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Red)}),
+            Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMCOLOR(Colors::Green)}),
+            Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Blue)}),
+            Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Yellow)}),
+            Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Cyan)}),
+            Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Magenta)}),
 
     };
 
@@ -290,11 +314,13 @@ inline void MiniCube::BuildBoxGeometry() {
                                                 // bottom face
                                                 4, 0, 3, 4, 3, 7};
 
+    // Chapter 6.13 ex10 packed COLOR
     std::array<Vertex, 3> TriVertices = {
-            Vertex({XMFLOAT3(-2.0f, -2.0f, 1.0f), XMFLOAT4(Colors::Red)}),
-            Vertex({XMFLOAT3(2.0f, -2.0f, 1.0f), XMFLOAT4(Colors::Blue)}),
-            Vertex({XMFLOAT3(0.0f, 2.0f, 1.0f), XMFLOAT4(Colors::Green)}),
+            Vertex({XMFLOAT3(-2.0f, -2.0f, 1.0f), XMCOLOR(Colors::Red)}),
+            Vertex({XMFLOAT3(2.0f, -2.0f, 1.0f), XMCOLOR(Colors::Blue)}),
+            Vertex({XMFLOAT3(0.0f, 2.0f, 1.0f), XMCOLOR(Colors::Green)}),
     };
+
     // 对于Dx，顺时针是front face
     // 对于openGL而言 front face是ccw
     std::array<std::uint16_t, 3> TriIndices = {0, 2, 1};
