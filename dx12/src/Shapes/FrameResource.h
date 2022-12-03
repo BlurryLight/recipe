@@ -17,11 +17,11 @@ namespace PD {
         XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
         XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
         XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
-        XMFLOAT3 EyePosW{0};
+        XMFLOAT3 EyePosW{0, 0, 0};
         float cbPerObjectPad1;// padding for 4 bytes
 
-        XMFLOAT2 RenderTargetSize{0};
-        XMFLOAT2 InvRenderTargetSize{0};
+        XMFLOAT2 RenderTargetSize{0, 0};
+        XMFLOAT2 InvRenderTargetSize{0, 0};
         float NearZ = 0;
         float FarZ = 0;
         float TotalTime = 0;

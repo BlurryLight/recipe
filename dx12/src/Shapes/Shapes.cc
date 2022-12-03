@@ -70,6 +70,10 @@ private:
     void BuildPSOs();
     void BuildFrameResources();
     void BuildRenderItems();
+
+    void UpdateObjectCB(const GameTimer &timer);
+    void UpdateMainPassCB(const GameTimer &timer);
+    void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     // std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
@@ -89,6 +93,12 @@ private:
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
     UINT mPassCbvOffset = 0;
+    int mCurrFrameResourceIndex = 0;
+
+    FrameResource *mCurrFrameResource = nullptr;
+    PassConstants mMainPassCB;
+    XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
+    bool mbShowWireFrame = false;
 };
 
 inline ShapesApp::ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -129,7 +139,7 @@ inline bool ShapesApp::Initialize() {
 
 inline void ShapesApp::Update(const GameTimer &timer) {
 
-    XMVECTOR pos = XMVectorSet(0, 0, -5, 1.0f);
+    XMVECTOR pos = XMLoadFloat3(&mEyePos);
     XMVECTOR target = XMVectorZero();
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -147,35 +157,108 @@ inline void ShapesApp::Update(const GameTimer &timer) {
 
     XMMATRIX world = DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
     XMStoreFloat4x4(&mWorld, world);
-    // XMMATRIX world = XMLoadFloat4x4(&mWorld);
-    XMMATRIX proj = XMLoadFloat4x4(&mProj);
-    XMMATRIX worldViewProj = world * view * proj;
 
-    // Update the constant buffer with the latest worldViewProj matrix.
-    ObjectConstants objConstants;
-    // XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
+    mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % kNumFrameResources;
+    mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
-    // objConstants.gTime = timer.TotalTime();
-    // mObjectCB->CopyData(0, objConstants);
+    // 此时GPU已经落后CPU kNumFrameResources帧
+    if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence) {
+        HANDLE eventHandle = CreateEventEx(nullptr, nullptr, 0, EVENT_ALL_ACCESS);
+        HR(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+
+    UpdateObjectCB(timer);
+    UpdateMainPassCB(timer);
 
     ImGuiPrepareDraw();
-    static bool flag = true;
-    if (flag) ImGui::ShowDemoWindow(&flag);
+    static bool bShowDemoWindow = true;
+    if (bShowDemoWindow) ImGui::ShowDemoWindow(&bShowDemoWindow);
 
     ImGui::Begin("Hello, world!");
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
     ImGui::Checkbox("MSAA State", &GetMSAAState());
+    ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::End();
     ImGui::Render();
+}
+
+void ShapesApp::UpdateObjectCB(const GameTimer &timer) {
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+    for (auto &element : mAllRitems) {
+        // upload data when needed
+        if (element->NumFramesDirty > 0) {
+            XMMATRIX world = XMLoadFloat4x4(&element->World);
+            ObjectConstants objCB;
+            XMStoreFloat4x4(&objCB.World, world);
+            currObjectCB->CopyData(element->ObjectCBIndex, objCB);
+            element->NumFramesDirty--;
+        }
+    }
+}
+void ShapesApp::UpdateMainPassCB(const GameTimer &gt) {
+    XMMATRIX view = XMLoadFloat4x4(&mView);
+    XMMATRIX proj = XMLoadFloat4x4(&mProj);
+
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+    XMMATRIX invView = XMMatrixInverse(nullptr, view);
+    XMMATRIX invProj = XMMatrixInverse(nullptr, proj);
+    XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
+
+    XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+    XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+    XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+    XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+    mMainPassCB.EyePosW = mEyePos;
+    mMainPassCB.RenderTargetSize = XMFLOAT2((float) mWidth, (float) mHeight);
+    mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mWidth, 1.0f / mHeight);
+    mMainPassCB.NearZ = 1.0f;
+    mMainPassCB.FarZ = 1000.0f;
+    mMainPassCB.TotalTime = gt.TotalTime();
+    mMainPassCB.DeltaTime = gt.DeltaTime();
+
+    auto currPassCB = mCurrFrameResource->PassCB.get();
+    currPassCB->CopyData(0, mMainPassCB);
+}
+
+inline void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
+                                       const std::vector<const RenderItem *> &ritems) {
+    for (size_t i = 0; i < ritems.size(); i++) {
+        // 要绘制一个物体，需要物体本身的信息，和它有关的model
+        // 先设置顶点信息
+        auto ri = ritems[i];
+        cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
+        cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
+        cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+        // 再设置cb
+        UINT cbvIndex = mCurrFrameResourceIndex * mOpaqueRitems.size() + ri->ObjectCBIndex;
+        auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+        cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+
+        cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+        assert(ri->IndexCount > 0);
+        cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+    }
 }
 
 void ShapesApp::Draw(const GameTimer &gt) {
 
 
-    HR(mDirectCmdListAlloc->Reset());
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAPSO.Get() : mPSOs["opaque"].Get()));
+    // 取出当前帧的Alloc,然后把cmdlist关联到这个alloc
+    auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+    HR(cmdListAlloc->Reset());
+
+    auto SwitchPSO = [this]() {
+        if (GetMSAAState()) { return mMSAAPSO.Get(); }
+        return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
+    };
+    HR(mCommandList->Reset(cmdListAlloc.Get(), SwitchPSO()));
 
     auto MsaaRTVHandle =
             CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
@@ -213,12 +296,17 @@ void ShapesApp::Draw(const GameTimer &gt) {
     std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mCbvHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+    int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
+    auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+    passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
+    mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+
+    DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
     // mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
     // mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
     // mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
     // test: root signature
     // mCommandList->SetGraphicsRootConstantBufferView(0, mObjectCB->Resource()->GetGPUVirtualAddress());
-    mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     // for (auto [key, value] : mBoxGeo->DrawArgs) {
     //     mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocation, value.BaseVertexLocation, 0);
     // }
@@ -242,7 +330,7 @@ void ShapesApp::Draw(const GameTimer &gt) {
     }
 
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-    mCommandList->SetPipelineState(mMSAAPSO.Get());
+    mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 
@@ -257,7 +345,11 @@ void ShapesApp::Draw(const GameTimer &gt) {
     // turn vsync on
     HR(mSwapChain->Present(1, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % kSwapChainBufferCount;
-    FlushCommandQueue();
+
+    // CPU往FrameResource里记录一下新的Fence点，当这一帧完成的时候，Fence应该为 ++mCurrentFence
+    // 同时往GPU插一条命令，当GPU任务执行完时，应该把mFence的值设置为mCurrentFence
+    mCurrFrameResource->Fence = ++mCurrentFence;
+    mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
 inline void ShapesApp::BuildDescriptorHeaps() {
@@ -355,8 +447,13 @@ inline void ShapesApp::BuildRootSignature() {
 inline void ShapesApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
-    mShaders["standardVS"] = CompileShader(ShaderPath, nullptr, "VS", "vs_5_0");
-    mShaders["opaquePS"] = CompileShader(ShaderPath, nullptr, "PS", "ps_5_0");
+
+    auto VSBlob = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_0");
+    auto PSBlob = CompileShader(ShaderPath, nullptr, "PSMain", "ps_5_0");
+    assert(VSBlob);
+    assert(PSBlob);
+    mShaders["standardVS"] = VSBlob;
+    mShaders["opaquePS"] = PSBlob;
 
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
@@ -462,17 +559,20 @@ inline void ShapesApp::BuildFrameResources() {
 }
 
 inline void ShapesApp::BuildRenderItems() {
+    spdlog::info("Build Render Items");
     auto BoxItem = std::make_unique<RenderItem>();
     BoxItem->ObjectCBIndex = 0;
     BoxItem->Geo = mGeometries["shapeGeo"].get();
     BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
+    spdlog::info("Build Render Item: Box");
     const auto &BoxSubMeshInfo = BoxItem->Geo->DrawArgs["box"];
     BoxItem->IndexCount = BoxSubMeshInfo.IndexCount;
     BoxItem->StartIndexLocation = BoxSubMeshInfo.StartIndexLocation;
     BoxItem->BaseVertexLocation = BoxSubMeshInfo.BaseVertexLocation;
     mAllRitems.push_back(std::move(BoxItem));
 
+    spdlog::info("Build Opaque Render Items");
     // All the render items are opaque.
     for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
 }
