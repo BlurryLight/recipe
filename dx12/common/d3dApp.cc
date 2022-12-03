@@ -3,7 +3,9 @@
 //
 
 #include "d3dApp.hh"
+#include "cmake_vars.h"
 #include <cassert>
+#include <filesystem>
 #include <iostream>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -172,7 +174,11 @@ void D3DApp::OnResizeCallback() {
 
     CreateMSAAObjects();
 }
+static float gHighDPIScaleFactor = 1.0;
 bool D3DApp::InitMainWindow() {
+
+    ImGui_ImplWin32_EnableDpiAwareness();
+    gHighDPIScaleFactor = ImGui_ImplWin32_GetDpiScaleForHwnd(GetDesktopWindow());
     // Register the window class.
     const char CLASS_NAME[] = "Sample Window Class";
 
@@ -185,6 +191,8 @@ bool D3DApp::InitMainWindow() {
     wc.lpszMenuName = nullptr;
 
 
+    mWidth = int(mWidth * gHighDPIScaleFactor);
+    mHeight = int(mHeight * gHighDPIScaleFactor);
     RegisterClassA(&wc);
     // Compute window rectangle dimensions based on requested client area dimensions.
     RECT R = {0, 0, mWidth, mHeight};
@@ -406,7 +414,11 @@ bool PD::D3DApp::initImGUI() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     mImGuiIO = &ImGui::GetIO();
-    ImGui::StyleColorsDark();
+    std::filesystem::path RootPath(ROOT_DIR);
+    auto FontPath = RootPath / "resource" / "JetBrainsMono-Regular.ttf";
+    auto Font =
+            mImGuiIO->Fonts->AddFontFromFileTTF(FontPath.u8string().c_str(), 16.0f * gHighDPIScaleFactor, NULL, NULL);
+    assert(Font);
 
     spdlog::info("Building ImGUI Descriptor Heaps");
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc{};

@@ -99,6 +99,7 @@ private:
     PassConstants mMainPassCB;
     XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
+    bool mbVsync = true;
 };
 
 inline ShapesApp::ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -173,7 +174,7 @@ inline void ShapesApp::Update(const GameTimer &timer) {
     UpdateMainPassCB(timer);
 
     ImGuiPrepareDraw();
-    static bool bShowDemoWindow = true;
+    static bool bShowDemoWindow = false;
     if (bShowDemoWindow) ImGui::ShowDemoWindow(&bShowDemoWindow);
 
     ImGui::Begin("Hello, world!");
@@ -182,6 +183,8 @@ inline void ShapesApp::Update(const GameTimer &timer) {
     ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
     ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
+    ImGui::Checkbox("VSync", &mbVsync);
+    ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
     ImGui::End();
     ImGui::Render();
 }
@@ -343,7 +346,7 @@ void ShapesApp::Draw(const GameTimer &gt) {
     mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
 
     // turn vsync on
-    HR(mSwapChain->Present(1, 0));
+    HR(mSwapChain->Present(mbVsync, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % kSwapChainBufferCount;
 
     // CPU往FrameResource里记录一下新的Fence点，当这一帧完成的时候，Fence应该为 ++mCurrentFence
