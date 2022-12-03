@@ -1,11 +1,12 @@
+#include "FrameResource.h"
+#include "GeometryGenerator.h"
 #include "MathHelper.h"
 #include "UploadBuffer.hh"
 #include "resource_path_searcher.h"
-
-#include <GeometryGenerator.h>
 #include <array>
 #include <d3dApp.hh>
 #include <spdlog/spdlog.h>
+
 
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
@@ -15,106 +16,118 @@
 using namespace PD;
 
 using namespace DirectX;
+
 using DirectX::PackedVector::XMCOLOR;
-struct Vertex
-{
-    XMFLOAT3 Pos;
-    // XMFLOAT4 Color;
+const static int kNumFrameResources = 3;
 
-    // Chapter 6.13 ex10 packed COLOR
-    // ARGB8
-    // in DXGI_FORMAT: BGRA8
-    // DXGI is in little-0Endine
-    XMCOLOR Color;
+// struct ObjectConstants {
+
+//     XMFLOAT4X4 MVP = MathHelper::Identity4x4();
+//     float gTime = 0;
+// };
+// struct Vertex {
+//     XMFLOAT3 Pos;
+
+//     // Chapter 6.13 ex10 packed COLOR
+//     // ARGB8
+//     // in DXGI_FORMAT: BGRA8
+//     // DXGI is in little-0Endine
+//     DirectX::PackedVector::XMCOLOR Color;
+// };
+
+
+// RenderItem is related to per object
+struct RenderItem {
+    XMFLOAT4X4 World = MathHelper::Identity4x4();
+    // init: every resource needs to be updated
+    int NumFramesDirty = kNumFrameResources;
+
+    UINT ObjectCBIndex = -1;
+    MeshGeometry *Geo = nullptr;
+    D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    // draw instance params
+    UINT IndexCount = 0;
+    UINT StartIndexLocation = 0;
+    int BaseVertexLocation = 0;
 };
 
-struct ObjectConstants
-{
 
-    XMFLOAT4X4 MVP = MathHelper::Identity4x4();
-    float gTime = 0;
-};
-
-
-class ShapesAPP : public D3DApp {
+class ShapesApp : public D3DApp {
 public:
-    ShapesAPP(HINSTANCE hInstance);
+    ShapesApp(HINSTANCE hInstance);
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
     void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
-    private:
 
+private:
     void BuildDescriptorHeaps();
     void BuildConstantBuffers();
     void BuildRootSignature();
     void BuildShaderAndInputLayout();
-    void BuildBoxGeometry();
-    void BuildPSO();
+    void BuildShapeGeometry();
+    void BuildPSOs();
+    void BuildFrameResources();
+    void BuildRenderItems();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
-    ComPtr<ID3D12PipelineState> mPSO;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+    // std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
     ResourcePathSearcher mResourceManager;
 
-    ComPtr<ID3DBlob> mvsByteCode;
-    ComPtr<ID3DBlob> mpsByteCode;
+    std::unordered_map<std::string, ComPtr<ID3D10Blob>> mShaders;
+    std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+    std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
+    std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 
-    std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
+    // List of all the render items.
+    std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+    std::vector<const RenderItem *> mOpaqueRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+    UINT mPassCbvOffset = 0;
 };
 
-inline ShapesAPP::ShapesAPP(HINSTANCE hInstance) : D3DApp(hInstance) {
+inline ShapesApp::ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
     mResourceManager.add_path(path / L"Shaders");
 }
 
-inline void ShapesAPP::ReleaseResource() {
+inline void ShapesApp::ReleaseResource() {
     mRootSignature.Reset();
-    mPSO.Reset();
     mCbvHeap.Reset();
-
-    mvsByteCode.Reset();
-    mpsByteCode.Reset();
-
-    mBoxGeo.reset();
-    mObjectCB.reset();
 }
 
-inline bool ShapesAPP::Initialize() {
-    if(!D3DApp::Initialize())
-    {
-        return false;
-    }
+inline bool ShapesApp::Initialize() {
+    if (!D3DApp::Initialize()) { return false; }
     assert(mCommandList);
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
-    BuildDescriptorHeaps();
-    BuildConstantBuffers();
     BuildRootSignature();
     BuildShaderAndInputLayout();
-    BuildBoxGeometry();
-    BuildPSO();
+    BuildShapeGeometry();
+    BuildRenderItems();
+    BuildFrameResources();
+    BuildDescriptorHeaps();
+    BuildConstantBuffers();
+    BuildPSOs();
 
     // end of record
     HR(mCommandList->Close());
-    std::array<ID3D12CommandList*,1> cmdLists{mCommandList.Get()};
+    std::array<ID3D12CommandList *, 1> cmdLists{mCommandList.Get()};
     mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
     FlushCommandQueue();
-    // after flush, it's safe to release uploader resource
-    mBoxGeo->DisposeUploaders();
 
     return true;
 }
 
-inline void ShapesAPP::Update(const GameTimer &timer) {
+inline void ShapesApp::Update(const GameTimer &timer) {
 
     XMVECTOR pos = XMVectorSet(0, 0, -5, 1.0f);
     XMVECTOR target = XMVectorZero();
@@ -140,10 +153,10 @@ inline void ShapesAPP::Update(const GameTimer &timer) {
 
     // Update the constant buffer with the latest worldViewProj matrix.
     ObjectConstants objConstants;
-    XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
+    // XMStoreFloat4x4(&objConstants.MVP, XMMatrixTranspose(worldViewProj));
 
-    objConstants.gTime = timer.TotalTime();
-    mObjectCB->CopyData(0, objConstants);
+    // objConstants.gTime = timer.TotalTime();
+    // mObjectCB->CopyData(0, objConstants);
 
     ImGuiPrepareDraw();
     static bool flag = true;
@@ -158,11 +171,11 @@ inline void ShapesAPP::Update(const GameTimer &timer) {
     ImGui::Render();
 }
 
-void ShapesAPP::Draw(const GameTimer &gt) {
+void ShapesApp::Draw(const GameTimer &gt) {
 
 
     HR(mDirectCmdListAlloc->Reset());
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAPSO.Get() : mPSO.Get()));
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAPSO.Get() : mPSOs["opaque"].Get()));
 
     auto MsaaRTVHandle =
             CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
@@ -200,15 +213,15 @@ void ShapesAPP::Draw(const GameTimer &gt) {
     std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mCbvHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
-    mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
+    // mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
+    // mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
     // mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
     // test: root signature
-    mCommandList->SetGraphicsRootConstantBufferView(0, mObjectCB->Resource()->GetGPUVirtualAddress());
+    // mCommandList->SetGraphicsRootConstantBufferView(0, mObjectCB->Resource()->GetGPUVirtualAddress());
     mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    for (auto [key, value] : mBoxGeo->DrawArgs) {
-        mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocation, value.BaseVertexLocation, 0);
-    }
+    // for (auto [key, value] : mBoxGeo->DrawArgs) {
+    //     mCommandList->DrawIndexedInstanced(value.IndexCount, 1, value.StartIndexLocation, value.BaseVertexLocation, 0);
+    // }
 
 
     if (GetMSAAState()) {
@@ -229,7 +242,7 @@ void ShapesAPP::Draw(const GameTimer &gt) {
     }
 
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-    mCommandList->SetPipelineState(mPSO.Get());
+    mCommandList->SetPipelineState(mMSAAPSO.Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 
@@ -247,55 +260,85 @@ void ShapesAPP::Draw(const GameTimer &gt) {
     FlushCommandQueue();
 }
 
-inline void ShapesAPP::BuildDescriptorHeaps() {
+inline void ShapesApp::BuildDescriptorHeaps() {
     assert(mRtvHeap.Get());
     assert(mDsvHeap.Get());
     spdlog::info("Building Descriptor Heaps");
-    // 除了父类建立的 rtv,Dsv以外还需要建立 src/uav/cbv的描述符堆
+
+    UINT ObjCount = (UINT) mOpaqueRitems.size();
+    // ObjCount 是per obj的cb
+    // +1 是整个Pass共通的cb
+    UINT numDescriptor = (ObjCount + 1) * kNumFrameResources;
+
+    mPassCbvOffset = ObjCount * kNumFrameResources;
+
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc{};
-    cbvHeapDesc.NumDescriptors = 1;
+    cbvHeapDesc.NumDescriptors = numDescriptor;
     cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     cbvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-inline void ShapesAPP::BuildConstantBuffers() {
+inline void ShapesApp::BuildConstantBuffers() {
     spdlog::info("Building Constant Buffers");
-    assert(!mObjectCB);
-    mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(mD3dDevice.Get(), 1, true);
 
-    uint32_t ObjSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    spdlog::info("Building Objects Constant Buffers");
+    uint32_t ObjCBBytesSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    UINT ObjCount = (UINT) mOpaqueRitems.size();
+    for (int frameIndex = 0; frameIndex < kNumFrameResources; ++frameIndex) {
+        auto ObjectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
+        for (uint32_t i = 0; i < ObjCount; i++) {
+            D3D12_GPU_VIRTUAL_ADDRESS cbAddress = ObjectCB->GetGPUVirtualAddress();
+            // 第几个物体的ConstBuffer
+            cbAddress += i * ObjCBBytesSize;
+            int heapIndex = frameIndex * ObjCount + i;
+            auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+            handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+            cbvDesc.BufferLocation = cbAddress;
+            cbvDesc.SizeInBytes = ObjCBBytesSize;
+            mD3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+        }
+    }
 
-    // 计算这个物体在整个cb内的偏移量，因为这个例子只有一个物体，所以偏移量是0
-    D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
-    int boxCBufIndex = 0;
-    cbAddress += boxCBufIndex * ObjSize;
+    spdlog::info("Building Passes Constant Buffers");
+    UINT passCBByteSize = CalcConstantBufferBytesSize(sizeof(PassConstants));
 
-    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-    cbvDesc.BufferLocation = cbAddress;
-    cbvDesc.SizeInBytes = ObjSize;
+    // Last three descriptors are the pass CBVs for each frame resource.
+    for (int frameIndex = 0; frameIndex < kNumFrameResources; ++frameIndex) {
+        auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
+        D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cbvHandle(mCbvHeap->GetCPUDescriptorHandleForHeapStart(), 0,
-                                            mCbvSrvUavDescriptorSize);
-    mD3dDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
+        // Offset to the pass cbv in the descriptor heap.
+        assert(mPassCbvOffset > 0);
+        int heapIndex = mPassCbvOffset + frameIndex;
+        auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+        handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+        cbvDesc.BufferLocation = cbAddress;
+        cbvDesc.SizeInBytes = passCBByteSize;
+        mD3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+    }
 }
 
-inline void ShapesAPP::BuildRootSignature() {
-    // 可以有多个root parameter，对应函数的多个形参数?
-    CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+inline void ShapesApp::BuildRootSignature() {
 
-    // 用cbvTable初始化 root parameter
-    // 这个参数包含1个 cbv descriptor
-    // CD3DX12_DESCRIPTOR_RANGE cbvTable;
-    // cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-    // slotRootParameter->InitAsDescriptorTable(1, &cbvTable);
+    CD3DX12_DESCRIPTOR_RANGE cbvTable0;
+    // register b0
+    cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
 
-    // test: root descriptor
-    slotRootParameter[0].InitAsConstantBufferView(0, 0);
+    CD3DX12_DESCRIPTOR_RANGE cbvTable1;
+    // register b1
+    cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
 
-    //TODO: flag
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+
+    slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
+    slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
+
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
                                             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
@@ -309,143 +352,82 @@ inline void ShapesAPP::BuildRootSignature() {
                                        IID_PPV_ARGS(&mRootSignature)));
 }
 
-inline void ShapesAPP::BuildShaderAndInputLayout() {
+inline void ShapesApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
-    mvsByteCode = CompileShader(ShaderPath, nullptr, "VS", "vs_5_0");
-    mpsByteCode = CompileShader(ShaderPath, nullptr, "PS", "ps_5_0");
-    assert(mvsByteCode);
-    assert(mpsByteCode);
+    mShaders["standardVS"] = CompileShader(ShaderPath, nullptr, "VS", "vs_5_0");
+    mShaders["opaquePS"] = CompileShader(ShaderPath, nullptr, "PS", "ps_5_0");
+
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
-            {"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+            {"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+             0},
     };
 }
 
-inline void ShapesAPP::BuildBoxGeometry() {
-    spdlog::info("Bulding BoxGemotries");
-
-
-    // Chapter 6.13 ex10 packed COLOR
-
-    std::array<Vertex, 8> BoxVertices = {
-            Vertex({XMFLOAT3(-1.0f, -1.0f, -1.0f), XMCOLOR(Colors::White)}),
-            Vertex({XMFLOAT3(-1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Black)}),
-            Vertex({XMFLOAT3(+1.0f, +1.0f, -1.0f), XMCOLOR(Colors::Red)}),
-            Vertex({XMFLOAT3(+1.0f, -1.0f, -1.0f), XMCOLOR(Colors::Green)}),
-            Vertex({XMFLOAT3(-1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Blue)}),
-            Vertex({XMFLOAT3(-1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Yellow)}),
-            Vertex({XMFLOAT3(+1.0f, +1.0f, +1.0f), XMCOLOR(Colors::Cyan)}),
-            Vertex({XMFLOAT3(+1.0f, -1.0f, +1.0f), XMCOLOR(Colors::Magenta)}),
-
-    };
-
-    std::array<std::uint16_t, 36> BoxIndices = {// front face
-                                                0, 1, 2, 0, 2, 3,
-
-                                                // back face
-                                                4, 6, 5, 4, 7, 6,
-
-                                                // left face
-                                                4, 5, 1, 4, 1, 0,
-
-                                                // right face
-                                                3, 2, 6, 3, 6, 7,
-
-                                                // top face
-                                                1, 5, 6, 1, 6, 2,
-
-                                                // bottom face
-                                                4, 0, 3, 4, 3, 7};
-
-    // Chapter 6.13 ex10 packed COLOR
-    std::array<Vertex, 3> TriVertices = {
-            Vertex({XMFLOAT3(-2.0f, -2.0f, 1.0f), XMCOLOR(Colors::Red)}),
-            Vertex({XMFLOAT3(2.0f, -2.0f, 1.0f), XMCOLOR(Colors::Blue)}),
-            Vertex({XMFLOAT3(0.0f, 2.0f, 1.0f), XMCOLOR(Colors::Green)}),
-    };
-
+inline void ShapesApp::BuildShapeGeometry() {
+    spdlog::info("Bulding Shape Geometries");
     GeometryGenerator geoGen;
-    GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+    GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 0.5f, 1.5f, 3);
 
-    std::vector<::Vertex> sphereVertices;
-    for (auto v : sphere.Vertices) {
-        ::Vertex vertex;
-        vertex.Pos = v.Position;
-        vertex.Pos.x += 1.7;
-        vertex.Color = XMCOLOR(Colors::Silver);
-        sphereVertices.push_back(vertex);
+    UINT boxVertexOffset = 0;
+    UINT boxIndexOffset = 0;
+
+    SubmeshGeometry boxSubmesh;
+    boxSubmesh.IndexCount = (UINT) box.Indices32.size();
+    boxSubmesh.StartIndexLocation = boxIndexOffset;
+    boxSubmesh.BaseVertexLocation = boxVertexOffset;
+
+    auto totalVertexCount = box.Vertices.size();
+    std::vector<Vertex> vertices(totalVertexCount);
+    UINT k = 0;
+    for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
+        vertices[k].Pos = box.Vertices[i].Position;
+        vertices[k].Color = XMCOLOR(DirectX::Colors::DarkGreen);
     }
-    // 对于Dx，顺时针是front face
-    // 对于openGL而言 front face是ccw
-    std::array<std::uint16_t, 3> TriIndices = {0, 2, 1};
-    std::vector<Vertex> vertices;
-    vertices.insert(vertices.end(), BoxVertices.begin(), BoxVertices.end());
-    vertices.insert(vertices.end(), TriVertices.begin(), TriVertices.end());
-    vertices.insert(vertices.end(), sphereVertices.begin(), sphereVertices.end());
     std::vector<std::uint16_t> indices;
-    indices.insert(indices.end(), BoxIndices.begin(), BoxIndices.end());
-    indices.insert(indices.end(), TriIndices.begin(), TriIndices.end());
-    indices.insert(indices.end(), sphere.GetIndices16().begin(), sphere.GetIndices16().end());
+    indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
 
+    const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
 
-    const UINT vbBytesSize = (UINT) vertices.size() * sizeof(Vertex);
-    const UINT ibBytesSize = (UINT) indices.size() * sizeof(uint16_t);
-    assert(!mBoxGeo);
-    mBoxGeo = std::make_unique<MeshGeometry>();
-    mBoxGeo->name = "BoxGeo";
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->name = "shapeGeo";
 
-    spdlog::info("Building Box VBO/IBO CPU");
-    HR(D3DCreateBlob(vbBytesSize, mBoxGeo->VertexBufferCPU.GetAddressOf()));
-    CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbBytesSize);
+    HR(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
-    HR(D3DCreateBlob(ibBytesSize, mBoxGeo->IndexBufferCPU.GetAddressOf()));
-    CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibBytesSize);
+    HR(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-    spdlog::info("Building Box VBO/IBO GPU");
-    mBoxGeo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbBytesSize,
-                                                   mBoxGeo->VertexBufferUploader);
+    geo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize,
+                                               geo->VertexBufferUploader);
 
-    mBoxGeo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibBytesSize,
-                                                  mBoxGeo->IndexBufferUploader);
-    mBoxGeo->VertexBytesStride = sizeof(Vertex);
-    mBoxGeo->VertexBufferByteSize = vbBytesSize;
-    mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    mBoxGeo->IndexBufferBytesSize = ibBytesSize;
+    geo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize,
+                                              geo->IndexBufferUploader);
 
-    spdlog::info("Building Box Submesh");
-    SubmeshGeometry submesh{};
-    submesh.BaseVertexLocation = 0;
-    submesh.IndexCount = (UINT) BoxIndices.size();
-    submesh.StartIndexLocation = 0;
-    mBoxGeo->DrawArgs["box"] = submesh;
+    geo->VertexBytesStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferBytesSize = ibByteSize;
 
+    geo->DrawArgs["box"] = boxSubmesh;
 
-    spdlog::info("Building Tri Submesh");
-    submesh.BaseVertexLocation = BoxVertices.size();
-    submesh.IndexCount = (UINT) TriIndices.size();
-    submesh.StartIndexLocation = BoxIndices.size();
-    mBoxGeo->DrawArgs["tri"] = submesh;
-
-    spdlog::info("Building Sphere Submesh");
-    submesh.BaseVertexLocation = BoxVertices.size() + TriVertices.size();
-    submesh.IndexCount = (UINT) sphere.Indices32.size();
-    submesh.StartIndexLocation = BoxIndices.size() + TriIndices.size();
-    mBoxGeo->DrawArgs["sphere"] = submesh;
+    mGeometries[geo->name] = std::move(geo);
 }
 
-inline void ShapesAPP::BuildPSO() {
+inline void ShapesApp::BuildPSOs() {
 
     spdlog::info("Building PSO");
+    spdlog::info("Building Opaque PSO");
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{0};
     psoDesc.InputLayout = {mInputLayout.data(), (UINT) mInputLayout.size()};
     psoDesc.pRootSignature = mRootSignature.Get();
-    psoDesc.VS = {(void *) (mvsByteCode->GetBufferPointer()), mvsByteCode->GetBufferSize()};
-    psoDesc.PS = {(void *) (mpsByteCode->GetBufferPointer()), mpsByteCode->GetBufferSize()};
 
-    // RasterzeState里的MultiSampleEnabled只与 line rendering有关?
-    // MultiSampleEnabled: Set to TRUE to use the quadrilateral line anti-aliasing algorithm and to FALSE to use the alpha line anti-aliasing algorithm.
+    psoDesc.VS = {(void *) (mShaders["standardVS"]->GetBufferPointer()), mShaders["standardVS"]->GetBufferSize()};
+    psoDesc.PS = {(void *) (mShaders["opaquePS"]->GetBufferPointer()), mShaders["opaquePS"]->GetBufferSize()};
+
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
@@ -461,11 +443,38 @@ inline void ShapesAPP::BuildPSO() {
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleDesc.Quality = 0;
 
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+    spdlog::info("Building WireFrame PSO");
+    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 
     spdlog::info("Building MSAA PSO");
+    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
     psoDesc.SampleDesc.Count = 4;
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAPSO)));
+}
+
+inline void ShapesApp::BuildFrameResources() {
+    for (int i = 0; i < kNumFrameResources; i++) {
+        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size()));
+    }
+}
+
+inline void ShapesApp::BuildRenderItems() {
+    auto BoxItem = std::make_unique<RenderItem>();
+    BoxItem->ObjectCBIndex = 0;
+    BoxItem->Geo = mGeometries["shapeGeo"].get();
+    BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    const auto &BoxSubMeshInfo = BoxItem->Geo->DrawArgs["box"];
+    BoxItem->IndexCount = BoxSubMeshInfo.IndexCount;
+    BoxItem->StartIndexLocation = BoxSubMeshInfo.StartIndexLocation;
+    BoxItem->BaseVertexLocation = BoxSubMeshInfo.BaseVertexLocation;
+    mAllRitems.push_back(std::move(BoxItem));
+
+    // All the render items are opaque.
+    for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
@@ -478,7 +487,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     freopen("CONIN$", "r", stdin);
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-    ShapesAPP theApp(hInstance);
+    ShapesApp theApp(hInstance);
     if (!theApp.Initialize()) return 0;
 
     return theApp.MessageLoopRun();

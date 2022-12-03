@@ -72,6 +72,16 @@ namespace PD {
     ComPtr<ID3DBlob> CompileShader(const std::wstring &filename, const D3D_SHADER_MACRO *defines,
                                    const std::string &entrypoint, const std::string &target);
 
+    /**
+     * @brief 一个辅助函数，创建一个位于DefaultHeap的Buffer对象，数据先到Upload堆，再到Default堆
+     * 
+     * @param device 
+     * @param cmdList 
+     * @param initData 位于CPU上的数据指针
+     * @param byteSize 数据字节数
+     * @param outUploader 会返回一个位于Upload堆的对象，需要维持生命周期到ExecuteCommandList
+     * @return ComPtr<ID3D12Resource> 
+     */
     ComPtr<ID3D12Resource> CreateDefaultBuffer(ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
                                                const void *initData, uint64_t byteSize,
                                                ComPtr<ID3D12Resource> &outUploader);
@@ -79,7 +89,7 @@ namespace PD {
     struct SubmeshGeometry {
         UINT IndexCount = 0;
         // 在多个mesh共用一个ibo/vbo时，需要指定baseIndex,并且无需改变index Buffer
-        UINT StartIndexLocaion = 0;
+        UINT StartIndexLocation = 0;
         INT BaseVertexLocation = 0;
 
         DirectX::BoundingBox Bounds;
@@ -104,7 +114,7 @@ namespace PD {
         UINT VertexBytesStride = 0;
         UINT VertexBufferByteSize = 0;
         DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
-        UINT IndexbufferBytesSize = 0;
+        UINT IndexBufferBytesSize = 0;
         std::unordered_map<std::string, struct SubmeshGeometry> DrawArgs;
 
         D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const {
@@ -119,7 +129,7 @@ namespace PD {
             D3D12_INDEX_BUFFER_VIEW ibv;
             ibv.BufferLocation = IndexBufferGPU->GetGPUVirtualAddress();
             ibv.Format = IndexFormat;
-            ibv.SizeInBytes = IndexbufferBytesSize;
+            ibv.SizeInBytes = IndexBufferBytesSize;
             return ibv;
         }
 
