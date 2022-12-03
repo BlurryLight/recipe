@@ -1,6 +1,8 @@
 #include "MathHelper.h"
 #include "UploadBuffer.hh"
 #include "resource_path_searcher.h"
+
+#include <GeometryGenerator.h>
 #include <array>
 #include <d3dApp.hh>
 #include <spdlog/spdlog.h>
@@ -34,9 +36,9 @@ struct ObjectConstants
 };
 
 
-class MiniCube : public D3DApp {
+class ShapesAPP : public D3DApp {
 public:
-    MiniCube(HINSTANCE hInstance);
+    ShapesAPP(HINSTANCE hInstance);
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
     void Update(const GameTimer &timer) override;
@@ -66,14 +68,14 @@ public:
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 };
 
-inline MiniCube::MiniCube(HINSTANCE hInstance) : D3DApp(hInstance) {
+inline ShapesAPP::ShapesAPP(HINSTANCE hInstance) : D3DApp(hInstance) {
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
     mResourceManager.add_path(path / L"Shaders");
 }
 
-inline void MiniCube::ReleaseResource() {
+inline void ShapesAPP::ReleaseResource() {
     mRootSignature.Reset();
     mPSO.Reset();
     mCbvHeap.Reset();
@@ -85,7 +87,7 @@ inline void MiniCube::ReleaseResource() {
     mObjectCB.reset();
 }
 
-inline bool MiniCube::Initialize() {
+inline bool ShapesAPP::Initialize() {
     if(!D3DApp::Initialize())
     {
         return false;
@@ -112,7 +114,7 @@ inline bool MiniCube::Initialize() {
     return true;
 }
 
-inline void MiniCube::Update(const GameTimer &timer) {
+inline void ShapesAPP::Update(const GameTimer &timer) {
 
     XMVECTOR pos = XMVectorSet(0, 0, -5, 1.0f);
     XMVECTOR target = XMVectorZero();
@@ -156,7 +158,7 @@ inline void MiniCube::Update(const GameTimer &timer) {
     ImGui::Render();
 }
 
-void MiniCube::Draw(const GameTimer &gt) {
+void ShapesAPP::Draw(const GameTimer &gt) {
 
 
     HR(mDirectCmdListAlloc->Reset());
@@ -245,7 +247,7 @@ void MiniCube::Draw(const GameTimer &gt) {
     FlushCommandQueue();
 }
 
-inline void MiniCube::BuildDescriptorHeaps() {
+inline void ShapesAPP::BuildDescriptorHeaps() {
     assert(mRtvHeap.Get());
     assert(mDsvHeap.Get());
     spdlog::info("Building Descriptor Heaps");
@@ -258,7 +260,7 @@ inline void MiniCube::BuildDescriptorHeaps() {
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-inline void MiniCube::BuildConstantBuffers() {
+inline void ShapesAPP::BuildConstantBuffers() {
     spdlog::info("Building Constant Buffers");
     assert(!mObjectCB);
     mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(mD3dDevice.Get(), 1, true);
@@ -279,7 +281,7 @@ inline void MiniCube::BuildConstantBuffers() {
     mD3dDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
 }
 
-inline void MiniCube::BuildRootSignature() {
+inline void ShapesAPP::BuildRootSignature() {
     // 可以有多个root parameter，对应函数的多个形参数?
     CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
@@ -307,7 +309,7 @@ inline void MiniCube::BuildRootSignature() {
                                        IID_PPV_ARGS(&mRootSignature)));
 }
 
-inline void MiniCube::BuildShaderAndInputLayout() {
+inline void ShapesAPP::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
     mvsByteCode = CompileShader(ShaderPath, nullptr, "VS", "vs_5_0");
@@ -321,7 +323,7 @@ inline void MiniCube::BuildShaderAndInputLayout() {
     };
 }
 
-inline void MiniCube::BuildBoxGeometry() {
+inline void ShapesAPP::BuildBoxGeometry() {
     spdlog::info("Bulding BoxGemotries");
 
 
@@ -364,15 +366,28 @@ inline void MiniCube::BuildBoxGeometry() {
             Vertex({XMFLOAT3(0.0f, 2.0f, 1.0f), XMCOLOR(Colors::Green)}),
     };
 
+    GeometryGenerator geoGen;
+    GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+
+    std::vector<::Vertex> sphereVertices;
+    for (auto v : sphere.Vertices) {
+        ::Vertex vertex;
+        vertex.Pos = v.Position;
+        vertex.Pos.x += 1.7;
+        vertex.Color = XMCOLOR(Colors::Silver);
+        sphereVertices.push_back(vertex);
+    }
     // 对于Dx，顺时针是front face
     // 对于openGL而言 front face是ccw
     std::array<std::uint16_t, 3> TriIndices = {0, 2, 1};
     std::vector<Vertex> vertices;
     vertices.insert(vertices.end(), BoxVertices.begin(), BoxVertices.end());
     vertices.insert(vertices.end(), TriVertices.begin(), TriVertices.end());
+    vertices.insert(vertices.end(), sphereVertices.begin(), sphereVertices.end());
     std::vector<std::uint16_t> indices;
     indices.insert(indices.end(), BoxIndices.begin(), BoxIndices.end());
     indices.insert(indices.end(), TriIndices.begin(), TriIndices.end());
+    indices.insert(indices.end(), sphere.GetIndices16().begin(), sphere.GetIndices16().end());
 
 
     const UINT vbBytesSize = (UINT) vertices.size() * sizeof(Vertex);
@@ -412,9 +427,15 @@ inline void MiniCube::BuildBoxGeometry() {
     submesh.IndexCount = (UINT) TriIndices.size();
     submesh.StartIndexLocaion = BoxIndices.size();
     mBoxGeo->DrawArgs["tri"] = submesh;
+
+    spdlog::info("Building Sphere Submesh");
+    submesh.BaseVertexLocation = BoxVertices.size() + TriVertices.size();
+    submesh.IndexCount = (UINT) sphere.Indices32.size();
+    submesh.StartIndexLocaion = BoxIndices.size() + TriIndices.size();
+    mBoxGeo->DrawArgs["sphere"] = submesh;
 }
 
-inline void MiniCube::BuildPSO() {
+inline void ShapesAPP::BuildPSO() {
 
     spdlog::info("Building PSO");
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{0};
@@ -457,7 +478,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     freopen("CONIN$", "r", stdin);
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-    MiniCube theApp(hInstance);
+    ShapesAPP theApp(hInstance);
     if (!theApp.Initialize()) return 0;
 
     return theApp.MessageLoopRun();

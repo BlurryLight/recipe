@@ -3,6 +3,7 @@ set(SRC
     d3dUtils.cc
     GameTimer.cc
     ../third_party/MathHelper.cpp
+    ../third_party/GeometryGenerator.cpp
     ../utils/resource_path_searcher.cc
 )
 
