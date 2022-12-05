@@ -82,7 +82,7 @@ private:
 
     FrameResource *mCurrFrameResource = nullptr;
     PassConstants mMainPassCB;
-    XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
+    // XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
     bool mbVsync = true;
 };
@@ -101,6 +101,9 @@ inline void ShapesApp::ReleaseResource() {
 
 inline bool ShapesApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
+    mCamera = new PD::Camera(SimpleMath::Vector3(0, 0, -5),
+                            SimpleMath::Vector3(0, 0, 1),
+                            SimpleMath::Vector3(0, 1, 0));
     assert(mCommandList);
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
@@ -125,12 +128,8 @@ inline bool ShapesApp::Initialize() {
 
 inline void ShapesApp::Update(const GameTimer &timer) {
 
-    XMVECTOR pos = XMLoadFloat3(&mEyePos);
-    XMVECTOR target = XMVectorZero();
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-    XMStoreFloat4x4(&mView, view);
+    D3DApp::Update(timer);
+    XMStoreFloat4x4(&mView, mCamera->GetViewMatrix());
 
     // The window resized, so update the aspect ratio and recompute the projection matrix.
     float aspect = GetAspectRatio();
@@ -202,7 +201,7 @@ void ShapesApp::UpdateMainPassCB(const GameTimer &gt) {
     XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
     XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
     XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-    mMainPassCB.EyePosW = mEyePos;
+    mMainPassCB.EyePosW = mCamera->Position;
     mMainPassCB.RenderTargetSize = XMFLOAT2((float) mWidth, (float) mHeight);
     mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mWidth, 1.0f / mHeight);
     mMainPassCB.NearZ = 1.0f;

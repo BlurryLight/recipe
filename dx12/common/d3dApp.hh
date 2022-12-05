@@ -9,6 +9,7 @@
 #include "d3dUtils.hh"
 #include "imgui.h"
 #include <string>
+#include "EulerCamera.hh"
 
 namespace PD {
     using Microsoft::WRL::ComPtr;
@@ -32,15 +33,15 @@ namespace PD {
         virtual LRESULT AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
         void ImGuiPrepareDraw();
-        virtual void Update(const GameTimer& timer){}
+        virtual void Update(const GameTimer& timer);
         virtual void Draw(const GameTimer& timer) = 0;
 
     protected:
         virtual void OnResizeCallback();
-        virtual void OnMouseDownCallback(WPARAM btnState, int x, int y) {
-        }
-        virtual void OnMouseUpCallback(WPARAM btnState, int x, int y){};
-        virtual void OnMouseMoveCallback(WPARAM btnState, int x, int y) {}
+        virtual void OnKeyUpCallback(WPARAM key);
+        virtual void OnMouseDownCallback(WPARAM btnState, int x, int y);
+        virtual void OnMouseUpCallback(WPARAM btnState, int x, int y);
+        virtual void OnMouseMoveCallback(WPARAM btnState, int x, int y);
 
         bool InitMainWindow();
         bool initDirect3D();
@@ -61,12 +62,16 @@ namespace PD {
 
         void ReleaseAllResource();
         virtual void ReleaseResource(){};
+        virtual void ProcessInput(const GameTimer& gt);
 
     private:
         mutable bool mAppMSAA = false;
 
     protected:
         static D3DApp *mD3dApp;
+
+        RECT mRect;
+        class Camera* mCamera = nullptr;
         HINSTANCE hinstance_ = nullptr;
         HWND hMainWindow_ = nullptr;
         bool mAppPaused = false;
@@ -76,6 +81,8 @@ namespace PD {
         bool mAppFullScreen = false;
         UINT mAppMsAAQuality = 0;
         GameTimer mTimer;
+
+        bool mAllowMouseMove = true;
 
 
         std::string AppWindowTitle_ = "d3d test";
