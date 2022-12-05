@@ -415,7 +415,8 @@ bool PD::D3DApp::initImGUI() {
     ImGui::CreateContext();
     mImGuiIO = &ImGui::GetIO();
     std::filesystem::path RootPath(ROOT_DIR);
-    auto FontPath = RootPath / "resource" / "JetBrainsMono-Regular.ttf";
+    auto FontPath = RootPath / ".." / "dx11" / "cpp-dx11" /"resources" / "JetBrainsMono-Regular.ttf";
+    FontPath = std::filesystem::absolute(FontPath);
     auto Font =
             mImGuiIO->Fonts->AddFontFromFileTTF(FontPath.u8string().c_str(), 16.0f * gHighDPIScaleFactor, NULL, NULL);
     assert(Font);

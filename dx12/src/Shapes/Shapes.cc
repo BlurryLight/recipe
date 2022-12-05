@@ -20,21 +20,6 @@ using namespace DirectX;
 using DirectX::PackedVector::XMCOLOR;
 const static int kNumFrameResources = 3;
 
-// struct ObjectConstants {
-
-//     XMFLOAT4X4 MVP = MathHelper::Identity4x4();
-//     float gTime = 0;
-// };
-// struct Vertex {
-//     XMFLOAT3 Pos;
-
-//     // Chapter 6.13 ex10 packed COLOR
-//     // ARGB8
-//     // in DXGI_FORMAT: BGRA8
-//     // DXGI is in little-0Endine
-//     DirectX::PackedVector::XMCOLOR Color;
-// };
-
 
 // RenderItem is related to per object
 struct RenderItem {

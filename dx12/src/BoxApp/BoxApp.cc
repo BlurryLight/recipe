@@ -373,7 +373,7 @@ inline void ShapesAPP::BuildBoxGeometry() {
     for (auto v : sphere.Vertices) {
         ::Vertex vertex;
         vertex.Pos = v.Position;
-        vertex.Pos.x += 1.7;
+        vertex.Pos.x += 1.7f;
         vertex.Color = XMCOLOR(Colors::Silver);
         sphereVertices.push_back(vertex);
     }

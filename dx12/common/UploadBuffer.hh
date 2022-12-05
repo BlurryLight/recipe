@@ -30,7 +30,7 @@ class UploadBuffer : Noncopyable
         {
             mUploadBuffer->Unmap(0, nullptr);
         }
-        mMappedData = (uint8_t *) 0xDEADDEAD;
+        mMappedData = (uint8_t *)(uintptr_t)0xDEADDEAD;
     }
 
     ID3D12Resource* Resource() const
