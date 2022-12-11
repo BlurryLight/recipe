@@ -20,7 +20,8 @@ void PD::DxTrace(const wchar_t *file, unsigned long line, HRESULT hr, const wcha
 }
 
 std::string PD::utf16_to_utf8_windows(std::wstring const &utf16s) {
-    int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) (utf16s.c_str()), -1, NULL, utf16s.size(), NULL, NULL);
+    // https://stackoverflow.com/questions/215963/how-do-you-properly-use-widechartomultibyte
+    int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) (utf16s.c_str()), (int) utf16s.size(), NULL, 0, NULL, NULL);
     std::string res;
     res.resize(count);
     int flag =

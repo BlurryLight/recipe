@@ -408,7 +408,7 @@ void PD::D3DApp::OnMouseUpCallback(WPARAM btnState, int x, int y){
 
 void PD::D3DApp::OnMouseMoveCallback(WPARAM btnState, int x, int y) {
     static bool firstMouse = true;
-    static float lastX = 0, lastY = 0;
+    static int lastX = 0, lastY = 0;
     if (!mCamera) return;
     if (mAllowMouseMove) {
         if (firstMouse) {
@@ -417,8 +417,8 @@ void PD::D3DApp::OnMouseMoveCallback(WPARAM btnState, int x, int y) {
             firstMouse = false;
         }
 
-        float xoffset = lastX - x;
-        float yoffset = lastY - y;
+        float xoffset = float(lastX - x);
+        float yoffset = float(lastY - y);
 
         // 当鼠标从左上往下移动的时候，offset为负数
         mCamera->ProcessMouseMovement(xoffset, yoffset);
@@ -448,14 +448,24 @@ bool PD::D3DApp::initDirect3D() {
     HR(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&mDxgiFactory)));
     {
         DXGI_ADAPTER_DESC1 adapterDesc;
-        for (UINT i = 0; SUCCEEDED(mDxgiFactory->EnumAdapters1(i, &pAdapter)); ++i) {
-            pAdapter->GetDesc1(&adapterDesc);
+        ComPtr<IDXGIAdapter1> AdapterIter;
+        SIZE_T PrevDedicatedVMemory = 0;
+        for (UINT i = 0; SUCCEEDED(mDxgiFactory->EnumAdapters1(i, &AdapterIter)); ++i) {
+            HR(AdapterIter->GetDesc1(&adapterDesc));
             // old method
             // if (adapterDesc.VendorId == 0x1414 && adapterDesc.DeviceId == 0x8c)
             if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;// Skip Microsoft Basic Render Driver
             spdlog::info("Available Adapter: {}", utf16_to_utf8_windows(adapterDesc.Description));
-            break;
+
+            // we select the adapter with max video memory
+            if (PrevDedicatedVMemory < adapterDesc.DedicatedVideoMemory) {
+                pAdapter = AdapterIter;
+                PrevDedicatedVMemory = adapterDesc.DedicatedVideoMemory;
+            }
         }
+
+        HR(pAdapter->GetDesc1(&adapterDesc));
+        spdlog::info("Final Adapter: {}", utf16_to_utf8_windows(adapterDesc.Description));
     }
 
     HR(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&mD3dDevice)));
