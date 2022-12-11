@@ -20,8 +20,8 @@ using namespace std;
 using namespace DirectX;
 using namespace PD;
 
-static void HandleCursor(bool bShow)
-{
+
+static void HandleCursor(bool bShow, const RECT &R) {
     if(bShow)
     {
         while(ShowCursor(true) < 0){}
@@ -29,8 +29,11 @@ static void HandleCursor(bool bShow)
     else
     {
         while(ShowCursor(false) >= 0){}
-    }
 
+        int CenterX = (R.left + R.right) / 2;
+        int CenterY = (R.top + R.bottom) / 2;
+        SetCursorPos(CenterX, CenterY);
+    }
 }
 
 D3DApp *D3DApp::mD3dApp = nullptr;
@@ -103,7 +106,7 @@ void D3DApp::OnResizeCallback() {
 
     GetWindowRect(this->GetHMND(), &mRect);
     ClipCursor( mAllowMouseMove ? &mRect : nullptr);
-    HandleCursor(!mAllowMouseMove);
+    HandleCursor(!mAllowMouseMove, mRect);
 
     FlushCommandQueue();
 
@@ -265,9 +268,11 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
             if (LOWORD(wParam) == WA_INACTIVE) {
                 mAppPaused = true;
                 mTimer.Stop();
+                mAppActive = false;
             } else {
                 mAppPaused = false;
                 mTimer.Start();
+                mAppActive = true;
             }
             return 0;
 
@@ -361,9 +366,11 @@ LRESULT D3DApp::AppMessageProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         case WM_RBUTTONUP:
             OnMouseUpCallback(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
             return 0;
-        case WM_MOUSEMOVE:
-            OnMouseMoveCallback(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-            return 0;
+        // don't use it
+        // https://gamedev.stackexchange.com/a/176554
+        // case WM_MOUSEMOVE:
+        // OnMouseMoveCallback(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        // return 0;
         case WM_KEYUP:
             OnKeyUpCallback(wParam);
             return 0;
@@ -393,7 +400,7 @@ void PD::D3DApp::OnKeyUpCallback(WPARAM key) {
             mAllowMouseMove = !mAllowMouseMove;
             spdlog::info("Allow Mouse Move: {}",mAllowMouseMove);
             ClipCursor( mAllowMouseMove ? &mRect : nullptr);
-            HandleCursor(!mAllowMouseMove);
+            HandleCursor(!mAllowMouseMove, mRect);
             break;
         }
     }
@@ -405,31 +412,6 @@ void PD::D3DApp::OnMouseDownCallback(WPARAM btnState, int x, int y) {
 
 void PD::D3DApp::OnMouseUpCallback(WPARAM btnState, int x, int y){
 };
-
-void PD::D3DApp::OnMouseMoveCallback(WPARAM btnState, int x, int y) {
-    static bool firstMouse = true;
-    static int lastX = 0, lastY = 0;
-    if (!mCamera) return;
-    if (mAllowMouseMove) {
-        if (firstMouse) {
-            lastX = x;
-            lastY = y;
-            firstMouse = false;
-        }
-
-        float xoffset = float(lastX - x);
-        float yoffset = float(lastY - y);
-
-        // 当鼠标从左上往下移动的时候，offset为负数
-        mCamera->ProcessMouseMovement(xoffset, yoffset);
-        lastX = x;
-        lastY = y;
-    }
-    else
-    {
-        firstMouse = true;
-    }
-}
 
 bool PD::D3DApp::initDirect3D() {
 #if defined(_DEBUG)
@@ -736,5 +718,15 @@ void PD::D3DApp::ProcessInput(const GameTimer& gt) {
       if (GetAsyncKeyState('S') & 0x8000) mCamera->ProcessKeyboard(CameraMovement::BACKWARD, gt.DeltaTime());
       if (GetAsyncKeyState('A') & 0x8000) mCamera->ProcessKeyboard(CameraMovement::LEFT, gt.DeltaTime());
       if (GetAsyncKeyState('D') & 0x8000) mCamera->ProcessKeyboard(CameraMovement::RIGHT, gt.DeltaTime());
+  }
+  if (mAllowMouseMove && mAppActive) {
+      POINT p;
+      if (!GetCursorPos(&p)) return;
+
+      int CenterX = (this->mRect.left + this->mRect.right) / 2;
+      int CenterY = (this->mRect.top + this->mRect.bottom) / 2;
+
+      mCamera->ProcessMouseMovement(-float(p.x - CenterX), -float(p.y - CenterY));
+      SetCursorPos(CenterX, CenterY);
   }
 }

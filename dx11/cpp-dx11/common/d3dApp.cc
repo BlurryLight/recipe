@@ -347,6 +347,7 @@ void PD::D3DApp::glfw_mouse_callback(double xPos, double yPos) {
 
     lastX = xPos;
     lastY = yPos;
+    spdlog::info("xoffset: {} yoffset: {}", xoffset, yoffset);
 
     // 当鼠标从左上往下移动的时候，offset为负数
     camera_->ProcessMouseMovement(xoffset, yoffset);

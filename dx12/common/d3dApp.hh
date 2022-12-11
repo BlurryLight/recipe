@@ -41,7 +41,6 @@ namespace PD {
         virtual void OnKeyUpCallback(WPARAM key);
         virtual void OnMouseDownCallback(WPARAM btnState, int x, int y);
         virtual void OnMouseUpCallback(WPARAM btnState, int x, int y);
-        virtual void OnMouseMoveCallback(WPARAM btnState, int x, int y);
 
         bool InitMainWindow();
         bool initDirect3D();
@@ -79,6 +78,7 @@ namespace PD {
         bool mAppMaximized = false;
         bool mAppResizing = false;
         bool mAppFullScreen = false;
+        bool mAppActive = false;
         UINT mAppMsAAQuality = 0;
         GameTimer mTimer;
 
