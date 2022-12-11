@@ -52,9 +52,11 @@ private:
     void BuildRootSignature();
     void BuildShaderAndInputLayout();
     void BuildLandGeometry();
+    void BuildWavesGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildRenderItems();
+    void UpdateWaves(const GameTimer &gt);
 
     void UpdateObjectCB(const GameTimer &timer);
     void UpdateMainPassCB(const GameTimer &timer);
@@ -77,7 +79,6 @@ private:
     XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
-    UINT mPassCbvOffset = 0;
     int mCurrFrameResourceIndex = 0;
 
     FrameResource *mCurrFrameResource = nullptr;
@@ -85,6 +86,8 @@ private:
     // XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
     bool mbVsync = true;
+
+    UINT mWaveVerticesCount = 0;
 };
 
 inline LandAndWavesApp::LandAndWavesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -98,7 +101,7 @@ inline void LandAndWavesApp::ReleaseResource() { mRootSignature.Reset(); }
 
 inline bool LandAndWavesApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
-    mCamera = new PD::Camera(SimpleMath::Vector3(0, 0, -5), SimpleMath::Vector3(0, 0, 1), SimpleMath::Vector3(0, 1, 0));
+    mCamera = new PD::Camera(SimpleMath::Vector3(0, 1, -5), SimpleMath::Vector3(0, 0, 1), SimpleMath::Vector3(0, 1, 0));
     assert(mCommandList);
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
@@ -106,6 +109,7 @@ inline bool LandAndWavesApp::Initialize() {
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildLandGeometry();
+    BuildWavesGeometry();
     BuildRenderItems();
     BuildFrameResources();
     BuildPSOs();
@@ -146,7 +150,7 @@ inline void LandAndWavesApp::Update(const GameTimer &timer) {
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
-
+    UpdateWaves(timer);
     UpdateObjectCB(timer);
     UpdateMainPassCB(timer);
 
@@ -361,7 +365,7 @@ inline void LandAndWavesApp::BuildShaderAndInputLayout() {
 }
 
 inline void LandAndWavesApp::BuildLandGeometry() {
-    spdlog::info("Bulding Shape Geometries");
+    spdlog::info("Bulding LandScape Geometries");
 
     GeometryGenerator geoGen;
     GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
@@ -370,7 +374,6 @@ inline void LandAndWavesApp::BuildLandGeometry() {
 
     // y = f(x,z)
     auto HeightFunc = [](float x, float z) -> float { return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z)); };
-
     for (size_t i = 0; i < grid.Vertices.size(); ++i) {
         auto &p = grid.Vertices[i].Position;
         vertices[i].Pos = p;
@@ -394,6 +397,7 @@ inline void LandAndWavesApp::BuildLandGeometry() {
             vertices[i].Color = XMCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
         }
     }
+
 
     const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
     const UINT ibByteSize = (UINT) grid.Indices32.size() * sizeof(std::uint16_t);
@@ -425,6 +429,56 @@ inline void LandAndWavesApp::BuildLandGeometry() {
     gridSubmesh.IndexCount = grid.Indices32.size();
 
     geo->DrawArgs["grid"] = gridSubmesh;
+
+    mGeometries[geo->name] = std::move(geo);
+}
+
+inline void LandAndWavesApp::BuildWavesGeometry() {
+
+    spdlog::info("Bulding Waves Geometries");
+
+    GeometryGenerator geoGen;
+    GeometryGenerator::MeshData waves = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
+
+    std::vector<Vertex> vertices(waves.Vertices.size());
+
+    for (size_t i = 0; i < waves.Vertices.size(); ++i) {
+        auto &p = waves.Vertices[i].Position;
+        vertices[i].Pos = p;
+        vertices[i].Color = XMCOLOR(0.1f, 0.1f, 1.0f, 1.0f);
+    }
+
+    const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT) waves.Indices32.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->name = "waveGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), waves.GetIndices16().data(), ibByteSize);
+
+    // 这里不用上传顶点数据，因为后面我们会在UpdateWaves里动态生成顶点数据
+    // 正式场景里不要用这种方法，太蠢
+
+    geo->IndexBufferGPU =
+            CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), geo->IndexBufferCPU->GetBufferPointer(),
+                                ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexBytesStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferBytesSize = ibByteSize;
+
+    SubmeshGeometry waveSubmesh;
+    waveSubmesh.BaseVertexLocation = 0;
+    waveSubmesh.StartIndexLocation = 0;
+    waveSubmesh.IndexCount = waves.Indices32.size();
+    mWaveVerticesCount = vertices.size();
+
+    geo->DrawArgs["wave"] = waveSubmesh;
 
     mGeometries[geo->name] = std::move(geo);
 }
@@ -469,7 +523,8 @@ inline void LandAndWavesApp::BuildPSOs() {
 
 inline void LandAndWavesApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size()));
+        mFrameResources.push_back(
+                std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(), mWaveVerticesCount));
     }
 }
 
@@ -485,8 +540,45 @@ inline void LandAndWavesApp::BuildRenderItems() {
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
+    auto waveRitem = std::make_unique<RenderItem>();
+    waveRitem->World = MathHelper::Identity4x4();
+    waveRitem->ObjectCBIndex = 1;
+    waveRitem->Geo = mGeometries["waveGeo"].get();
+    waveRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    waveRitem->IndexCount = waveRitem->Geo->DrawArgs["wave"].IndexCount;
+    waveRitem->StartIndexLocation = waveRitem->Geo->DrawArgs["wave"].StartIndexLocation;
+    waveRitem->BaseVertexLocation = waveRitem->Geo->DrawArgs["wave"].BaseVertexLocation;
+
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(gridRitem.get());
+    mRitemLayers.at((int) RenderLayer::Opaque).push_back(waveRitem.get());
+
     mAllRitems.push_back(std::move(gridRitem));
+    mAllRitems.push_back(std::move(waveRitem));
+}
+
+// 这个方法属实很蠢
+// 每一帧的时候更新所有的顶点位置。
+// 正式场景不要用
+inline void LandAndWavesApp::UpdateWaves(const GameTimer &gt) {
+
+    auto WaveGeo = mGeometries["waveGeo"].get();
+    auto currWavesVB = mCurrFrameResource->WavesUploader.get();
+    auto WaveVerterices = (Vertex *) WaveGeo->VertexBufferCPU->GetBufferPointer();
+
+    for (UINT i = 0; i < mWaveVerticesCount; ++i) {
+
+        Vertex v;
+
+        v.Pos = WaveVerterices[i].Pos;
+        v.Pos.y = sin(gt.TotalTime() * 0.1f);
+
+        v.Color = XMCOLOR(0.1f, 0.1f, 1.0f, 1.0f);
+
+        currWavesVB->CopyData(i, v);
+    }
+
+    // Set the dynamic VB of the wave renderitem to the current frame VB.
+    WaveGeo->VertexBufferGPU = currWavesVB->Resource();
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

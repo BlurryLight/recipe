@@ -39,12 +39,15 @@ namespace PD {
     };
 
     struct FrameResource : Noncopyable {
-        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount);
+        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount, UINT waveVertices);
         ~FrameResource(){};
         // every frame needs it allocator
         ComPtr<ID3D12CommandAllocator> CmdListAlloc;
         std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
         std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+
+        // 因为每一帧我们要上传新的数据，所以我们需要保存在FrameResource
+        std::unique_ptr<UploadBuffer<Vertex>> WavesUploader = nullptr;
 
         UINT64 Fence = 0;
     };
