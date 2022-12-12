@@ -16,6 +16,7 @@ include_directories(third_party)
 
 find_package(imgui CONFIG REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 
 add_subdirectory(common)
 add_subdirectory(src)

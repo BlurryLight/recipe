@@ -3,6 +3,7 @@ set(SRC
     d3dUtils.cc
     GameTimer.cc
     EulerCamera.cc
+    MeshGeometry.cc
     ../third_party/MathHelper.cpp
     ../third_party/GeometryGenerator.cpp
     ../utils/resource_path_searcher.cc
@@ -21,6 +22,7 @@ target_link_libraries(d3d12lib PUBLIC winmm.lib d3dcompiler.lib D3D12.lib dxgi.l
 target_link_libraries(d3d12lib PUBLIC dxguid.lib)
 target_link_libraries(d3d12lib PUBLIC spdlog::spdlog)
 target_link_libraries(d3d12lib PUBLIC imgui::imgui)
+target_link_libraries(d3d12lib PUBLIC assimp::assimp)
 
 # msvc warning
 target_compile_options(d3d12lib PUBLIC /wd4267)
