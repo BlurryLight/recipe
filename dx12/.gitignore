@@ -40,7 +40,7 @@ compile_commands.json
 out
 .vs
 .vscode
-*clangd*
+*clangd-*
 cmake_vars.h
 .idea
 *.cso
