@@ -76,7 +76,6 @@ private:
     std::array<RenderItemLayer, (int) RenderLayer::Count> mRitemLayers;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
-    XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
     int mCurrFrameResourceIndex = 0;
@@ -133,13 +132,6 @@ inline void LandAndWavesApp::Update(const GameTimer &timer) {
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 
-    static float phi = 0.0f, theta = 0.0f;
-    static float rotationSpeed = 0.1f;
-    phi += rotationSpeed * timer.DeltaTime(), theta += rotationSpeed * timer.DeltaTime();
-
-    XMMATRIX world = DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
-    XMStoreFloat4x4(&mWorld, world);
-
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % kNumFrameResources;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
@@ -158,10 +150,10 @@ inline void LandAndWavesApp::Update(const GameTimer &timer) {
     static bool bShowDemoWindow = false;
     if (bShowDemoWindow) ImGui::ShowDemoWindow(&bShowDemoWindow);
 
-    ImGui::Begin("Hello, world!");
+    ImGui::Begin("LandScape!");
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
-    ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
+    ImGui::SliderFloat("MoveSpeed", &mCamera->MovementSpeed, 0.0f, 50.0f);
     ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
@@ -369,38 +361,51 @@ inline void LandAndWavesApp::BuildLandGeometry() {
 
     GeometryGenerator geoGen;
     GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
+    GeometryGenerator::MeshData geoSphere = geoGen.CreateGeosphere(2.0, 3);
 
-    std::vector<Vertex> vertices(grid.Vertices.size());
+    std::vector<Vertex> vertices(grid.Vertices.size() + geoSphere.Vertices.size());
 
     // y = f(x,z)
     auto HeightFunc = [](float x, float z) -> float { return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z)); };
-    for (size_t i = 0; i < grid.Vertices.size(); ++i) {
-        auto &p = grid.Vertices[i].Position;
-        vertices[i].Pos = p;
-        vertices[i].Pos.y = HeightFunc(p.x, p.z);
+    
+    size_t k = 0;
+    for (size_t i = 0; i < grid.Vertices.size(); ++i,++k) {
+        auto &p = grid.Vertices[k].Position;
+        vertices[k].Pos = p;
+        vertices[k].Pos.y = HeightFunc(p.x, p.z);
 
         // Color the vertex based on its height.
-        if (vertices[i].Pos.y < -10.0f) {
+        if (vertices[k].Pos.y < -10.0f) {
             // Sandy beach color.
-            vertices[i].Color = XMCOLOR(1.0f, 0.96f, 0.62f, 1.0f);
-        } else if (vertices[i].Pos.y < 5.0f) {
+            vertices[k].Color = XMCOLOR(1.0f, 0.96f, 0.62f, 1.0f);
+        } else if (vertices[k].Pos.y < 5.0f) {
             // Light yellow-green.
-            vertices[i].Color = XMCOLOR(0.48f, 0.77f, 0.46f, 1.0f);
-        } else if (vertices[i].Pos.y < 12.0f) {
+            vertices[k].Color = XMCOLOR(0.48f, 0.77f, 0.46f, 1.0f);
+        } else if (vertices[k].Pos.y < 12.0f) {
             // Dark yellow-green.
-            vertices[i].Color = XMCOLOR(0.1f, 0.48f, 0.19f, 1.0f);
-        } else if (vertices[i].Pos.y < 20.0f) {
+            vertices[k].Color = XMCOLOR(0.1f, 0.48f, 0.19f, 1.0f);
+        } else if (vertices[k].Pos.y < 20.0f) {
             // Dark brown.
-            vertices[i].Color = XMCOLOR(0.45f, 0.39f, 0.34f, 1.0f);
+            vertices[k].Color = XMCOLOR(0.45f, 0.39f, 0.34f, 1.0f);
         } else {
             // White snow.
-            vertices[i].Color = XMCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
+            vertices[k].Color = XMCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
         }
     }
 
+    for (size_t i = 0; i < geoSphere.Vertices.size(); ++i,++k) {
+        vertices[k].Pos = geoSphere.Vertices[i].Position;
+        vertices[k].Color = XMCOLOR(1.0f, 0.f, 0.1f, 1.0f);
+    }
+
+
+    std::vector<uint16_t> indices;
+    indices.insert(indices.end(), grid.GetIndices16().begin(), grid.GetIndices16().end());
+    // ex 7.9.1 create GeoSphere
+    indices.insert(indices.end(), geoSphere.GetIndices16().begin(), geoSphere.GetIndices16().end());
 
     const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT) grid.Indices32.size() * sizeof(std::uint16_t);
+    const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
 
     auto geo = std::make_unique<MeshGeometry>();
     geo->name = "landGeo";
@@ -409,7 +414,7 @@ inline void LandAndWavesApp::BuildLandGeometry() {
     CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
     ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), grid.GetIndices16().data(), ibByteSize);
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
     geo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize,
                                                geo->VertexBufferUploader);
@@ -428,7 +433,13 @@ inline void LandAndWavesApp::BuildLandGeometry() {
     gridSubmesh.StartIndexLocation = 0;
     gridSubmesh.IndexCount = grid.Indices32.size();
 
+    SubmeshGeometry GeoSphereSubmesh;
+    GeoSphereSubmesh.BaseVertexLocation = grid.Vertices.size();
+    GeoSphereSubmesh.StartIndexLocation = grid.Indices32.size();
+    GeoSphereSubmesh.IndexCount = geoSphere.Indices32.size();
+
     geo->DrawArgs["grid"] = gridSubmesh;
+    geo->DrawArgs["geoSphere"] = GeoSphereSubmesh;
 
     mGeometries[geo->name] = std::move(geo);
 }
@@ -538,11 +549,20 @@ inline void LandAndWavesApp::BuildRenderItems() {
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
-    gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+    auto geoSphereRitem = std::make_unique<RenderItem>();
+    auto WorldMatrix = DirectX::XMMatrixTranslation(0, 20, 10.0);
+    XMStoreFloat4x4(&geoSphereRitem->World, WorldMatrix);
+    geoSphereRitem->ObjectCBIndex = 1;
+    geoSphereRitem->Geo = mGeometries["landGeo"].get();
+    geoSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    geoSphereRitem->IndexCount = geoSphereRitem->Geo->DrawArgs["geoSphere"].IndexCount;
+    geoSphereRitem->StartIndexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].StartIndexLocation;
+    geoSphereRitem->BaseVertexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].BaseVertexLocation;  
 
     auto waveRitem = std::make_unique<RenderItem>();
     waveRitem->World = MathHelper::Identity4x4();
-    waveRitem->ObjectCBIndex = 1;
+    waveRitem->ObjectCBIndex = 2;
     waveRitem->Geo = mGeometries["waveGeo"].get();
     waveRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     waveRitem->IndexCount = waveRitem->Geo->DrawArgs["wave"].IndexCount;
@@ -550,9 +570,11 @@ inline void LandAndWavesApp::BuildRenderItems() {
     waveRitem->BaseVertexLocation = waveRitem->Geo->DrawArgs["wave"].BaseVertexLocation;
 
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(gridRitem.get());
+    mRitemLayers.at((int) RenderLayer::Opaque).push_back(geoSphereRitem.get());
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(waveRitem.get());
 
     mAllRitems.push_back(std::move(gridRitem));
+    mAllRitems.push_back(std::move(geoSphereRitem));
     mAllRitems.push_back(std::move(waveRitem));
 }
 

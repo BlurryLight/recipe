@@ -86,6 +86,11 @@ public:
 	///</summary>
     MeshData CreateSphere(float radius, uint32 sliceCount, uint32 stackCount);
 
+	// 注:
+	// GeoSphere和Sphere的生成算法不同。
+	// Sphere的生成算法类似于经纬度，通过横向和纵向切分来生成球
+	// Geosphere采用的是Loop细分
+
 	///<summary>
 	/// Creates a geosphere centered at the origin with the given radius.  The
 	/// depth controls the level of tessellation.
