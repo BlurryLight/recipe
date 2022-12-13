@@ -47,15 +47,17 @@ namespace PD {
 
         D3D12_INDEX_BUFFER_VIEW IndexBufferView() const;
 
-        struct SubMeshInfo {
-            std::vector<DirectX::XMFLOAT3> poses;
-            std::vector<uint32_t> indices;
-            std::vector<uint16_t> indices_16;
-            // std::vector<DirectX::XMFLOAT3> normal;
-            // DirectX::XMFLOAT2 tex;
-        };
-        std::vector<SubMeshInfo> LoadFromFile(fs::path modelPath);
         void DisposeUploaders();
     };
 
+    struct SubMeshInfo {
+        std::vector<DirectX::XMFLOAT3> mPoses;
+        std::vector<uint32_t> mIndices32;
+        std::vector<uint16_t> mIndices16;
+        std::vector<DirectX::XMFLOAT3> mNormals;
+        std::vector<DirectX::XMFLOAT2> mTexs;
+        std::vector<DirectX::XMFLOAT3> mTangents;
+        std::vector<DirectX::XMFLOAT3> mBiTangents;
+    };
+    std::vector<SubMeshInfo> LoadModelFromFile(fs::path modelPath);
 }// namespace PD

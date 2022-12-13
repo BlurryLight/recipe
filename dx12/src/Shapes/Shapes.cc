@@ -6,6 +6,7 @@
 #include <array>
 #include <d3dApp.hh>
 #include <spdlog/spdlog.h>
+#include <MeshGeometry.hh>
 
 
 #include "imgui.h"
@@ -60,7 +61,6 @@ private:
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    // std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
     ResourcePathSearcher mResourceManager;
 
     std::unordered_map<std::string, ComPtr<ID3D10Blob>> mShaders;
@@ -73,7 +73,6 @@ private:
     std::vector<const RenderItem *> mOpaqueRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
-    XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
     UINT mPassCbvOffset = 0;
@@ -91,6 +90,7 @@ inline ShapesApp::ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
     mResourceManager.add_path(path / L"Shaders");
+    mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11"/ "resources"/ "models"/ "spot");
 }
 
 inline void ShapesApp::ReleaseResource() {
@@ -100,7 +100,7 @@ inline void ShapesApp::ReleaseResource() {
 
 inline bool ShapesApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
-    mCamera = new PD::Camera(SimpleMath::Vector3(0, 0, -5),
+    mCamera = new PD::Camera(SimpleMath::Vector3(0, 2, -5),
                             SimpleMath::Vector3(0, 0, 1),
                             SimpleMath::Vector3(0, 1, 0));
     assert(mCommandList);
@@ -135,13 +135,6 @@ inline void ShapesApp::Update(const GameTimer &timer) {
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 
-    static float phi = 0.0f, theta = 0.0f;
-    static float rotationSpeed = 0.1f;
-    phi += rotationSpeed * timer.DeltaTime(), theta += rotationSpeed * timer.DeltaTime();
-
-    XMMATRIX world = DirectX::XMMatrixRotationX(phi) * DirectX::XMMatrixRotationY(theta);
-    XMStoreFloat4x4(&mWorld, world);
-
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % kNumFrameResources;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
@@ -163,7 +156,6 @@ inline void ShapesApp::Update(const GameTimer &timer) {
     ImGui::Begin("Hello, world!");
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
-    ImGui::SliderFloat("RotationSpeed", &rotationSpeed, 0.0f, 1.0f);
     ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
@@ -449,6 +441,8 @@ inline void ShapesApp::BuildShapeGeometry() {
     GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
     GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
+    // ex 7.9.3 Load Model file
+    auto ModelMeshes = LoadModelFromFile( mResourceManager.find_path("spot_triangulated.obj"));
     //
     // We are concatenating all the geometry into one big vertex/index buffer.  So
     // define the regions in the buffer each submesh covers.
@@ -489,6 +483,7 @@ inline void ShapesApp::BuildShapeGeometry() {
     cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
     cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
 
+
     //
     // Extract the vertex elements we are interested in and pack the
     // vertices of all the meshes into one vertex buffer.
@@ -520,11 +515,31 @@ inline void ShapesApp::BuildShapeGeometry() {
         vertices[k].Color = XMCOLOR(DirectX::Colors::SteelBlue);
     }
 
+
     std::vector<std::uint16_t> indices;
     indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
     indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
     indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
     indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+
+    SubmeshGeometry SpotSubmesh;
+    SpotSubmesh.StartIndexLocation = indices.size();
+    SpotSubmesh.BaseVertexLocation = vertices.size();
+    size_t SpotMeshIndicesCount = 0;
+    for(const auto& MeshInfo : ModelMeshes)
+    {
+        totalVertexCount += MeshInfo.mPoses.size();
+        for (size_t i = 0; i < MeshInfo.mPoses.size(); ++i) {
+            Vertex v;
+            v.Pos = MeshInfo.mPoses[i];
+            v.Color = XMCOLOR(DirectX::Colors::Tan);
+            vertices.push_back(v);
+        }
+        indices.insert(indices.end(), std::begin(MeshInfo.mIndices16), std::end(MeshInfo.mIndices16));
+        SpotMeshIndicesCount += MeshInfo.mIndices32.size();
+    }
+    SpotSubmesh.IndexCount= SpotMeshIndicesCount;
+
 
     const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
     const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
@@ -553,6 +568,7 @@ inline void ShapesApp::BuildShapeGeometry() {
     geo->DrawArgs["grid"] = gridSubmesh;
     geo->DrawArgs["sphere"] = sphereSubmesh;
     geo->DrawArgs["cylinder"] = cylinderSubmesh;
+    geo->DrawArgs["spot"] = SpotSubmesh;
 
     mGeometries[geo->name] = std::move(geo);
 }
@@ -624,7 +640,17 @@ inline void ShapesApp::BuildRenderItems() {
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
     mAllRitems.push_back(std::move(gridRitem));
 
-    UINT objCBIndex = 2;
+    auto spotRitem = std::make_unique<RenderItem>();
+    spotRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 3, 0);
+    spotRitem->ObjectCBIndex = 2;
+    spotRitem->Geo = mGeometries["shapeGeo"].get();
+    spotRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    spotRitem->IndexCount = spotRitem->Geo->DrawArgs["spot"].IndexCount;
+    spotRitem->StartIndexLocation = spotRitem->Geo->DrawArgs["spot"].StartIndexLocation;
+    spotRitem->BaseVertexLocation = spotRitem->Geo->DrawArgs["spot"].BaseVertexLocation;
+    mAllRitems.push_back(std::move(spotRitem));
+
+    UINT objCBIndex = 3;
     for (int i = 0; i < 5; ++i) {
         auto leftCylRitem = std::make_unique<RenderItem>();
         auto rightCylRitem = std::make_unique<RenderItem>();
