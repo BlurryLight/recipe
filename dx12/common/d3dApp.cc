@@ -545,6 +545,7 @@ void PD::D3DApp::CreateSwapChain() {
     Desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
     HR(mDxgiFactory->CreateSwapChain(mCommandQueue.Get(), &Desc, mSwapChain.GetAddressOf()));
+    DXGISetDebugObjectName(mSwapChain.Get(), "SwapChain");
 }
 void PD::D3DApp::CreateRtvAndDsvDescriptorHeaps() {
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
@@ -553,13 +554,15 @@ void PD::D3DApp::CreateRtvAndDsvDescriptorHeaps() {
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     rtvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&mRtvHeap)));
-
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
     dsvHeapDesc.NumDescriptors = 1 + 1;// +1 for msaa
     dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     dsvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
+
+    D3D12SetDebugObjectName(mRtvHeap.Get(), "RtvHeap");
+    D3D12SetDebugObjectName(mDsvHeap.Get(), "DsvHeap");
 }
 
 void PD::D3DApp::CreateMSAAObjects() {

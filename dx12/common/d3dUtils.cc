@@ -132,3 +132,19 @@ ComPtr<ID3D12Resource> PD::CreateDefaultBuffer(ID3D12Device *device, ID3D12Graph
                                                                    D3D12_RESOURCE_STATE_GENERIC_READ));
     return defaultBuffer;
 }
+
+void PD::D3D12SetDebugObjectName(ID3D12DeviceChild*resource, std::string_view name) {
+    resource->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT) name.size(), name.data());
+}
+
+void PD::D3D12ClearDebugObjectName(ID3D12DeviceChild*resource) {
+    resource->SetPrivateData(WKPDID_D3DDebugObjectName, 0, nullptr);
+}
+
+void PD::DXGISetDebugObjectName(IDXGIObject *object, std::string_view name) {
+    object->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT) name.size(), name.data());
+}
+
+void PD::DXGIClearDebugObjectName(IDXGIObject *object) {
+    object->SetPrivateData(WKPDID_D3DDebugObjectName, 0, nullptr);
+}

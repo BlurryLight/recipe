@@ -84,4 +84,13 @@ namespace PD {
                                                const void *initData, uint64_t byteSize,
                                                ComPtr<ID3D12Resource> &outUploader);
 
+    void D3D12ClearDebugObjectName(ID3D12DeviceChild *resource);
+
+    void D3D12SetDebugObjectName(ID3D12DeviceChild *resource, std::string_view name);
+
+    void DXGISetDebugObjectName(IDXGIObject *object, std::string_view name);
+
+    void DXGIClearDebugObjectName(IDXGIObject *object);
+
+
 }// namespace PD
