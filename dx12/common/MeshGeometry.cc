@@ -5,6 +5,7 @@
 #include <assimp/scene.h>
 #include <cassert>
 #include <spdlog/spdlog.h>
+#include <fstream>
 
 using DirectX::XMFLOAT3;
 using namespace DirectX::SimpleMath;
@@ -101,4 +102,51 @@ std::vector<SubMeshInfo> PD::LoadModelFromFile(fs::path ModelPath) {
     SubmeshArrays res;
     processNode(res, scene->mRootNode, scene);// bfs the tree
     return res;
+}
+
+SubMeshInfo PD::LoadLunaFileFromFile(fs::path modelPath) {
+    std::ifstream fin(modelPath.u8string());
+
+	if(!fin)
+	{
+	    spdlog::error("{} not found.", modelPath.u8string());
+        std::abort();
+	}
+
+	UINT vcount = 0;
+	UINT tcount = 0;
+	std::string ignore;
+
+	fin >> ignore >> vcount;
+	fin >> ignore >> tcount;
+	fin >> ignore >> ignore >> ignore >> ignore;
+
+    SubMeshInfo info;
+    info.mPoses.resize(vcount);
+    info.mNormals.resize(vcount);
+	for(UINT i = 0; i < vcount; ++i)
+	{
+		fin >> info.mPoses[i].x >> info.mPoses[i].y >> info.mPoses[i].z;
+		fin >> info.mNormals[i].x >> info.mNormals[i].y >> info.mNormals[i].z;
+	}
+
+	fin >> ignore;
+	fin >> ignore;
+	fin >> ignore;
+
+	std::vector<std::uint32_t> indices(3 * tcount);
+	std::vector<std::uint16_t> indices16(3 * tcount);
+	for(UINT i = 0; i < tcount; ++i)
+	{
+		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+		indices16[i * 3 + 0] = indices[i * 3 + 0];
+		indices16[i * 3 + 1] = indices[i * 3 + 1];
+		indices16[i * 3 + 2] = indices[i * 3 + 2];
+	}
+
+    info.mIndices32.swap(indices);
+    info.mIndices16.swap(indices16);
+
+	fin.close();
+    return info;
 }

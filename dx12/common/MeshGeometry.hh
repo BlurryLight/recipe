@@ -60,4 +60,5 @@ namespace PD {
         std::vector<DirectX::XMFLOAT3> mBiTangents;
     };
     std::vector<SubMeshInfo> LoadModelFromFile(fs::path modelPath);
+    SubMeshInfo LoadLunaFileFromFile(fs::path modelPath);
 }// namespace PD

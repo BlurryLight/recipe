@@ -6,6 +6,7 @@ set(SRC
     MeshGeometry.cc
     ../third_party/MathHelper.cpp
     ../third_party/GeometryGenerator.cpp
+    ../third_party/SimpleMath.cpp
     ../utils/resource_path_searcher.cc
 )
 

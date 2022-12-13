@@ -89,6 +89,7 @@ inline ShapesApp::ShapesApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
+    mResourceManager.add_path(  PD::ResourcePathSearcher::root_path / "resources" / "models");
     mResourceManager.add_path(path / L"Shaders");
     mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11"/ "resources"/ "models"/ "spot");
 }
@@ -443,6 +444,7 @@ inline void ShapesApp::BuildShapeGeometry() {
 
     // ex 7.9.3 Load Model file
     auto ModelMeshes = LoadModelFromFile( mResourceManager.find_path("spot_triangulated.obj"));
+    auto SkullMesh = LoadLunaFileFromFile(mResourceManager.find_path("skull.txt"));
     //
     // We are concatenating all the geometry into one big vertex/index buffer.  So
     // define the regions in the buffer each submesh covers.
@@ -540,6 +542,19 @@ inline void ShapesApp::BuildShapeGeometry() {
     }
     SpotSubmesh.IndexCount= SpotMeshIndicesCount;
 
+    totalVertexCount+= SkullMesh.mPoses.size();
+    SubmeshGeometry SkullSubmesh;
+    SkullSubmesh.StartIndexLocation = indices.size();
+    SkullSubmesh.BaseVertexLocation = vertices.size();
+    SkullSubmesh.IndexCount = SkullMesh.mIndices32.size();
+    for (size_t i = 0; i < SkullMesh.mPoses.size(); ++i) {
+        Vertex v;
+        v.Pos = SkullMesh.mPoses[i];
+        v.Color = XMCOLOR(DirectX::Colors::Beige);
+        vertices.push_back(v);
+    }
+    indices.insert(indices.end(), std::begin(SkullMesh.mIndices16), std::end(SkullMesh.mIndices16));
+
 
     const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
     const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
@@ -569,6 +584,7 @@ inline void ShapesApp::BuildShapeGeometry() {
     geo->DrawArgs["sphere"] = sphereSubmesh;
     geo->DrawArgs["cylinder"] = cylinderSubmesh;
     geo->DrawArgs["spot"] = SpotSubmesh;
+    geo->DrawArgs["skull"] = SkullSubmesh;
 
     mGeometries[geo->name] = std::move(geo);
 }
@@ -619,9 +635,11 @@ inline void ShapesApp::BuildFrameResources() {
 
 inline void ShapesApp::BuildRenderItems() {
     spdlog::info("Build Render Items");
+    UINT objCBIndex = 0;
+
     auto BoxItem = std::make_unique<RenderItem>();
     XMStoreFloat4x4(&BoxItem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
-    BoxItem->ObjectCBIndex = 0;
+    BoxItem->ObjectCBIndex = objCBIndex++;
     BoxItem->Geo = mGeometries["shapeGeo"].get();
     BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     const auto &BoxSubMeshInfo = BoxItem->Geo->DrawArgs["box"];
@@ -632,7 +650,7 @@ inline void ShapesApp::BuildRenderItems() {
 
     auto gridRitem = std::make_unique<RenderItem>();
     gridRitem->World = MathHelper::Identity4x4();
-    gridRitem->ObjectCBIndex = 1;
+    gridRitem->ObjectCBIndex = objCBIndex++;
     gridRitem->Geo = mGeometries["shapeGeo"].get();
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
@@ -641,8 +659,8 @@ inline void ShapesApp::BuildRenderItems() {
     mAllRitems.push_back(std::move(gridRitem));
 
     auto spotRitem = std::make_unique<RenderItem>();
-    spotRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 3, 0);
-    spotRitem->ObjectCBIndex = 2;
+    spotRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 3, -5);
+    spotRitem->ObjectCBIndex = objCBIndex++;
     spotRitem->Geo = mGeometries["shapeGeo"].get();
     spotRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     spotRitem->IndexCount = spotRitem->Geo->DrawArgs["spot"].IndexCount;
@@ -650,7 +668,17 @@ inline void ShapesApp::BuildRenderItems() {
     spotRitem->BaseVertexLocation = spotRitem->Geo->DrawArgs["spot"].BaseVertexLocation;
     mAllRitems.push_back(std::move(spotRitem));
 
-    UINT objCBIndex = 3;
+    auto skullRitem = std::make_unique<RenderItem>();
+    skullRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 1, 0);
+    skullRitem->ObjectCBIndex = objCBIndex++;
+    skullRitem->Geo = mGeometries["shapeGeo"].get();
+    skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
+    skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
+    skullRitem->BaseVertexLocation = skullRitem->Geo->DrawArgs["skull"].BaseVertexLocation;
+    mAllRitems.push_back(std::move(skullRitem));
+
+
     for (int i = 0; i < 5; ++i) {
         auto leftCylRitem = std::make_unique<RenderItem>();
         auto rightCylRitem = std::make_unique<RenderItem>();
