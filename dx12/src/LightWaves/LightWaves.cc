@@ -165,6 +165,7 @@ inline void LandAndWavesApp::Update(const GameTimer &timer) {
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
+    // ImGui::DragFloat3("LightDirection", (float*)&(mMainPassCB.Lights[0].Direction));
     ImGui::End();
     ImGui::Render();
 }
@@ -216,7 +217,9 @@ inline void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
                                              const std::vector<const RenderItem *> &ritems) {
 
     uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
     auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+    auto matCB = mCurrFrameResource->MaterialCB->Resource();
     for (size_t i = 0; i < ritems.size(); i++) {
         // 要绘制一个物体，需要物体本身的信息，和它有关的model
         // 先设置顶点信息
@@ -226,8 +229,11 @@ inline void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS ObjCBStartAddress = objectCB->GetGPUVirtualAddress();
+        D3D12_GPU_VIRTUAL_ADDRESS MatCBStartAddress = matCB->GetGPUVirtualAddress();
         auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
+        auto MatCBAddress = MatCBStartAddress+ ri->Mat->MatCBIndex* matCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
+        cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
         assert(ri->IndexCount > 0);
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
@@ -280,7 +286,7 @@ void LandAndWavesApp::Draw(const GameTimer &gt) {
 
 
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(1, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootConstantBufferView(2, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
 
     DrawRenderItems(mCommandList.Get(), mRitemLayers[(int) RenderLayer::Opaque]);
 
@@ -554,6 +560,7 @@ inline void LandAndWavesApp::BuildRenderItems() {
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+    gridRitem->Mat = mMaterials["grass"].get();
 
     auto geoSphereRitem = std::make_unique<RenderItem>();
     auto WorldMatrix = DirectX::XMMatrixTranslation(0, 20, 10.0);
@@ -564,6 +571,7 @@ inline void LandAndWavesApp::BuildRenderItems() {
     geoSphereRitem->IndexCount = geoSphereRitem->Geo->DrawArgs["geoSphere"].IndexCount;
     geoSphereRitem->StartIndexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].StartIndexLocation;
     geoSphereRitem->BaseVertexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].BaseVertexLocation;  
+    geoSphereRitem->Mat = mMaterials["grass"].get();
 
     auto waveRitem = std::make_unique<RenderItem>();
     waveRitem->World = MathHelper::Identity4x4();
@@ -573,6 +581,7 @@ inline void LandAndWavesApp::BuildRenderItems() {
     waveRitem->IndexCount = waveRitem->Geo->DrawArgs["wave"].IndexCount;
     waveRitem->StartIndexLocation = waveRitem->Geo->DrawArgs["wave"].StartIndexLocation;
     waveRitem->BaseVertexLocation = waveRitem->Geo->DrawArgs["wave"].BaseVertexLocation;
+    waveRitem->Mat = mMaterials["water"].get();
 
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(gridRitem.get());
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(geoSphereRitem.get());
@@ -585,15 +594,15 @@ inline void LandAndWavesApp::BuildRenderItems() {
 
 inline void LandAndWavesApp::BuildMaterials() {
     auto grassMat = std::make_unique<Material>();
-    grassMat->DiffuseAlbedo = XMFLOAT4(0.2,0.6,0.2,1.0);
-    grassMat->FresnelR0 = XMFLOAT3(0.01,0.01,0.01);
+    grassMat->DiffuseAlbedo = XMFLOAT4(0.2f,0.6f,0.2f,1.0f);
+    grassMat->FresnelR0 = XMFLOAT3(0.01f,0.01f,0.01f);
     grassMat->Roughness = 0.125;
     grassMat->MatCBIndex = 0;
     grassMat->Name = "grass";
 
     auto waterMat = std::make_unique<Material>();
-    waterMat->DiffuseAlbedo = XMFLOAT4(0.0,0.1,0.8,1.0);
-    waterMat->FresnelR0 = XMFLOAT3(0.01,0.01,0.01);
+    waterMat->DiffuseAlbedo = XMFLOAT4(0.0f,0.1f,0.8f,1.0f);
+    waterMat->FresnelR0 = XMFLOAT3(0.01f,0.01f,0.01f);
     waterMat->Roughness = 0;
     waterMat->MatCBIndex = 1;
     waterMat->Name = "water";
