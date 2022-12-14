@@ -118,7 +118,6 @@ void D3DApp::OnResizeCallback() {
     // recreate swapchain or first creat
     HR(mSwapChain->ResizeBuffers(kSwapChainBufferCount, mWidth, mHeight, mBackBufferFormat,
                                  DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
-
     mCurrBackBuffer = 0;
     // SwapChain创建完以后只是单纯的Buffer
     // 要把Buffer创建RTV，并绑定到Device上
