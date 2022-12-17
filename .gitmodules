@@ -1,0 +1,3 @@
+[submodule "lua_examples/lua_c_apis/Lua-with-cmake"]
+	path = lua_examples/lua_c_apis/Lua-with-cmake
+	url = https://github.com/BlurryLight/Lua-with-cmake
