@@ -72,9 +72,10 @@ int main()
     //hellowlrd  10 nil  helloworld 
 
     lua_settop(L,3); lua_settop(L,6); LuaStackDump(L);// 先缩容后扩容，缩容丢弃元素，扩容填nil,支持负数，负数的话从栈顶往下数
-    //hellowlrd  10 nil  helloworld 
+    //hellowlrd  10 nil nil nil nil 
 
     lua_rotate(L,2,-1); LuaStackDump(L);// 旋转栈顶到index之间的所有元素，正数向栈顶旋转，负数向栈底
+    // 可以看到10被交换到了栈顶，所以lua_rorate/lua_pop可以定义出lua_remove
     //helloworld nil nil nil nil 10
 
     lua_remove(L,-1); LuaStackDump(L);// 移除index所在元素
