@@ -44,15 +44,11 @@ int GetGlobalInt(lua_State* ls,const char* var)
 
 int GetColorField(lua_State* ls,const char* key)
 {
-    int isNum;
-    // 需要先将查询的key放在栈上，然后调用gettable 
-    lua_pushstring(ls, key);
-    lua_gettable(ls, -2);
-    int result = (int)(lua_tonumberx(ls, -1, &isNum) * kMaxColorf);
-    if(!isNum)
+    if(lua_getfield(ls, -1, key) != LUA_TNUMBER)
     {
         error(ls,"'%s' invalid component in color",key);
     }
+    int result = (int)(lua_tonumber(ls, -1) * kMaxColorf);
     lua_pop(ls,1);
     return result;
 }
@@ -70,14 +66,14 @@ void Load(lua_State* ls,const char* filename,int *w,int*h)
 
 void SetColorField(lua_State* ls,const char* key,int value)
 {
-    lua_pushstring(ls,key);
     lua_pushnumber(ls, (double)value / MAX_COLOR);
-    lua_settable(ls, -3);
+    lua_setfield(ls, -2, key);
 }
 
 void SetColor(lua_State* ls,const ColorTable* ct)
 {
-    lua_newtable(ls);
+    // 第一个参数是多少个数组元素，第二个参数是多少个table元素
+    lua_createtable(ls, 0, 3);
     SetColorField(ls, "red", ct->red);
     SetColorField(ls, "green", ct->green);
     SetColorField(ls, "blue", ct->blue);
@@ -98,6 +94,122 @@ bool ciequals(const char* a,const char* b)
         }
     }
     return true;
+}
+
+double LuaFFunc(lua_State* ls,double x, double y)
+{
+    lua_getglobal(ls,"f");
+    lua_pushnumber(ls,x);
+    lua_pushnumber(ls,y);
+
+    // 2 args, 1 return value
+    if(lua_pcall(ls, 2, 1, 0) != LUA_OK)
+    {
+        error(ls,"error running function 'f', %s",lua_tostring(ls, -1));
+    }
+    int isNum;
+    double z = lua_tonumberx(ls, -1, &isNum);
+    if(!isNum)
+    {
+        error(ls,"function 'f' does return number");
+    }
+    lua_pop(ls, 1);
+    return z;
+}
+
+void call_va(lua_State *ls,const char* func,const char* sig,...)
+{
+    va_list vl;
+    int narg,nres;
+    va_start(vl,sig);
+    lua_getglobal(ls,func);
+    for(narg = 0;*sig;narg++)
+    {
+        luaL_checkstack(ls, 1, "too many args");
+        switch(*sig++)
+        {
+            case 'b':
+                lua_pushboolean(ls,va_arg(vl,int));
+                break;
+            case 'd':
+            {
+                lua_pushnumber(ls,va_arg(vl,double));
+                break;
+            }
+            case 'i':
+            {
+                lua_pushinteger(ls,va_arg(vl,int));
+                break;
+            }
+            case 's':
+            {
+                lua_pushstring(ls,va_arg(vl,char*));
+                break;
+            }
+            case '>':
+            {
+                goto endargs;
+            }
+            default:
+                error(ls,"invalid option %c",*(sig - 1));
+        }
+    }
+endargs:
+    nres = strlen(sig);
+    if(lua_pcall(ls,narg,nres,0) != LUA_OK)
+    {
+        error(ls,"error calling '%s': %s",func,lua_tostring(ls, -1));
+    }
+
+    nres = -nres;
+    while(*sig)
+    {
+        switch(*sig++)
+        {
+            case 'd':
+            {
+                int isnum;
+                double n = lua_tonumberx(ls, nres, &isnum);
+                if(!isnum)
+                {
+                    error(ls,"wrong result type");
+                }
+                *va_arg(vl,double*) = n;
+                break;
+            }
+            case 'i':
+            {
+                int isnum;
+                int n = lua_tointegerx(ls, nres, &isnum);
+                if(!isnum)
+                {
+                    error(ls,"wrong result type");
+                }
+                *va_arg(vl,int*) = n;
+                break;
+            }
+            case 's':
+            {
+                const char* s= lua_tostring(ls, nres);
+                if(!s)
+                {
+                    error(ls,"wrong result type");
+                }
+                *va_arg(vl,const char**) = s;
+                break;
+            }
+            case 'b':
+            {
+                int flag = lua_toboolean(ls, nres);
+                *va_arg(vl,int*) = flag;
+                break;
+            }
+            default:
+                error(ls,"invalid option %c",*(sig - 1));
+        }
+        nres++;
+    }
+    va_end(vl);
 }
 
 int main()
@@ -151,6 +263,15 @@ int main()
     std::printf("red:%d green:%d blue:%d\n",redColor,greenColor,blueColor);
 
 
+    // std::cout << "f func(0,0): " << LuaFFunc(L, 0, 0) << std::endl;
+    double x =0,y=0,z;
+    call_va(L, "f", "dd>d", x,y,&z );
+    std::cout << "f func(0,0): " << z << std::endl;
+
+    std::string client{"lua client"};
+    const char* res = nullptr;
+    call_va(L, "hello", "bs>s", true,client.data(),&res);
+    std::cout << "hello() " <<  std::string(res) << std::endl;
     lua_close(L);
     return 0;
 }
