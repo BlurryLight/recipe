@@ -31,9 +31,23 @@ static int l_dir(lua_State* L)
     return 1;
 }
 
+static int l_summation(lua_State* L)
+{
+    double res = 0.0;
+    int top = lua_gettop(L);
+    for(auto index = top;index > 0;index--)
+    {
+        double v = luaL_checknumber(L, index);
+        res += v;
+    }
+    lua_pushnumber(L,res);
+    return 1;
+}
+
 static const struct luaL_Reg mylib[] = 
 {
     {"mydir",l_dir},
+    {"summation",l_summation},
     {NULL,NULL} // sentinel
 };
 
