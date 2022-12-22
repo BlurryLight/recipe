@@ -8,6 +8,7 @@ namespace PD {
     using DirectX::PackedVector::XMCOLOR;
     struct ObjectConstants {
         DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 InvTransWorld = MathHelper::Identity4x4();
     };
 
 

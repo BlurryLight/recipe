@@ -87,7 +87,6 @@ private:
 
     FrameResource *mCurrFrameResource = nullptr;
     PassConstants mMainPassCB;
-    // XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
     bool mbVsync = true;
 
@@ -178,6 +177,7 @@ void LandAndWavesApp::UpdateObjectCB(const GameTimer &timer) {
             XMMATRIX world = XMLoadFloat4x4(&element->World);
             ObjectConstants objCB;
             XMStoreFloat4x4(&objCB.World, XMMatrixTranspose(world));
+            XMStoreFloat4x4(&objCB.InvTransWorld, XMMatrixTranspose(MathHelper::InverseTranspose(world)));
             currObjectCB->CopyData(element->ObjectCBIndex, objCB);
             element->NumFramesDirty--;
         }
@@ -206,7 +206,11 @@ void LandAndWavesApp::UpdateMainPassCB(const GameTimer &gt) {
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = {0.25,0.25,0.25,1.0};
-    mMainPassCB.Lights[0].Direction = XMFLOAT3(0,1,0); // world 
+
+    // world
+    auto LightDir = DirectX::SimpleMath::Vector3(-1, -1, 0);
+    LightDir.Normalize();
+    mMainPassCB.Lights[0].Direction = LightDir;
     mMainPassCB.Lights[0].Strength= XMFLOAT3(1,1,0.9f);
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
