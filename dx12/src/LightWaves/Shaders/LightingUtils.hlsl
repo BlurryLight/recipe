@@ -30,7 +30,7 @@ float3 BlinnPhong(float3 lightStrength, float3 lightDir, float3 normalW,
   const float m = mat.Shininess * 256.0f; // 决定高光斑大小
   float3 halfVec = normalize(viewDir + lightDir);
 
-  float roughFactor = (m + 8.0) / 8.0 + pow(max(dot(normalW, halfVec), 0.0), m);
+  float roughFactor = (m + 8.0) * pow(max(dot(normalW, halfVec), 0.0), m) / 8.0;
   float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, normalW, lightDir);
   float3 specAlbedo = roughFactor * fresnelFactor;
 

@@ -557,29 +557,35 @@ inline void LandAndWavesApp::BuildFrameResources() {
 inline void LandAndWavesApp::BuildRenderItems() {
     spdlog::info("Build Render Items");
 
+    int ObjectCBIndex = 0;
     auto gridRitem = std::make_unique<RenderItem>();
     gridRitem->World = MathHelper::Identity4x4();
-    gridRitem->ObjectCBIndex = 0;
+    gridRitem->ObjectCBIndex = ObjectCBIndex++;
     gridRitem->Geo = mGeometries["landGeo"].get();
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridRitem->Mat = mMaterials["grass"].get();
 
-    auto geoSphereRitem = std::make_unique<RenderItem>();
-    auto WorldMatrix = DirectX::XMMatrixTranslation(0, 20, 10.0);
-    XMStoreFloat4x4(&geoSphereRitem->World, WorldMatrix);
-    geoSphereRitem->ObjectCBIndex = 1;
-    geoSphereRitem->Geo = mGeometries["landGeo"].get();
-    geoSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    geoSphereRitem->IndexCount = geoSphereRitem->Geo->DrawArgs["geoSphere"].IndexCount;
-    geoSphereRitem->StartIndexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].StartIndexLocation;
-    geoSphereRitem->BaseVertexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].BaseVertexLocation;  
-    geoSphereRitem->Mat = mMaterials["grass"].get();
+    RenderItem *sphereItems[2];
+    for (int i = 0; i < 2; i++) {
+        auto geoSphereRitem = new RenderItem();
+        sphereItems[i] = geoSphereRitem;
+        auto WorldMatrix = DirectX::XMMatrixTranslation(i * 20.0, 15.0, 10.0);
+        XMStoreFloat4x4(&geoSphereRitem->World, WorldMatrix);
+        geoSphereRitem->ObjectCBIndex = ObjectCBIndex++;
+        geoSphereRitem->Geo = mGeometries["landGeo"].get();
+        geoSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        geoSphereRitem->IndexCount = geoSphereRitem->Geo->DrawArgs["geoSphere"].IndexCount;
+        geoSphereRitem->StartIndexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].StartIndexLocation;
+        geoSphereRitem->BaseVertexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].BaseVertexLocation;
+    }
+    sphereItems[0]->Mat = mMaterials["grass"].get();
+    sphereItems[1]->Mat = mMaterials["water"].get();
 
     auto waveRitem = std::make_unique<RenderItem>();
     waveRitem->World = MathHelper::Identity4x4();
-    waveRitem->ObjectCBIndex = 2;
+    waveRitem->ObjectCBIndex = ObjectCBIndex++;
     waveRitem->Geo = mGeometries["waveGeo"].get();
     waveRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     waveRitem->IndexCount = waveRitem->Geo->DrawArgs["wave"].IndexCount;
@@ -588,11 +594,13 @@ inline void LandAndWavesApp::BuildRenderItems() {
     waveRitem->Mat = mMaterials["water"].get();
 
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(gridRitem.get());
-    mRitemLayers.at((int) RenderLayer::Opaque).push_back(geoSphereRitem.get());
+    for (int i = 0; i < 2; i++) {
+        mRitemLayers.at((int) RenderLayer::Opaque).push_back(sphereItems[i]);
+        mAllRitems.push_back(std::unique_ptr<RenderItem>(sphereItems[i]));
+    }
     mRitemLayers.at((int) RenderLayer::Opaque).push_back(waveRitem.get());
 
     mAllRitems.push_back(std::move(gridRitem));
-    mAllRitems.push_back(std::move(geoSphereRitem));
     mAllRitems.push_back(std::move(waveRitem));
 }
 
