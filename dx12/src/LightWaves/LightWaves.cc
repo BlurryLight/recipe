@@ -160,11 +160,15 @@ inline void LandAndWavesApp::Update(const GameTimer &timer) {
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     ImGui::SliderFloat("MoveSpeed", &mCamera->MovementSpeed, 0.0f, 50.0f);
+    // ex 8.16.2
+    if(ImGui::SliderFloat("GrassMatRoughness", &mMaterials["grass"].get()->Roughness,0.0,1.0))
+    {
+        mMaterials["grass"]->NumFramesDirty++;
+    };
     ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
-    // ImGui::DragFloat3("LightDirection", (float*)&(mMainPassCB.Lights[0].Direction));
     ImGui::End();
     ImGui::Render();
 }

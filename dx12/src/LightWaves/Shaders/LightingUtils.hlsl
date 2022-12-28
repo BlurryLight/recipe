@@ -38,10 +38,3 @@ float3 BlinnPhong(float3 lightStrength, float3 lightDir, float3 normalW,
   specAlbedo = specAlbedo / (specAlbedo + 1);
   return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;
 }
-
-float3 ComputeDirLight(Light L, Material mat, float3 normalW, float3 viewDir) {
-  float3 LightDir = -L.Direction;
-  float NdotL = max(dot(LightDir, normalW), 0.0f);
-  float3 lightStrength = L.Strength * NdotL;
-  return BlinnPhong(lightStrength, LightDir, normalW, viewDir, mat);
-}

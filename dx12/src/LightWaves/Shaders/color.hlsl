@@ -11,6 +11,19 @@ cbuffer cbMaterial : register(b1) {
   float4x4 gMatTransform;
 };
 
+
+
+struct VertexIn {
+  float3 PosL : POSITION;
+  float3 Normal : NORMAL;
+};
+
+struct VertexOut {
+  float4 PosH : SV_Position;
+  float3 PosW : Position;
+  float3 NormalW : NORMAL;
+};
+
 cbuffer cbPass : register(b2) {
   float4x4 gView;
   float4x4 gInvView;
@@ -31,16 +44,12 @@ cbuffer cbPass : register(b2) {
   Light gLights[MaxLights];
 };
 
-struct VertexIn {
-  float3 PosL : POSITION;
-  float3 Normal : NORMAL;
-};
-
-struct VertexOut {
-  float4 PosH : SV_Position;
-  float3 PosW : Position;
-  float3 NormalW : NORMAL;
-};
+float3 ComputeDirLight(Light L, Material mat, float3 normalW, float3 viewDir) {
+  float3 LightDir = -L.Direction;
+  float NdotL = max(dot(LightDir, normalW), 0.0f);
+  float3 lightStrength = L.Strength * NdotL * (abs(sin(gTotalTime)));
+  return BlinnPhong(lightStrength, LightDir, normalW, viewDir, mat);
+}
 
 VertexOut VSMain(VertexIn vin) {
   VertexOut vout;
@@ -63,7 +72,6 @@ float4 PSMain(VertexOut vout) : SV_Target {
   mat.DiffuseAlbedo = gDiffuseAlbedo;
   mat.FresnelR0 = gFresnelR0;
   mat.Shininess = 1 - gRoughness;
-
   float4 litColor = float4(
       ambient + ComputeDirLight(gLights[0], mat, vout.NormalW, viewDir), 1.0);
   litColor.a = gDiffuseAlbedo.a;
