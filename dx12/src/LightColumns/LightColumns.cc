@@ -28,6 +28,7 @@ struct RenderItem {
     int NumFramesDirty = kNumFrameResources;
 
     UINT ObjectCBIndex = -1;
+    Material* Mat = nullptr;
     MeshGeometry *Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -55,8 +56,10 @@ private:
     void BuildPSOs();
     void BuildFrameResources();
     void BuildRenderItems();
+    void BuildMaterials();
 
     void UpdateObjectCB(const GameTimer &timer);
+    void UpdateMaterialCBs(const GameTimer &timer);
     void UpdateMainPassCB(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
@@ -67,6 +70,7 @@ private:
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+    std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
@@ -80,7 +84,6 @@ private:
 
     FrameResource *mCurrFrameResource = nullptr;
     PassConstants mMainPassCB;
-    // XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
     bool mbVsync = true;
 };
@@ -111,6 +114,7 @@ inline bool LightColumnsApp::Initialize() {
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildShapeGeometry();
+    BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
     BuildDescriptorHeaps();
@@ -149,6 +153,7 @@ inline void LightColumnsApp::Update(const GameTimer &timer) {
 
     UpdateObjectCB(timer);
     UpdateMainPassCB(timer);
+    UpdateMaterialCBs(timer);
 
     ImGuiPrepareDraw();
     static bool bShowDemoWindow = false;
@@ -173,12 +178,29 @@ void LightColumnsApp::UpdateObjectCB(const GameTimer &timer) {
             XMMATRIX world = XMLoadFloat4x4(&element->World);
             ObjectConstants objCB;
             XMStoreFloat4x4(&objCB.World, XMMatrixTranspose(world));
+            XMStoreFloat4x4(&objCB.InvTransWorld, XMMatrixTranspose(MathHelper::InverseTranspose(world)));
             currObjectCB->CopyData(element->ObjectCBIndex, objCB);
             element->NumFramesDirty--;
         }
     }
 }
-void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
+inline void LightColumnsApp::UpdateMaterialCBs(const GameTimer &timer) {
+    
+    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+    for (auto& element: mMaterials) {
+        // upload data when needed
+        Material* mat = element.second.get();
+        if (mat->NumFramesDirty > 0) {
+            MaterialConstants matConstants;
+            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+            matConstants.FresnelR0 = mat->FresnelR0;
+            matConstants.Roughness = mat->Roughness;
+            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+            mat->NumFramesDirty--;
+        }
+    }
+}
+inline void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
     XMMATRIX view = XMLoadFloat4x4(&mView);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
@@ -200,6 +222,14 @@ void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
     mMainPassCB.FarZ = 1000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
+    mMainPassCB.AmbientLight = {0.25,0.25,0.35,1.0};
+
+    mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
@@ -207,6 +237,11 @@ void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
 
 inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
                                        const std::vector<const RenderItem *> &ritems) {
+
+    uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
+    auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+    auto matCB = mCurrFrameResource->MaterialCB->Resource();
     for (size_t i = 0; i < ritems.size(); i++) {
         // 要绘制一个物体，需要物体本身的信息，和它有关的model
         // 先设置顶点信息
@@ -215,12 +250,12 @@ inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // 再设置cb
-        UINT cbvIndex = mCurrFrameResourceIndex * mOpaqueRitems.size() + ri->ObjectCBIndex;
-        auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-        cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
-
-        cmdList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+        D3D12_GPU_VIRTUAL_ADDRESS ObjCBStartAddress = objectCB->GetGPUVirtualAddress();
+        D3D12_GPU_VIRTUAL_ADDRESS MatCBStartAddress = matCB->GetGPUVirtualAddress();
+        auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
+        auto MatCBAddress = MatCBStartAddress+ ri->Mat->MatCBIndex* matCBByteSize;
+        cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
+        cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
         assert(ri->IndexCount > 0);
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
@@ -271,14 +306,8 @@ void LightColumnsApp::Draw(const GameTimer &gt) {
         mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     }
 
-
-    std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mCbvHeap.Get()};
-    mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
-    auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-    passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
-    mCommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
+    mCommandList->SetGraphicsRootConstantBufferView(2, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
@@ -386,21 +415,14 @@ inline void LightColumnsApp::BuildConstantBuffers() {
 }
 
 inline void LightColumnsApp::BuildRootSignature() {
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+    // 根签名需要3个ConstantBufferView，但是不用放在堆里
+    // 一个放Object，一个放PassCB,一个放MatCB
+    slotRootParameter[0].InitAsConstantBufferView(0);
+    slotRootParameter[1].InitAsConstantBufferView(1);
+    slotRootParameter[2].InitAsConstantBufferView(2);
 
-    CD3DX12_DESCRIPTOR_RANGE cbvTable0;
-    // register b0
-    cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-
-    CD3DX12_DESCRIPTOR_RANGE cbvTable1;
-    // register b1
-    cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
-
-    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-
-    slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
-    slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
-
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr,
                                             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
@@ -428,7 +450,7 @@ inline void LightColumnsApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
              0},
     };
 }
@@ -499,22 +521,22 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     UINT k = 0;
     for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = box.Vertices[i].Position;
-        vertices[k].Color = XMCOLOR(DirectX::Colors::DarkGreen);
+        vertices[k].Normal = box.Vertices[i].Normal;
     }
 
     for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = grid.Vertices[i].Position;
-        vertices[k].Color = XMCOLOR(DirectX::Colors::ForestGreen);
+        vertices[k].Normal = grid.Vertices[i].Normal;
     }
 
     for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = sphere.Vertices[i].Position;
-        vertices[k].Color = XMCOLOR(DirectX::Colors::Crimson);
+        vertices[k].Normal = sphere.Vertices[i].Normal;
     }
 
     for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = cylinder.Vertices[i].Position;
-        vertices[k].Color = XMCOLOR(DirectX::Colors::SteelBlue);
+        vertices[k].Normal = cylinder.Vertices[i].Normal;
     }
 
 
@@ -534,7 +556,7 @@ inline void LightColumnsApp::BuildShapeGeometry() {
         for (size_t i = 0; i < MeshInfo.mPoses.size(); ++i) {
             Vertex v;
             v.Pos = MeshInfo.mPoses[i];
-            v.Color = XMCOLOR(DirectX::Colors::Tan);
+            v.Normal = MeshInfo.mNormals[i];
             vertices.push_back(v);
         }
         indices.insert(indices.end(), std::begin(MeshInfo.mIndices16), std::end(MeshInfo.mIndices16));
@@ -550,7 +572,7 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     for (size_t i = 0; i < SkullMesh.mPoses.size(); ++i) {
         Vertex v;
         v.Pos = SkullMesh.mPoses[i];
-        v.Color = XMCOLOR(DirectX::Colors::Beige);
+        v.Normal = SkullMesh.mNormals[i];
         vertices.push_back(v);
     }
     indices.insert(indices.end(), std::begin(SkullMesh.mIndices16), std::end(SkullMesh.mIndices16));
@@ -629,7 +651,7 @@ inline void LightColumnsApp::BuildPSOs() {
 
 inline void LightColumnsApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size()));
+        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(),mMaterials.size()));
     }
 }
 
@@ -641,6 +663,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     XMStoreFloat4x4(&BoxItem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
     BoxItem->ObjectCBIndex = objCBIndex++;
     BoxItem->Geo = mGeometries["shapeGeo"].get();
+    BoxItem->Mat = mMaterials["stone0"].get();
     BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     const auto &BoxSubMeshInfo = BoxItem->Geo->DrawArgs["box"];
     BoxItem->IndexCount = BoxSubMeshInfo.IndexCount;
@@ -652,6 +675,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     gridRitem->World = MathHelper::Identity4x4();
     gridRitem->ObjectCBIndex = objCBIndex++;
     gridRitem->Geo = mGeometries["shapeGeo"].get();
+    gridRitem->Mat = mMaterials["tile0"].get();
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
@@ -662,6 +686,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     spotRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 3, -5);
     spotRitem->ObjectCBIndex = objCBIndex++;
     spotRitem->Geo = mGeometries["shapeGeo"].get();
+    spotRitem->Mat = mMaterials["skullMat"].get();
     spotRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     spotRitem->IndexCount = spotRitem->Geo->DrawArgs["spot"].IndexCount;
     spotRitem->StartIndexLocation = spotRitem->Geo->DrawArgs["spot"].StartIndexLocation;
@@ -672,6 +697,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     skullRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 1, 0);
     skullRitem->ObjectCBIndex = objCBIndex++;
     skullRitem->Geo = mGeometries["shapeGeo"].get();
+    skullRitem->Mat = mMaterials["skullMat"].get();
     skullRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     skullRitem->IndexCount = skullRitem->Geo->DrawArgs["skull"].IndexCount;
     skullRitem->StartIndexLocation = skullRitem->Geo->DrawArgs["skull"].StartIndexLocation;
@@ -694,6 +720,7 @@ inline void LightColumnsApp::BuildRenderItems() {
         XMStoreFloat4x4(&leftCylRitem->World, rightCylWorld);
         leftCylRitem->ObjectCBIndex = objCBIndex++;
         leftCylRitem->Geo = mGeometries["shapeGeo"].get();
+        leftCylRitem->Mat = mMaterials["bricks0"].get();
         leftCylRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         leftCylRitem->IndexCount = leftCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
         leftCylRitem->StartIndexLocation = leftCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
@@ -702,6 +729,7 @@ inline void LightColumnsApp::BuildRenderItems() {
         XMStoreFloat4x4(&rightCylRitem->World, leftCylWorld);
         rightCylRitem->ObjectCBIndex = objCBIndex++;
         rightCylRitem->Geo = mGeometries["shapeGeo"].get();
+        rightCylRitem->Mat = mMaterials["bricks0"].get();
         rightCylRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         rightCylRitem->IndexCount = rightCylRitem->Geo->DrawArgs["cylinder"].IndexCount;
         rightCylRitem->StartIndexLocation = rightCylRitem->Geo->DrawArgs["cylinder"].StartIndexLocation;
@@ -710,6 +738,7 @@ inline void LightColumnsApp::BuildRenderItems() {
         XMStoreFloat4x4(&leftSphereRitem->World, leftSphereWorld);
         leftSphereRitem->ObjectCBIndex = objCBIndex++;
         leftSphereRitem->Geo = mGeometries["shapeGeo"].get();
+        leftSphereRitem->Mat = mMaterials["stone0"].get();
         leftSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         leftSphereRitem->IndexCount = leftSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
         leftSphereRitem->StartIndexLocation = leftSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
@@ -718,6 +747,7 @@ inline void LightColumnsApp::BuildRenderItems() {
         XMStoreFloat4x4(&rightSphereRitem->World, rightSphereWorld);
         rightSphereRitem->ObjectCBIndex = objCBIndex++;
         rightSphereRitem->Geo = mGeometries["shapeGeo"].get();
+        rightSphereRitem->Mat = mMaterials["stone0"].get();
         rightSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         rightSphereRitem->IndexCount = rightSphereRitem->Geo->DrawArgs["sphere"].IndexCount;
         rightSphereRitem->StartIndexLocation = rightSphereRitem->Geo->DrawArgs["sphere"].StartIndexLocation;
@@ -733,6 +763,45 @@ inline void LightColumnsApp::BuildRenderItems() {
     spdlog::info("Build Opaque Render Items");
     // All the render items are opaque.
     for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
+}
+
+inline void LightColumnsApp::BuildMaterials() {
+    auto bricks0 = std::make_unique<Material>();
+	bricks0->Name = "bricks0";
+	bricks0->MatCBIndex = 0;
+	bricks0->DiffuseSrvHeapIndex = 0;
+	bricks0->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
+	bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	bricks0->Roughness = 0.1f;
+
+	auto stone0 = std::make_unique<Material>();
+	stone0->Name = "stone0";
+	stone0->MatCBIndex = 1;
+	stone0->DiffuseSrvHeapIndex = 1;
+	stone0->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
+	stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+	stone0->Roughness = 0.3f;
+ 
+	auto tile0 = std::make_unique<Material>();
+	tile0->Name = "tile0";
+	tile0->MatCBIndex = 2;
+	tile0->DiffuseSrvHeapIndex = 2;
+	tile0->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
+	tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	tile0->Roughness = 0.2f;
+
+	auto skullMat = std::make_unique<Material>();
+	skullMat->Name = "skullMat";
+	skullMat->MatCBIndex = 3;
+	skullMat->DiffuseSrvHeapIndex = 3;
+	skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05);
+	skullMat->Roughness = 0.3f;
+	
+	mMaterials["bricks0"] = std::move(bricks0);
+	mMaterials["stone0"] = std::move(stone0);
+	mMaterials["tile0"] = std::move(tile0);
+	mMaterials["skullMat"] = std::move(skullMat);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

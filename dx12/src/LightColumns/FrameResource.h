@@ -1,12 +1,13 @@
 
 #include <MathHelper.h>
 #include <UploadBuffer.hh>
+#include "d3dUtils.hh"
 
 namespace PD {
     using namespace DirectX;
-    using DirectX::PackedVector::XMCOLOR;
     struct ObjectConstants {
         DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 InvTransWorld = MathHelper::Identity4x4();
     };
 
 
@@ -26,25 +27,24 @@ namespace PD {
         float FarZ = 0;
         float TotalTime = 0;
         float DeltaTime = 0;
+
+        DirectX::XMFLOAT4 AmbientLight = {0,0,0,1};
+        Light Lights[MaxLights];
     };
 
     struct Vertex {
         XMFLOAT3 Pos;
-
-        // Chapter 6.13 ex10 packed COLOR
-        // ARGB8
-        // in DXGI_FORMAT: BGRA8
-        // DXGI is in little-0Endine
-        XMCOLOR Color;
+        XMFLOAT3 Normal;
     };
 
     struct FrameResource : Noncopyable {
-        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount);
+        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount, UINT materialCount);
         ~FrameResource(){};
         // every frame needs it allocator
         ComPtr<ID3D12CommandAllocator> CmdListAlloc;
         std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
         std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+        std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
         UINT64 Fence = 0;
     };
