@@ -292,7 +292,7 @@ inline void ShapesAPP::BuildRootSignature() {
     // slotRootParameter->InitAsDescriptorTable(1, &cbvTable);
 
     // test: root descriptor
-    slotRootParameter[0].InitAsConstantBufferView(0, 0);
+    slotRootParameter[0].InitAsConstantBufferView(0);
 
     //TODO: flag
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
