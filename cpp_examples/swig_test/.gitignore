@@ -1,2 +1,9 @@
 build
+.clangd
 .cache
+
+PythonLib/*
+!PythonLib/PyTest.py
+
+LuaLib/*
+!LuaLib/LuaTest.lua
