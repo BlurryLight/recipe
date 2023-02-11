@@ -1,5 +1,8 @@
 %module testLib
+%include "std_string.i"
 %inline %{
-    extern int add(int a,int b);
+    #include "testLib.h"
 %}
+
+%include "testLib.h"
 

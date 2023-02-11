@@ -19,6 +19,7 @@ include(${SWIG_USE_FILE})
 
 add_library(testLib SHARED testLib.cc)
 target_compile_options(testLib PUBLIC "$<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>")
+target_include_directories(testLib PUBLIC ${CMAKE_SOURCE_DIR})
 
 
 set_property(SOURCE testLib.i PROPERTY CPLUSPLUS ON)
