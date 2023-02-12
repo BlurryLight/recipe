@@ -1,6 +1,9 @@
 #include "testLib.h"
 #include <cstdio>
 #include <cmath>
+#include <algorithm>
+#include <functional>
+#include <numeric>
 
 int Shape::nShapes = 0;
 
@@ -23,4 +26,15 @@ std::string Vec3f::Text() {
 
 double Circle::area()  {
     return M_PI * r * r;
+}
+
+
+double average(const std::vector<int>& v)
+{
+    return std::accumulate(v.begin(), v.end(), 0.0) / v.size();
+
+}
+double averagex(const double* arr,int len)
+{
+    return std::accumulate(arr, arr+len, 0.0) / len;
 }

@@ -18,3 +18,7 @@ print(circle.nShapes)
 circle = None
 
 print(testLib.cvar.Shape_nShapes)
+
+# vector test
+arr = testLib.IntVector([1, 2, 3, 4, 5, 6])
+print(testLib.average(arr))
