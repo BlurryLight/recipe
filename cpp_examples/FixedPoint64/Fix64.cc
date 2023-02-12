@@ -13,6 +13,16 @@ Fix64::operator float()
     return (float)mRawValue / kOne;
 }
 
+Fix64::operator bool ()
+{
+    return this->mRawValue != 0;
+}
+
+bool Fix64::operator !()
+{
+    return !bool(*this);
+}
+
 Fix64::operator double()
 {
     return (double)mRawValue / kOne;
@@ -38,4 +48,56 @@ Fix64 Fix64::FromRaw(int64_t val)
     Fix64 f;
     f.mRawValue = val;
     return f;
+}
+
+
+bool Fix64::operator==(const Fix64& other)
+{
+    return this->mRawValue == other.mRawValue;
+}
+
+bool Fix64::operator!=(const Fix64& other)
+{
+    return this->mRawValue != other.mRawValue;
+}
+
+bool Fix64::operator>(const Fix64& other)
+{
+    // 内部的raw_value用有符号数的好处就是避免处理正负号的判断
+    return this->mRawValue > other.mRawValue;
+}
+
+bool Fix64::operator>=(const Fix64& other)
+{
+    return *this == other || *this > other ;
+}
+
+bool Fix64::operator<(const Fix64& other)
+{
+    return this->mRawValue < other.mRawValue;
+}
+
+bool Fix64::operator<=(const Fix64& other)
+{
+    return *this == other || *this < other ;
+}
+
+Fix64 Fix64::operator-()
+{
+    return Fix64::FromRaw(-this->mRawValue);
+}
+
+int Fix64::sign() const {
+  if (this->mRawValue == 0) {
+    return 0;
+  }
+  return this->mRawValue > 0 ? 1 : -1;
+}
+
+Fix64 Fix64::operator+(const Fix64& other) const {
+    return Fix64::FromRaw(this->mRawValue + other.mRawValue);
+}
+
+Fix64 Fix64::operator-(const Fix64& other) const {
+    return Fix64::FromRaw(this->mRawValue - other.mRawValue);
 }
