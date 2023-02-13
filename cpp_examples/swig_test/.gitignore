@@ -3,7 +3,9 @@ build
 .cache
 
 PythonLib/*
+!PythonLib/*.i
 !PythonLib/PyTest.py
 
 LuaLib/*
+!LuaLib/*.i
 !LuaLib/LuaTest.lua
