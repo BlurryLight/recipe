@@ -7,6 +7,7 @@ set(SRC
     ../third_party/MathHelper.cpp
     ../third_party/GeometryGenerator.cpp
     ../third_party/SimpleMath.cpp
+    ../third_party/DDSTextureLoader12.cpp
     ../utils/resource_path_searcher.cc
 )
 
