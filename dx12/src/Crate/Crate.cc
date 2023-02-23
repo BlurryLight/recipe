@@ -8,6 +8,7 @@
 #include <array>
 #include <d3dApp.hh>
 #include <spdlog/spdlog.h>
+#include <stb_image/stb_image.h>
 
 
 #include "imgui.h"
@@ -93,6 +94,7 @@ private:
     PassConstants mMainPassCB;
     bool mbShowWireFrame = false;
     bool mbVsync = true;
+    bool mbAnotherTexture = false;
 };
 
 inline CrateApp::CrateApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -173,6 +175,7 @@ inline void CrateApp::Update(const GameTimer &timer) {
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
+    ImGui::Checkbox("Another Texture", &mbAnotherTexture);
     ImGui::End();
     ImGui::Render();
 }
@@ -263,7 +266,7 @@ inline void CrateApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         auto MatCBAddress = MatCBStartAddress + ri->Mat->MatCBIndex * matCBByteSize;
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-        tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
+        tex.Offset(ri->Mat->DiffuseSrvHeapIndex + (mbAnotherTexture ? 1 : 0), mCbvSrvUavDescriptorSize);
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
         cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
         cmdList->SetGraphicsRootDescriptorTable(3, tex);
@@ -440,16 +443,21 @@ inline void CrateApp::BuildDescriptorHeaps() {
     HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    auto woodCrateTex = mTextures["WoodCrateTexture"]->Resource;
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = woodCrateTex->GetDesc().Format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.MipLevels = woodCrateTex->GetDesc().MipLevels;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+    int index = 0;
+    for (const auto &it : mTextures) {
 
-    mD3dDevice->CreateShaderResourceView(woodCrateTex.Get(), &srvDesc, srvHandle);
+        srvHandle.Offset(index, mCbvSrvUavDescriptorSize);
+        auto resource = it.second->Resource;
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+        mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
+        index++;
+    }
 }
 
 inline void CrateApp::BuildConstantBuffers() {
@@ -704,7 +712,7 @@ inline void CrateApp::LoadTextures() {
                                                   woodCrateTex->Resource.ReleaseAndGetAddressOf(), ddsData,
                                                   subresources));
 
-    const UINT64 uploadBufferSize =
+    UINT64 uploadBufferSize =
             GetRequiredIntermediateSize(woodCrateTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
 
     // Create the GPU upload buffer.
@@ -731,6 +739,56 @@ inline void CrateApp::LoadTextures() {
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
     mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
+
+    // init texture
+
+    auto woodTex = std::make_unique<Texture>();
+    woodTex->Name = "Wood";
+    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).wstring();
+    int ImageWidth;
+    int ImageHeight;
+    int ImageChannels;
+    int ImageDesiredChannels = 4;
+
+    stbi_set_flip_vertically_on_load(1);
+    unsigned char *ImageData = stbi_load(fs::path(woodTex->Filename).u8string().c_str(), &ImageWidth, &ImageHeight,
+                                         &ImageChannels, ImageDesiredChannels);
+    assert(ImageData);
+    stbi_set_flip_vertically_on_load(0);
+
+    auto ImageTextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, ImageWidth, ImageHeight, 1, 1);
+    HR(mD3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
+                                           &ImageTextureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                           IID_PPV_ARGS(woodTex->Resource.GetAddressOf())));
+
+    const UINT subresourceCount = ImageTextureDesc.DepthOrArraySize * ImageTextureDesc.MipLevels;
+    uploadBufferSize = GetRequiredIntermediateSize(woodTex->Resource.Get(), 0, subresourceCount);
+
+
+    desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+    ComPtr<ID3D12Resource> WoodUploadRes;
+    ThrowIfFailed(mD3dDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc,
+                                                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                                      IID_PPV_ARGS(WoodUploadRes.GetAddressOf())));
+
+    D3D12_SUBRESOURCE_DATA textureData = {};
+    textureData.pData = ImageData;
+    textureData.RowPitch = static_cast<LONG_PTR>((4 * ImageWidth));
+    textureData.SlicePitch = textureData.RowPitch * ImageHeight;
+    UpdateSubresources(mCommandList.Get(), woodTex->Resource.Get(), WoodUploadRes.Get(), 0, 0, subresourceCount,
+                       &textureData);
+
+    barrier = CD3DX12_RESOURCE_BARRIER::Transition(woodTex->Resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    mCommandList->ResourceBarrier(1, &barrier);
+
+    ThrowIfFailed(mCommandList->Close());
+    cmdLists = {mCommandList.Get()};
+    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
+    FlushCommandQueue();
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+    mTextures[woodTex->Name] = std::move(woodTex);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

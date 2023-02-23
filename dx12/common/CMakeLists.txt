@@ -17,6 +17,7 @@ target_include_directories(d3d12lib PUBLIC ${CMAKE_SOURCE_DIR}/third_party)
 target_include_directories(d3d12lib PUBLIC ${CMAKE_SOURCE_DIR}/utils)
 target_compile_options(d3d12lib PUBLIC /utf-8 /W3)
 target_compile_definitions(d3d12lib PUBLIC _CRT_SECURE_NO_WARNINGS NOMINMAX)
+target_link_libraries(d3d12lib PUBLIC stb_image_lib)
 target_link_libraries(d3d12lib PUBLIC winmm.lib d3dcompiler.lib D3D12.lib dxgi.lib)
 
 # https://github.com/microsoft/DirectX-Graphics-Samples/issues/567

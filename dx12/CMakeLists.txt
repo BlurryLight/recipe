@@ -18,6 +18,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 
+add_subdirectory(third_party/stb_image)
 add_subdirectory(common)
 add_subdirectory(src)
 
