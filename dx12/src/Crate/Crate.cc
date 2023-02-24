@@ -703,91 +703,17 @@ inline void CrateApp::BuildMaterials() {
 inline void CrateApp::LoadTextures() {
     auto woodCrateTex = std::make_unique<Texture>();
     woodCrateTex->Name = "WoodCrateTexture";
-    woodCrateTex->Filename = L"WoodCrate01.dds";
-    woodCrateTex->Filename = fs::absolute(this->mResourceManager.find_path(woodCrateTex->Filename)).wstring();
-
-    std::unique_ptr<uint8_t[]> ddsData;
-    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
-    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(mD3dDevice.Get(), woodCrateTex->Filename.c_str(),
-                                                  woodCrateTex->Resource.ReleaseAndGetAddressOf(), ddsData,
-                                                  subresources));
-
-    UINT64 uploadBufferSize =
-            GetRequiredIntermediateSize(woodCrateTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
-
-    // Create the GPU upload buffer.
-    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-
-    auto desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-
-    ComPtr<ID3D12Resource> uploadRes;
-    ThrowIfFailed(mD3dDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc,
-                                                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                      IID_PPV_ARGS(uploadRes.GetAddressOf())));
-
-    UpdateSubresources(mCommandList.Get(), woodCrateTex->Resource.Get(), uploadRes.Get(), 0, 0,
-                       static_cast<UINT>(subresources.size()), subresources.data());
-
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(woodCrateTex->Resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    mCommandList->ResourceBarrier(1, &barrier);
-
-    ThrowIfFailed(mCommandList->Close());
-    std::array<ID3D12CommandList *, 1> cmdLists{mCommandList.Get()};
-    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
-    FlushCommandQueue();
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-
+    woodCrateTex->Filename = "WoodCrate01.dds";
+    woodCrateTex->Filename = fs::absolute(this->mResourceManager.find_path(woodCrateTex->Filename)).u8string();
+    Texture::LoadAndUploadTexture(*woodCrateTex, mD3dDevice.Get(), mCommandList.Get());
     mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
 
     // init texture
 
     auto woodTex = std::make_unique<Texture>();
     woodTex->Name = "Wood";
-    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).wstring();
-    int ImageWidth;
-    int ImageHeight;
-    int ImageChannels;
-    int ImageDesiredChannels = 4;
-
-    stbi_set_flip_vertically_on_load(1);
-    unsigned char *ImageData = stbi_load(fs::path(woodTex->Filename).u8string().c_str(), &ImageWidth, &ImageHeight,
-                                         &ImageChannels, ImageDesiredChannels);
-    assert(ImageData);
-    stbi_set_flip_vertically_on_load(0);
-
-    auto ImageTextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, ImageWidth, ImageHeight, 1, 1);
-    HR(mD3dDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
-                                           &ImageTextureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-                                           IID_PPV_ARGS(woodTex->Resource.GetAddressOf())));
-
-    const UINT subresourceCount = ImageTextureDesc.DepthOrArraySize * ImageTextureDesc.MipLevels;
-    uploadBufferSize = GetRequiredIntermediateSize(woodTex->Resource.Get(), 0, subresourceCount);
-
-
-    desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-    ComPtr<ID3D12Resource> WoodUploadRes;
-    ThrowIfFailed(mD3dDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc,
-                                                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                      IID_PPV_ARGS(WoodUploadRes.GetAddressOf())));
-
-    D3D12_SUBRESOURCE_DATA textureData = {};
-    textureData.pData = ImageData;
-    textureData.RowPitch = static_cast<LONG_PTR>((4 * ImageWidth));
-    textureData.SlicePitch = textureData.RowPitch * ImageHeight;
-    UpdateSubresources(mCommandList.Get(), woodTex->Resource.Get(), WoodUploadRes.Get(), 0, 0, subresourceCount,
-                       &textureData);
-
-    barrier = CD3DX12_RESOURCE_BARRIER::Transition(woodTex->Resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
-                                                   D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    mCommandList->ResourceBarrier(1, &barrier);
-
-    ThrowIfFailed(mCommandList->Close());
-    cmdLists = {mCommandList.Get()};
-    mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
-    FlushCommandQueue();
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-
+    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).u8string();
+    Texture::LoadAndUploadTexture(*woodTex, mD3dDevice.Get(), mCommandList.Get());
     mTextures[woodTex->Name] = std::move(woodTex);
 }
 

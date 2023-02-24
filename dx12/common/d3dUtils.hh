@@ -148,10 +148,15 @@ namespace PD {
         // Unique material name for lookup.
         std::string Name;
 
-        std::wstring Filename;
+        // internal utf-8, convert to utf-16 when needed
+        std::string Filename;
 
         Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
         // does it really needed?
-        // Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
+        Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
+
+        // 暂时只支持dds， 和RGBA8的texture，不支持mipmaps
+        static void LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList);
     };
+
 }// namespace PD

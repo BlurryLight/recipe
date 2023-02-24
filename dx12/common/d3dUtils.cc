@@ -3,11 +3,13 @@
 //
 
 #include "d3dUtils.hh"
+#include <DDSTextureLoader12.h>
 #include <filesystem>
 #include <iostream>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/xchar.h>
 #include <spdlog/spdlog.h>
+#include <stb_image/stb_image.h>
 namespace fs = std::filesystem;
 using namespace PD;
 void PD::DxTrace(const wchar_t *file, unsigned long line, HRESULT hr, const wchar_t *proc) {
@@ -147,4 +149,62 @@ void PD::DXGISetDebugObjectName(IDXGIObject *object, std::string_view name) {
 
 void PD::DXGIClearDebugObjectName(IDXGIObject *object) {
     object->SetPrivateData(WKPDID_D3DDebugObjectName, 0, nullptr);
+}
+
+void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList) {
+    assert(!texture.Filename.empty());
+    auto path = fs::path(texture.Filename);
+    auto suffix = path.extension().u8string();
+
+    std::unique_ptr<uint8_t[]> imageData;
+
+    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+    if (suffix == ".DDS" || suffix == ".dds") {
+        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
+                device, path.wstring().c_str(), texture.Resource.ReleaseAndGetAddressOf(), imageData, subresources));
+
+    } else {
+        int ImageWidth;
+        int ImageHeight;
+        int ImageChannels;
+        int ImageDesiredChannels = 4;
+
+        stbi_set_flip_vertically_on_load(1);
+        imageData.reset(
+                stbi_load(path.u8string().c_str(), &ImageWidth, &ImageHeight, &ImageChannels, ImageDesiredChannels));
+        assert(imageData);
+        stbi_set_flip_vertically_on_load(0);
+
+        auto ImageTextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, ImageWidth, ImageHeight, 1, 1);
+        HR(device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
+                                           &ImageTextureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                           IID_PPV_ARGS(texture.Resource.GetAddressOf())));
+
+        D3D12_SUBRESOURCE_DATA textureData = {};
+        textureData.pData = imageData.get();
+        // https://github.com/microsoft/DirectXTex/wiki/ComputePitch
+        // The rowPitch is the number of bytes in a scanline of pixels in the image. A standard pitch is 'byte' aligned and therefore it is equal to bytes-per-pixel * width-of-image.
+        textureData.RowPitch = static_cast<LONG_PTR>((ImageChannels * ImageWidth));
+        textureData.SlicePitch = textureData.RowPitch * ImageHeight;
+        subresources.push_back(textureData);
+    }
+    UINT64 uploadBufferSize = GetRequiredIntermediateSize(texture.Resource.Get(), 0, subresources.size());
+
+    // Create the GPU upload buffer.
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+    auto desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+    ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc,
+                                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                                  IID_PPV_ARGS(texture.UploadHeap.GetAddressOf())));
+
+    //https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-updatesubresource
+
+    UpdateSubresources(cmdList, texture.Resource.Get(), texture.UploadHeap.Get(), 0, 0,
+                       static_cast<UINT>(subresources.size()), subresources.data());
+
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(texture.Resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    cmdList->ResourceBarrier(1, &barrier);
 }
