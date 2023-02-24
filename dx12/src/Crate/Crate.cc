@@ -95,6 +95,9 @@ private:
     bool mbShowWireFrame = false;
     bool mbVsync = true;
     bool mbAnotherTexture = false;
+
+    // scale x scale y transx trans y
+    SimpleMath::Vector4 mCrateTextureTrans = SimpleMath::Vector4(1, 1, 0, 0);
 };
 
 inline CrateApp::CrateApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -176,6 +179,11 @@ inline void CrateApp::Update(const GameTimer &timer) {
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
     ImGui::Checkbox("Another Texture", &mbAnotherTexture);
+    if (ImGui::SliderFloat4("CrateTextureTrans", (float *) &mCrateTextureTrans, 0.0f, 2.0f)) {
+        // 刷新所有缓冲区的属性
+        mAllRitems[0]->NumFramesDirty = kNumFrameResources;
+    }
+
     ImGui::End();
     ImGui::Render();
 }
@@ -189,6 +197,11 @@ void CrateApp::UpdateObjectCB(const GameTimer &timer) {
             ObjectConstants objCB;
             XMStoreFloat4x4(&objCB.World, XMMatrixTranspose(world));
             XMStoreFloat4x4(&objCB.InvTransWorld, XMMatrixTranspose(MathHelper::InverseTranspose(world)));
+
+            auto TexTrans = XMMatrixScaling(mCrateTextureTrans.x, mCrateTextureTrans.y, 0) *
+                            XMMatrixTranslation(mCrateTextureTrans.z, mCrateTextureTrans.w, 0);
+
+            XMStoreFloat4x4(&objCB.TexTransform, XMMatrixTranspose(TexTrans));
             currObjectCB->CopyData(element->ObjectCBIndex, objCB);
             element->NumFramesDirty--;
         }

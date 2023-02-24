@@ -2,6 +2,7 @@
 cbuffer cbPerObject : register(b0) {
   float4x4 gWorld;
   float4x4 gInvTransWorld;
+  float4x4 gTexTransform;
 };
 
 cbuffer cbMaterial : register(b1) {
@@ -59,7 +60,8 @@ VertexOut VSMain(VertexIn vin) {
   float4 PosW = mul(float4(vin.PosL, 1.0), gWorld);
   vout.PosW = PosW.xyz;
   vout.PosH = mul(PosW, gViewProj);
-  vout.TexC = vin.TexC;
+  float4 TexObject = mul(float4(vin.TexC, 0.0, 1.0), gTexTransform);
+  vout.TexC = mul(TexObject, gMatTransform);
   return vout;
 };
 
