@@ -156,7 +156,8 @@ namespace PD {
         Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
 
         // 暂时只支持dds， 和RGBA8的texture，不支持mipmaps
-        static void LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList);
+        static void LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                                         bool bFlip = false);
     };
 
 }// namespace PD

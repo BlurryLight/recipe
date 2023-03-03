@@ -151,7 +151,8 @@ void PD::DXGIClearDebugObjectName(IDXGIObject *object) {
     object->SetPrivateData(WKPDID_D3DDebugObjectName, 0, nullptr);
 }
 
-void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList) {
+void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                                       bool bFlip) {
     assert(!texture.Filename.empty());
     auto path = fs::path(texture.Filename);
     auto suffix = path.extension().u8string();
@@ -169,11 +170,11 @@ void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, I
         int ImageChannels;
         int ImageDesiredChannels = 4;
 
-        stbi_set_flip_vertically_on_load(1);
+        stbi_set_flip_vertically_on_load(bFlip);
         imageData.reset(
                 stbi_load(path.u8string().c_str(), &ImageWidth, &ImageHeight, &ImageChannels, ImageDesiredChannels));
         assert(imageData);
-        stbi_set_flip_vertically_on_load(0);
+        stbi_set_flip_vertically_on_load(!bFlip);
 
         auto ImageTextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, ImageWidth, ImageHeight, 1, 1);
         HR(device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,

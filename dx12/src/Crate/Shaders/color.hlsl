@@ -13,6 +13,7 @@ cbuffer cbMaterial : register(b1) {
 };
 
 Texture2D gDiffuseMap : register(t0);
+Texture2D gDiffuseMap1 : register(t1);
 SamplerState gsamPointWrap : register(s0);
 SamplerState gsamPointClamp : register(s1);
 SamplerState gsamLinearWrap : register(s2);
@@ -71,8 +72,10 @@ float4 PSMain(VertexOut vout) : SV_Target {
   // return float4(0.5 * vout.NormalW + 0.5, 1);
   float3 viewDir = normalize(gEyePosW - vout.PosW);
 
-  float4 diffuseAlbedo =
-      gDiffuseMap.Sample(gsamLinearClamp, vout.TexC) * gDiffuseAlbedo;
+  float4 texColor0 = gDiffuseMap.Sample(gsamLinearClamp, vout.TexC);
+  float4 texColor1 = gDiffuseMap1.Sample(gsamLinearClamp, vout.TexC);
+
+  float4 diffuseAlbedo = lerp(texColor0, texColor1, 0.2) * gDiffuseAlbedo;
 
   float3 ambient = gAmbientLight * gDiffuseAlbedo;
   Material mat;

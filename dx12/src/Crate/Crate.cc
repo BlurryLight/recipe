@@ -94,7 +94,6 @@ private:
     PassConstants mMainPassCB;
     bool mbShowWireFrame = false;
     bool mbVsync = true;
-    bool mbAnotherTexture = false;
 
     // scale x scale y transx trans y
     SimpleMath::Vector4 mCrateTextureTrans = SimpleMath::Vector4(1, 1, 0, 0);
@@ -178,7 +177,6 @@ inline void CrateApp::Update(const GameTimer &timer) {
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
-    ImGui::Checkbox("Another Texture", &mbAnotherTexture);
     if (ImGui::SliderFloat4("CrateTextureTrans", (float *) &mCrateTextureTrans, 0.0f, 2.0f)) {
         // 刷新所有缓冲区的属性
         mAllRitems[0]->NumFramesDirty = kNumFrameResources;
@@ -279,7 +277,6 @@ inline void CrateApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         auto MatCBAddress = MatCBStartAddress + ri->Mat->MatCBIndex * matCBByteSize;
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-        tex.Offset(ri->Mat->DiffuseSrvHeapIndex + (mbAnotherTexture ? 1 : 0), mCbvSrvUavDescriptorSize);
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
         cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
         cmdList->SetGraphicsRootDescriptorTable(3, tex);
@@ -524,7 +521,7 @@ inline void CrateApp::BuildRootSignature() {
     slotRootParameter[2].InitAsConstantBufferView(2);
 
     CD3DX12_DESCRIPTOR_RANGE texTable;
-    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0);
     slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
     auto staticSamplers = GetStaticSamplers();
 
@@ -721,12 +718,10 @@ inline void CrateApp::LoadTextures() {
     Texture::LoadAndUploadTexture(*woodCrateTex, mD3dDevice.Get(), mCommandList.Get());
     mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
 
-    // init texture
-
     auto woodTex = std::make_unique<Texture>();
-    woodTex->Name = "Wood";
-    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).u8string();
-    Texture::LoadAndUploadTexture(*woodTex, mD3dDevice.Get(), mCommandList.Get());
+    woodTex->Name = "face";
+    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"awesomeface.png")).u8string();
+    Texture::LoadAndUploadTexture(*woodTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[woodTex->Name] = std::move(woodTex);
 }
 

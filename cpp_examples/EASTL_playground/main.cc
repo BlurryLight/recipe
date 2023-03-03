@@ -30,7 +30,8 @@ void vla_test()
 
 int main()
 {
-    eastl::vector<int> vec;
-    vec.push_back(1);
+    eastl::vector<int> vec{1,2,3};
+    vec.erase(eastl::remove(vec.begin(),vec.end(),2),vec.end());
+    std::cout << vec[0] << vec[1] << std::endl;
     return 0;
 }
