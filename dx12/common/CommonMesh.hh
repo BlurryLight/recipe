@@ -21,5 +21,12 @@ namespace PD {
      * @return std::unique_ptr<MeshGeometry> 
      */
     std::unique_ptr<MeshGeometry> CreatePlaneMesh(ID3D12Device *device, ID3D12GraphicsCommandList *cmdList);
+    /**
+     * @brief Create a Sphere Mesh object  radius = 1
+     * 
+     * @param device 
+     * @param cmdList 
+     * @return std::unique_ptr<MeshGeometry> 
+     */
     std::unique_ptr<MeshGeometry> CreateSphereMesh(ID3D12Device *device, ID3D12GraphicsCommandList *cmdList);
 }// namespace PD

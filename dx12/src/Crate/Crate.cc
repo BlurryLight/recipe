@@ -536,6 +536,9 @@ inline void CrateApp::BuildShapeGeometry() {
 
     auto PlaneGeo = PD::CreatePlaneMesh(mD3dDevice.Get(), mCommandList.Get());
     mGeometries[PlaneGeo->name] = std::move(PlaneGeo);
+
+    auto SphereGeo = PD::CreateSphereMesh(mD3dDevice.Get(), mCommandList.Get());
+    mGeometries[SphereGeo->name] = std::move(SphereGeo);
 }
 
 inline void CrateApp::BuildPSOs() {
@@ -614,6 +617,20 @@ inline void CrateApp::BuildRenderItems() {
         PlaneItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         PlaneItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
         mAllRitems.push_back(std::move(PlaneItem));
+    }
+
+    {
+        auto SphereItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&SphereItem->World, XMMatrixTranslation(0.0f, 5.f, 0.0f));
+        SphereItem->ObjectCBIndex = objCBIndex++;
+        SphereItem->Geo = mGeometries["sphere"].get();
+        SphereItem->Mat = mMaterials["AnotherWood"].get();
+        SphereItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (SphereItem->Geo->DrawArgs.begin())->second;
+        SphereItem->IndexCount = SubMeshInfo.IndexCount;
+        SphereItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        SphereItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(SphereItem));
     }
 
     spdlog::info("Build Opaque Render Items");

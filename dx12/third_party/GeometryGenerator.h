@@ -58,9 +58,8 @@ public:
 		std::vector<Vertex> Vertices;
         std::vector<uint32> Indices32;
 
-        std::vector<uint16>& GetIndices16()
-        {
-			if(mIndices16.empty())
+        std::vector<uint16> &GetIndices16() const {
+            if(mIndices16.empty())
 			{
 				mIndices16.resize(Indices32.size());
 				for(size_t i = 0; i < Indices32.size(); ++i)
@@ -70,9 +69,9 @@ public:
 			return mIndices16;
         }
 
-	private:
-		std::vector<uint16> mIndices16;
-	};
+    private:
+        mutable std::vector<uint16> mIndices16;
+    };
 
 	///<summary>
 	/// Creates a box centered at the origin with the given dimensions, where each
