@@ -28,9 +28,6 @@ namespace PD {
         float FarZ = 0;
         float TotalTime = 0;
         float DeltaTime = 0;
-
-        DirectX::XMFLOAT4 AmbientLight = {0,0,0,1};
-        Light Lights[MaxLights];
     };
 
     struct Vertex {
@@ -40,14 +37,12 @@ namespace PD {
     };
 
     struct FrameResource : Noncopyable {
-        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount, UINT materialCount);
+        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount);
         ~FrameResource(){};
         // every frame needs it allocator
         ComPtr<ID3D12CommandAllocator> CmdListAlloc;
         std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
         std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
-        std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
-
         UINT64 Fence = 0;
     };
 }// namespace PD

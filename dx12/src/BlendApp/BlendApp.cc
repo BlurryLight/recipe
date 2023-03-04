@@ -1,3 +1,4 @@
+#include "CommonMesh.hh"
 #include "FrameResource.h"
 #include "GeometryGenerator.h"
 #include "MathHelper.h"
@@ -31,7 +32,9 @@ struct RenderItem {
     int NumFramesDirty = kNumFrameResources;
 
     UINT ObjectCBIndex = -1;
-    Material *Mat = nullptr;
+
+    int TextureHandleIndex = 0;
+
     MeshGeometry *Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -59,14 +62,11 @@ private:
     void BuildPSOs();
     void BuildFrameResources();
     void BuildRenderItems();
-    void BuildMaterials();
     void LoadTextures();
 
     void UpdateObjectCB(const GameTimer &timer);
-    void UpdateMaterialCBs(const GameTimer &timer);
     void UpdateMainPassCB(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
-    std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     ResourcePathSearcher mResourceManager;
@@ -75,7 +75,6 @@ private:
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
-    std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     std::unordered_map<std::string, std::unique_ptr<PD::Texture>> mTextures;
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
@@ -83,6 +82,7 @@ private:
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
     std::vector<const RenderItem *> mOpaqueRitems;
+    std::vector<const RenderItem *> mTransparentRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -106,7 +106,6 @@ inline BlendApp::BlendApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "models");
     mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "textures");
     mResourceManager.add_path(path / L"Shaders");
-    mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11" / "resources" / "models" / "spot");
 }
 
 inline void BlendApp::ReleaseResource() {
@@ -125,7 +124,6 @@ inline bool BlendApp::Initialize() {
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildShapeGeometry();
-    BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
     BuildDescriptorHeaps();
@@ -137,6 +135,8 @@ inline bool BlendApp::Initialize() {
     std::array<ID3D12CommandList *, 1> cmdLists{mCommandList.Get()};
     mCommandQueue->ExecuteCommandLists(cmdLists.size(), cmdLists.data());
     FlushCommandQueue();
+
+    for (auto &it : mGeometries) { it.second->DisposeUploaders(); }
 
     return true;
 }
@@ -164,7 +164,6 @@ inline void BlendApp::Update(const GameTimer &timer) {
 
     UpdateObjectCB(timer);
     UpdateMainPassCB(timer);
-    UpdateMaterialCBs(timer);
 
     ImGuiPrepareDraw();
     static bool bShowDemoWindow = false;
@@ -205,22 +204,6 @@ void BlendApp::UpdateObjectCB(const GameTimer &timer) {
         }
     }
 }
-inline void BlendApp::UpdateMaterialCBs(const GameTimer &timer) {
-
-    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-    for (auto &element : mMaterials) {
-        // upload data when needed
-        Material *mat = element.second.get();
-        if (mat->NumFramesDirty > 0) {
-            MaterialConstants matConstants;
-            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-            matConstants.FresnelR0 = mat->FresnelR0;
-            matConstants.Roughness = mat->Roughness;
-            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
-            mat->NumFramesDirty--;
-        }
-    }
-}
 inline void BlendApp::UpdateMainPassCB(const GameTimer &gt) {
     XMMATRIX view = XMLoadFloat4x4(&mView);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
@@ -243,14 +226,6 @@ inline void BlendApp::UpdateMainPassCB(const GameTimer &gt) {
     mMainPassCB.FarZ = 1000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
-    mMainPassCB.AmbientLight = {0.25, 0.25, 0.35, 1.0};
-
-    mMainPassCB.Lights[0].Direction = {0.57735f, -0.57735f, 0.57735f};
-    mMainPassCB.Lights[0].Strength = {0.6f, 0.6f, 0.6f};
-    mMainPassCB.Lights[1].Direction = {-0.57735f, -0.57735f, 0.57735f};
-    mMainPassCB.Lights[1].Strength = {0.3f, 0.3f, 0.3f};
-    mMainPassCB.Lights[2].Direction = {0.0f, -0.707f, -0.707f};
-    mMainPassCB.Lights[2].Strength = {0.15f, 0.15f, 0.15f};
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
@@ -260,9 +235,7 @@ inline void BlendApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
                                       const std::vector<const RenderItem *> &ritems) {
 
     uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
-    uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
     auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-    auto matCB = mCurrFrameResource->MaterialCB->Resource();
     for (size_t i = 0; i < ritems.size(); i++) {
         // 要绘制一个物体，需要物体本身的信息，和它有关的model
         // 先设置顶点信息
@@ -272,65 +245,17 @@ inline void BlendApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS ObjCBStartAddress = objectCB->GetGPUVirtualAddress();
-        D3D12_GPU_VIRTUAL_ADDRESS MatCBStartAddress = matCB->GetGPUVirtualAddress();
         auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
-        auto MatCBAddress = MatCBStartAddress + ri->Mat->MatCBIndex * matCBByteSize;
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+        tex.Offset(ri->TextureHandleIndex, mCbvSrvUavDescriptorSize);
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
-        cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
-        cmdList->SetGraphicsRootDescriptorTable(3, tex);
+        cmdList->SetGraphicsRootDescriptorTable(2, tex);
         assert(ri->IndexCount > 0);
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
 
-inline std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendApp::GetStaticSamplers() {
-    // Applications usually only need a handful of samplers.  So just define them all up front
-    // and keep them available as part of the root signature.
-
-    const CD3DX12_STATIC_SAMPLER_DESC pointWrap(0,                               // shaderRegister
-                                                D3D12_FILTER_MIN_MAG_MIP_POINT,  // filter
-                                                D3D12_TEXTURE_ADDRESS_MODE_WRAP, // addressU
-                                                D3D12_TEXTURE_ADDRESS_MODE_WRAP, // addressV
-                                                D3D12_TEXTURE_ADDRESS_MODE_WRAP);// addressW
-
-    const CD3DX12_STATIC_SAMPLER_DESC pointClamp(1,                                // shaderRegister
-                                                 D3D12_FILTER_MIN_MAG_MIP_POINT,   // filter
-                                                 D3D12_TEXTURE_ADDRESS_MODE_CLAMP, // addressU
-                                                 D3D12_TEXTURE_ADDRESS_MODE_CLAMP, // addressV
-                                                 D3D12_TEXTURE_ADDRESS_MODE_CLAMP);// addressW
-
-    const CD3DX12_STATIC_SAMPLER_DESC linearWrap(2,                               // shaderRegister
-                                                 D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
-                                                 D3D12_TEXTURE_ADDRESS_MODE_WRAP, // addressU
-                                                 D3D12_TEXTURE_ADDRESS_MODE_WRAP, // addressV
-                                                 D3D12_TEXTURE_ADDRESS_MODE_WRAP);// addressW
-
-    const CD3DX12_STATIC_SAMPLER_DESC linearClamp(3,                                // shaderRegister
-                                                  D3D12_FILTER_MIN_MAG_MIP_LINEAR,  // filter
-                                                  D3D12_TEXTURE_ADDRESS_MODE_CLAMP, // addressU
-                                                  D3D12_TEXTURE_ADDRESS_MODE_CLAMP, // addressV
-                                                  D3D12_TEXTURE_ADDRESS_MODE_CLAMP);// addressW
-
-    const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(4,                              // shaderRegister
-                                                      D3D12_FILTER_ANISOTROPIC,       // filter
-                                                      D3D12_TEXTURE_ADDRESS_MODE_WRAP,// addressU
-                                                      D3D12_TEXTURE_ADDRESS_MODE_WRAP,// addressV
-                                                      D3D12_TEXTURE_ADDRESS_MODE_WRAP,// addressW
-                                                      0.0f,                           // mipLODBias
-                                                      8);                             // maxAnisotropy
-
-    const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(5,                               // shaderRegister
-                                                       D3D12_FILTER_ANISOTROPIC,        // filter
-                                                       D3D12_TEXTURE_ADDRESS_MODE_CLAMP,// addressU
-                                                       D3D12_TEXTURE_ADDRESS_MODE_CLAMP,// addressV
-                                                       D3D12_TEXTURE_ADDRESS_MODE_CLAMP,// addressW
-                                                       0.0f,                            // mipLODBias
-                                                       8);                              // maxAnisotropy
-
-    return {pointWrap, pointClamp, linearWrap, linearClamp, anisotropicWrap, anisotropicClamp};
-}
 
 void BlendApp::Draw(const GameTimer &gt) {
 
@@ -339,6 +264,7 @@ void BlendApp::Draw(const GameTimer &gt) {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     HR(cmdListAlloc->Reset());
 
+    // stage 0: msaa + opaque
     auto SwitchPSO = [this]() {
         if (GetMSAAState()) { return mMSAAPSO.Get(); }
         return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
@@ -380,7 +306,7 @@ void BlendApp::Draw(const GameTimer &gt) {
     std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mSrvDescriptorHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(2, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootConstantBufferView(1, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
@@ -401,6 +327,12 @@ void BlendApp::Draw(const GameTimer &gt) {
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET));
     }
 
+    // stage 2: transparent
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    mCommandList->SetPipelineState(mPSOs["transparent_blend"].Get());
+    DrawRenderItems(mCommandList.Get(), mTransparentRitems);
+
+    // stage 3: imgui
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
@@ -452,11 +384,10 @@ inline void BlendApp::BuildDescriptorHeaps() {
     srvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
+
     CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    int index = 0;
     for (const auto &it : mTextures) {
 
-        srvHandle.Offset(index, mCbvSrvUavDescriptorSize);
         auto resource = it.second->Resource;
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -466,7 +397,7 @@ inline void BlendApp::BuildDescriptorHeaps() {
         srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
         srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
         mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
-        index++;
+        srvHandle.Offset(1, mCbvSrvUavDescriptorSize);
     }
 }
 
@@ -514,16 +445,15 @@ inline void BlendApp::BuildConstantBuffers() {
 }
 
 inline void BlendApp::BuildRootSignature() {
-    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
-    // 一个放Object，一个放PassCB,一个放MatCB
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+    // 一个放Object，一个放PassCB
     slotRootParameter[0].InitAsConstantBufferView(0);
     slotRootParameter[1].InitAsConstantBufferView(1);
-    slotRootParameter[2].InitAsConstantBufferView(2);
 
     CD3DX12_DESCRIPTOR_RANGE texTable;
-    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0);
-    slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-    auto staticSamplers = GetStaticSamplers();
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    slotRootParameter[2].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+    auto staticSamplers = PD::GetStaticSamplers();
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(_countof(slotRootParameter), slotRootParameter, staticSamplers.size(),
                                             staticSamplers.data(),
@@ -571,65 +501,14 @@ inline void BlendApp::BuildShaderAndInputLayout() {
 inline void BlendApp::BuildShapeGeometry() {
     spdlog::info("Bulding Shape Geometries");
 
-    GeometryGenerator geoGen;
-    GeometryGenerator::MeshData box = geoGen.CreateBox(1.5f, 1.5f, 1.5f, 3);
+    auto BoxGeo = PD::CreateBoxMesh(mD3dDevice.Get(), mCommandList.Get());
+    mGeometries[BoxGeo->name] = std::move(BoxGeo);
 
-    // Cache the vertex offsets to each object in the concatenated vertex buffer.
-    UINT boxVertexOffset = 0;
+    auto PlaneGeo = PD::CreatePlaneMesh(mD3dDevice.Get(), mCommandList.Get());
+    mGeometries[PlaneGeo->name] = std::move(PlaneGeo);
 
-    // Cache the starting index for each object in the concatenated index buffer.
-    UINT boxIndexOffset = 0;
-
-    // Define the SubmeshGeometry that cover different
-    // regions of the vertex/index buffers.
-
-    SubmeshGeometry boxSubmesh;
-    boxSubmesh.IndexCount = (UINT) box.Indices32.size();
-    boxSubmesh.StartIndexLocation = boxIndexOffset;
-    boxSubmesh.BaseVertexLocation = boxVertexOffset;
-
-    auto totalVertexCount = box.Vertices.size();
-
-    std::vector<Vertex> vertices(totalVertexCount);
-
-    UINT k = 0;
-    for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
-        vertices[k].Pos = box.Vertices[i].Position;
-        vertices[k].Normal = box.Vertices[i].Normal;
-        vertices[k].TexC = box.Vertices[i].TexC;
-    }
-
-
-    std::vector<std::uint16_t> indices;
-    indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
-
-
-    const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
-
-    auto geo = std::make_unique<MeshGeometry>();
-    geo->name = "shapeGeo";
-
-    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-    geo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize,
-                                               geo->VertexBufferUploader);
-
-    geo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize,
-                                              geo->IndexBufferUploader);
-
-    geo->VertexBytesStride = sizeof(Vertex);
-    geo->VertexBufferByteSize = vbByteSize;
-    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    geo->IndexBufferBytesSize = ibByteSize;
-
-    geo->DrawArgs["box"] = boxSubmesh;
-
-    mGeometries[geo->name] = std::move(geo);
+    auto SphereGeo = PD::CreateSphereMesh(mD3dDevice.Get(), mCommandList.Get());
+    mGeometries[SphereGeo->name] = std::move(SphereGeo);
 }
 
 inline void BlendApp::BuildPSOs() {
@@ -660,20 +539,44 @@ inline void BlendApp::BuildPSOs() {
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-    spdlog::info("Building WireFrame PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    {
+        spdlog::info("Building WireFrame PSO");
+        auto tmp = psoDesc;
+        tmp.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    }
 
-    spdlog::info("Building MSAA PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-    psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAPSO)));
+    {
+        spdlog::info("Building MSAA PSO");
+        auto tmp = psoDesc;
+        tmp.SampleDesc.Count = 4;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mMSAAPSO)));
+    }
+
+    {
+        spdlog::info("Building transparent PSO");
+        // rgb  c_src * a_src + dst * (1 - a_src)
+        // a   a_src * 1 + a_dst * 0
+        auto tmp = psoDesc;
+        D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+        transparencyBlendDesc.BlendEnable = true;
+        transparencyBlendDesc.LogicOpEnable = false;
+        transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+        transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+        transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+        transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_blend"])));
+    }
 }
 
 inline void BlendApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(
-                std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(), mMaterials.size()));
+        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size()));
     }
 }
 
@@ -681,33 +584,59 @@ inline void BlendApp::BuildRenderItems() {
     spdlog::info("Build Render Items");
     UINT objCBIndex = 0;
 
-    auto BoxItem = std::make_unique<RenderItem>();
-    XMStoreFloat4x4(&BoxItem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
-    BoxItem->ObjectCBIndex = objCBIndex++;
-    BoxItem->Geo = mGeometries["shapeGeo"].get();
-    BoxItem->Mat = mMaterials["WoodCrate"].get();
-    BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    const auto &BoxSubMeshInfo = BoxItem->Geo->DrawArgs["box"];
-    BoxItem->IndexCount = BoxSubMeshInfo.IndexCount;
-    BoxItem->StartIndexLocation = BoxSubMeshInfo.StartIndexLocation;
-    BoxItem->BaseVertexLocation = BoxSubMeshInfo.BaseVertexLocation;
-    mAllRitems.push_back(std::move(BoxItem));
+    {
 
+        auto BoxItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&BoxItem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 1.5f, 5.0f));
+        BoxItem->ObjectCBIndex = objCBIndex++;
+        BoxItem->Geo = mGeometries["box"].get();
+        BoxItem->TextureHandleIndex = 0;
+        BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (BoxItem->Geo->DrawArgs.begin())->second;
+        BoxItem->IndexCount = SubMeshInfo.IndexCount;
+        BoxItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        BoxItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(BoxItem));
+    }
+
+    {
+        auto PlaneItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&PlaneItem->World, XMMatrixScaling(20.0f, 1.0f, 20.0f) * XMMatrixTranslation(0.0f, -2.f, 0.0f));
+        PlaneItem->ObjectCBIndex = objCBIndex++;
+        PlaneItem->Geo = mGeometries["plane"].get();
+        PlaneItem->TextureHandleIndex = 2;
+        PlaneItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (PlaneItem->Geo->DrawArgs.begin())->second;
+        PlaneItem->IndexCount = SubMeshInfo.IndexCount;
+        PlaneItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        PlaneItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(PlaneItem));
+    }
     spdlog::info("Build Opaque Render Items");
     // All the render items are opaque.
     for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
-}
 
-inline void BlendApp::BuildMaterials() {
-    auto WoodCrate = std::make_unique<Material>();
-    WoodCrate->Name = "WoodCrate";
-    WoodCrate->MatCBIndex = 0;
-    WoodCrate->DiffuseSrvHeapIndex = 0;
-    WoodCrate->DiffuseAlbedo = XMFLOAT4(1.0, 1.0, 1.0, 1.0);
-    WoodCrate->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    WoodCrate->Roughness = 0.2f;
+    spdlog::info("Build Transparent Render Items");
+    std::vector<SimpleMath::Vector3> windows{
+            SimpleMath::Vector3(-1.5f, 0.0f, -0.48f), SimpleMath::Vector3(1.5f, 0.0f, 0.51f),
+            SimpleMath::Vector3(0.0f, 0.0f, 0.7f), SimpleMath::Vector3(-0.3f, 0.0f, -2.3f),
+            SimpleMath::Vector3(0.5f, 0.0f, -0.6f)};
 
-    mMaterials[WoodCrate->Name] = std::move(WoodCrate);
+    for (int i = 0; i < 5; i++) {
+        auto windowItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&windowItem->World, XMMatrixRotationX(XMConvertToRadians(-90.0)) *
+                                                    XMMatrixTranslation(windows[i].x, windows[i].y, windows[i].z));
+        windowItem->ObjectCBIndex = objCBIndex++;
+        windowItem->Geo = mGeometries["plane"].get();
+        windowItem->TextureHandleIndex = 3;// window.png
+        windowItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (windowItem->Geo->DrawArgs.begin())->second;
+        windowItem->IndexCount = SubMeshInfo.IndexCount;
+        windowItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        windowItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mTransparentRitems.push_back(windowItem.get());
+        mAllRitems.push_back(std::move(windowItem));
+    }
 }
 
 inline void BlendApp::LoadTextures() {
@@ -718,11 +647,23 @@ inline void BlendApp::LoadTextures() {
     Texture::LoadAndUploadTexture(*woodCrateTex, mD3dDevice.Get(), mCommandList.Get());
     mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
 
+    auto faceTex = std::make_unique<Texture>();
+    faceTex->Name = "face";
+    faceTex->Filename = fs::absolute(this->mResourceManager.find_path(L"awesomeface.png")).u8string();
+    Texture::LoadAndUploadTexture(*faceTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
+    mTextures[faceTex->Name] = std::move(faceTex);
+
     auto woodTex = std::make_unique<Texture>();
-    woodTex->Name = "face";
-    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"awesomeface.png")).u8string();
+    woodTex->Name = "wood";
+    woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).u8string();
     Texture::LoadAndUploadTexture(*woodTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[woodTex->Name] = std::move(woodTex);
+
+    auto windowTex = std::make_unique<Texture>();
+    windowTex->Name = "window";
+    windowTex->Filename = fs::absolute(this->mResourceManager.find_path(L"window.png")).u8string();
+    Texture::LoadAndUploadTexture(*windowTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
+    mTextures[windowTex->Name] = std::move(windowTex);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
