@@ -4,6 +4,7 @@ set(SRC
     GameTimer.cc
     EulerCamera.cc
     MeshGeometry.cc
+    CommonMesh.cc
     ../third_party/MathHelper.cpp
     ../third_party/GeometryGenerator.cpp
     ../third_party/SimpleMath.cpp
