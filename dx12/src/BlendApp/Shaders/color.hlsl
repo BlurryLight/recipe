@@ -51,5 +51,9 @@ VertexOut VSMain(VertexIn vin) {
 };
 
 float4 PSMain(VertexOut vout) : SV_Target {
-  return gDiffuseMap.Sample(gsamLinearClamp, vout.TexC);
+  float4 color = gDiffuseMap.Sample(gsamLinearClamp, vout.TexC);
+#ifdef ALPHA_TEST
+  clip(color.a - 0.1f);
+#endif
+  return color;
 }

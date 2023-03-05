@@ -231,7 +231,7 @@ void LandAndWavesApp::Draw(const GameTimer &gt) {
     HR(cmdListAlloc->Reset());
 
     auto SwitchPSO = [this]() {
-        if (GetMSAAState()) { return mMSAAPSO.Get(); }
+        if (GetMSAAState()) { return mMSAAOpaquePSO.Get(); }
         return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
     };
     HR(mCommandList->Reset(cmdListAlloc.Get(), SwitchPSO()));
@@ -529,7 +529,7 @@ inline void LandAndWavesApp::BuildPSOs() {
     spdlog::info("Building MSAA PSO");
     psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
     psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAPSO)));
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
 }
 
 inline void LandAndWavesApp::BuildFrameResources() {

@@ -93,7 +93,16 @@ ComPtr<ID3DBlob> PD::CompileShader(const std::wstring &filename, const D3D_SHADE
     auto entrypointL = utf8_to_utf16_windows(entrypoint);
     auto targetL = utf8_to_utf16_windows(target);
     // std::wstring csoPath = fmt::format(L"{}_{}_{}.cso", filename, entrypointL, targetL);
-    auto csoPath = filename + L"_" + entrypointL + L"_" + targetL + L".cso";
+    std::string prefix = "";
+    auto def = defines;
+    while (def != NULL && def->Name != NULL) {
+        prefix += def->Name;
+        prefix += "_";
+        prefix += def->Definition;
+        prefix += "_";
+        def++;
+    }
+    auto csoPath = filename + L"_" + utf8_to_utf16_windows(prefix) + L"_" + entrypointL + L"_" + targetL + L".cso";
     std::wcout << csoPath << std::endl;
     CreateShaderFromFile(csoPath, filename, entrypoint, target, Res.GetAddressOf(), true, defines);
     return Res;

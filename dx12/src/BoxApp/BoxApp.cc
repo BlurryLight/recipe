@@ -162,7 +162,7 @@ void ShapesAPP::Draw(const GameTimer &gt) {
 
 
     HR(mDirectCmdListAlloc->Reset());
-    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAPSO.Get() : mPSO.Get()));
+    HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), GetMSAAState() ? mMSAAOpaquePSO.Get() : mPSO.Get()));
 
     auto MsaaRTVHandle =
             CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
@@ -465,7 +465,7 @@ inline void ShapesAPP::BuildPSO() {
 
     spdlog::info("Building MSAA PSO");
     psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAPSO)));
+    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

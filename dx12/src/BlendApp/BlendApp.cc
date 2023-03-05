@@ -15,6 +15,7 @@
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
+#include <map>
 
 
 using namespace PD;
@@ -76,13 +77,15 @@ private:
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 
-    std::unordered_map<std::string, std::unique_ptr<PD::Texture>> mTextures;
+    std::map<std::string, std::unique_ptr<PD::Texture>> mTextures;
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
     std::vector<const RenderItem *> mOpaqueRitems;
-    std::vector<const RenderItem *> mTransparentRitems;
+    std::vector<const RenderItem *> mAlphaCoverageRitems;
+    std::vector<const RenderItem *> mAlphaBlendRitems;
+    std::vector<const RenderItem *> mAlphaClipRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -266,7 +269,7 @@ void BlendApp::Draw(const GameTimer &gt) {
 
     // stage 0: msaa + opaque
     auto SwitchPSO = [this]() {
-        if (GetMSAAState()) { return mMSAAPSO.Get(); }
+        if (GetMSAAState()) { return mMSAAOpaquePSO.Get(); }
         return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
     };
     HR(mCommandList->Reset(cmdListAlloc.Get(), SwitchPSO()));
@@ -310,7 +313,13 @@ void BlendApp::Draw(const GameTimer &gt) {
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
+
     if (GetMSAAState()) {
+
+        // stage 2: alpha_to_coverage
+        mCommandList->SetPipelineState(mPSOs["transparent_alpha_to_coverage"].Get());
+        DrawRenderItems(mCommandList.Get(), mAlphaCoverageRitems);
+
         mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                                                D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
@@ -327,10 +336,21 @@ void BlendApp::Draw(const GameTimer &gt) {
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET));
     }
 
-    // stage 2: transparent
+
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["transparent_blend"].Get());
-    DrawRenderItems(mCommandList.Get(), mTransparentRitems);
+    // 按距离从远到近排序
+    sort(mAlphaBlendRitems.begin(), mAlphaBlendRitems.end(), [this](const RenderItem *l, const RenderItem *r) {
+        SimpleMath::Vector3 lpos{l->World._41, l->World._42, l->World._43};
+        SimpleMath::Vector3 rpos{r->World._41, r->World._42, r->World._43};
+        auto ldis = (lpos - mCamera->Position).LengthSquared();
+        auto rdis = (rpos - mCamera->Position).LengthSquared();
+        return ldis > rdis;
+    });
+    DrawRenderItems(mCommandList.Get(), mAlphaBlendRitems);
+
+    mCommandList->SetPipelineState(mPSOs["alphaClip"].Get());
+    DrawRenderItems(mCommandList.Get(), mAlphaClipRitems);
 
     // stage 3: imgui
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
@@ -481,6 +501,10 @@ inline void BlendApp::BuildShaderAndInputLayout() {
     mShaders["standardVS"] = VSBlob;
     mShaders["opaquePS"] = PSBlob;
 
+    const D3D_SHADER_MACRO alphaTestDefines[] = {{"ALPHA_TEST", "1"}, {NULL, NULL}};
+    PSBlob = CompileShader(ShaderPath, alphaTestDefines, "PSMain", "ps_5_0");
+    mShaders["alphaClip"] = PSBlob;
+
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -550,11 +574,21 @@ inline void BlendApp::BuildPSOs() {
         spdlog::info("Building MSAA PSO");
         auto tmp = psoDesc;
         tmp.SampleDesc.Count = 4;
-        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mMSAAPSO)));
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mMSAAOpaquePSO)));
     }
 
     {
-        spdlog::info("Building transparent PSO");
+        spdlog::info("Building alpha_coverage PSO");
+        // rgb  c_src * a_src + dst * (1 - a_src)
+        // a   a_src * 1 + a_dst * 0
+        auto tmp = psoDesc;
+        tmp.BlendState.AlphaToCoverageEnable = true;
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_alpha_to_coverage"])));
+    }
+
+    {
+        spdlog::info("Building blend PSO");
         // rgb  c_src * a_src + dst * (1 - a_src)
         // a   a_src * 1 + a_dst * 0
         auto tmp = psoDesc;
@@ -570,7 +604,16 @@ inline void BlendApp::BuildPSOs() {
         transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
         transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
         tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_blend"])));
+    }
+
+    {
+        spdlog::info("Building alpha clip PSO");
+        auto tmp = psoDesc;
+        tmp.PS = {(void *) (mShaders["alphaClip"]->GetBufferPointer()), mShaders["alphaClip"]->GetBufferSize()};
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["alphaClip"])));
     }
 }
 
@@ -634,36 +677,74 @@ inline void BlendApp::BuildRenderItems() {
         windowItem->IndexCount = SubMeshInfo.IndexCount;
         windowItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         windowItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
-        mTransparentRitems.push_back(windowItem.get());
+        mAlphaBlendRitems.push_back(windowItem.get());
         mAllRitems.push_back(std::move(windowItem));
+    }
+
+    for (int i = 0; i < 5; i++) {
+        auto windowItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&windowItem->World, XMMatrixRotationX(XMConvertToRadians(-90.0)) *
+                                                    XMMatrixTranslation(windows[i].x, windows[i].y, windows[i].z + 5));
+        windowItem->ObjectCBIndex = objCBIndex++;
+        windowItem->Geo = mGeometries["plane"].get();
+        windowItem->TextureHandleIndex = 3;// window.png
+        windowItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (windowItem->Geo->DrawArgs.begin())->second;
+        windowItem->IndexCount = SubMeshInfo.IndexCount;
+        windowItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        windowItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAlphaCoverageRitems.push_back(windowItem.get());
+        mAllRitems.push_back(std::move(windowItem));
+    }
+
+    for (int i = 0; i < 5; i++) {
+        auto grassItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&grassItem->World, XMMatrixRotationX(XMConvertToRadians(-90.0)) *
+                                                   XMMatrixTranslation(windows[i].x, windows[i].y, windows[i].z - 5));
+        grassItem->ObjectCBIndex = objCBIndex++;
+        grassItem->Geo = mGeometries["plane"].get();
+        grassItem->TextureHandleIndex = 4;// grass.png
+        grassItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = (grassItem->Geo->DrawArgs.begin())->second;
+        grassItem->IndexCount = SubMeshInfo.IndexCount;
+        grassItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        grassItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAlphaClipRitems.push_back(grassItem.get());
+        mAllRitems.push_back(std::move(grassItem));
     }
 }
 
 inline void BlendApp::LoadTextures() {
     auto woodCrateTex = std::make_unique<Texture>();
-    woodCrateTex->Name = "WoodCrateTexture";
+    woodCrateTex->Name = "0_WoodCrateTexture";
     woodCrateTex->Filename = "WoodCrate01.dds";
     woodCrateTex->Filename = fs::absolute(this->mResourceManager.find_path(woodCrateTex->Filename)).u8string();
     Texture::LoadAndUploadTexture(*woodCrateTex, mD3dDevice.Get(), mCommandList.Get());
     mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
 
     auto faceTex = std::make_unique<Texture>();
-    faceTex->Name = "face";
+    faceTex->Name = "1_face";
     faceTex->Filename = fs::absolute(this->mResourceManager.find_path(L"awesomeface.png")).u8string();
     Texture::LoadAndUploadTexture(*faceTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[faceTex->Name] = std::move(faceTex);
 
     auto woodTex = std::make_unique<Texture>();
-    woodTex->Name = "wood";
+    woodTex->Name = "2_wood";
     woodTex->Filename = fs::absolute(this->mResourceManager.find_path(L"wood.png")).u8string();
     Texture::LoadAndUploadTexture(*woodTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[woodTex->Name] = std::move(woodTex);
 
     auto windowTex = std::make_unique<Texture>();
-    windowTex->Name = "window";
+    windowTex->Name = "3_window";
     windowTex->Filename = fs::absolute(this->mResourceManager.find_path(L"window.png")).u8string();
     Texture::LoadAndUploadTexture(*windowTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[windowTex->Name] = std::move(windowTex);
+
+    auto grassTex = std::make_unique<Texture>();
+    grassTex->Name = "4_grass";
+    grassTex->Filename = fs::absolute(this->mResourceManager.find_path(L"grass.png")).u8string();
+    Texture::LoadAndUploadTexture(*grassTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
+    mTextures[grassTex->Name] = std::move(grassTex);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

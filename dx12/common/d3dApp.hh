@@ -126,6 +126,7 @@ namespace PD {
 
         ComPtr<ID3D12Resource> mMSAART;
         ComPtr<ID3D12Resource> mMSAADepth;
-        ComPtr<ID3D12PipelineState> mMSAAPSO;
+        ComPtr<ID3D12PipelineState> mMSAAOpaquePSO;
+        // ComPtr<ID3D12PipelineState> mMSAATransparentPSO;
     };
 }// namespace PD
