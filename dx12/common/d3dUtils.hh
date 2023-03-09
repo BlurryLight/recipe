@@ -161,4 +161,6 @@ namespace PD {
     };
 
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+    void CreateDummy1x1Texture(Texture &inTex, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                               DirectX::XMFLOAT4 Color = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 }// namespace PD

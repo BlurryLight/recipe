@@ -207,6 +207,41 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> PD::GetStaticSamplers() {
     return {pointWrap, pointClamp, linearWrap, linearClamp, anisotropicWrap, anisotropicClamp};
 }
 
+void PD::CreateDummy1x1Texture(Texture &inTex, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
+                               DirectX::XMFLOAT4 Color) {
+    assert(inTex.Resource == nullptr);
+    assert(inTex.UploadHeap == nullptr);
+    auto ImageTextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 1, 1, 1);
+    HR(device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE,
+                                       &ImageTextureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                       IID_PPV_ARGS(inTex.Resource.GetAddressOf())));
+
+
+    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+    D3D12_SUBRESOURCE_DATA textureData = {};
+    textureData.pData = &Color;
+    textureData.RowPitch = static_cast<LONG_PTR>((1));
+    textureData.SlicePitch = textureData.RowPitch * 1;
+    subresources.push_back(textureData);
+
+    UINT64 uploadBufferSize = GetRequiredIntermediateSize(inTex.Resource.Get(), 0, subresources.size());
+
+    // Create the GPU upload buffer.
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+    auto desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+    ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &desc,
+                                                  D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                                  IID_PPV_ARGS(inTex.UploadHeap.GetAddressOf())));
+    UpdateSubresources(cmdList, inTex.Resource.Get(), inTex.UploadHeap.Get(), 0, 0,
+                       static_cast<UINT>(subresources.size()), subresources.data());
+
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(inTex.Resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                                                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    cmdList->ResourceBarrier(1, &barrier);
+}
+
 void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, ID3D12GraphicsCommandList *cmdList,
                                        bool bFlip) {
     assert(!texture.Filename.empty());
