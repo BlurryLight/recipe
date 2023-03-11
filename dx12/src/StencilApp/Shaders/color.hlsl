@@ -71,7 +71,7 @@ float4 PSMain(VertexOut vout) : SV_Target {
   // return float4(0.5 * vout.NormalW + 0.5, 1);
   float3 viewDir = normalize(gEyePosW - vout.PosW);
 
-  float4 texColor0 = gDiffuseMap.Sample(gsamLinearClamp, vout.TexC);
+  float4 texColor0 = gDiffuseMap.Sample(gsamLinearWrap, vout.TexC);
 
   float4 diffuseAlbedo = texColor0 * gDiffuseAlbedo;
 

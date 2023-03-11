@@ -78,6 +78,8 @@ private:
     std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     std::unordered_map<std::string, std::unique_ptr<PD::Texture>> mTextures;
+    std::unordered_map<std::string, int> mTextureSrvHandleIndices;
+
     ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
     // List of all the render items.
@@ -400,8 +402,9 @@ inline void StencilApp::BuildDescriptorHeaps() {
     HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     for (const auto &it : mTextures) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        srvHandle.Offset(mTextureSrvHandleIndices.at(it.first), mCbvSrvUavDescriptorSize);
 
         auto resource = it.second->Resource;
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -412,7 +415,6 @@ inline void StencilApp::BuildDescriptorHeaps() {
         srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
         srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
         mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
-        srvHandle.Offset(1, mCbvSrvUavDescriptorSize);
     }
 }
 
@@ -558,6 +560,93 @@ inline void StencilApp::BuildShapeGeometry() {
         geo->DrawArgs["skull"] = SkullSubmesh;
         mGeometries[geo->name] = std::move(geo);
     }
+    {
+        std::array<Vertex, 20> vertices = {// Floor: Observe we tile texture coordinates.
+                                           Vertex(-3.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 0.0f, 4.0f),// 0
+                                           Vertex(-3.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+                                           Vertex(7.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 4.0f, 0.0f),
+                                           Vertex(7.5f, 0.0f, -10.0f, 0.0f, 1.0f, 0.0f, 4.0f, 4.0f),
+
+                                           // Wall: Observe we tile texture coordinates, and that we
+                                           // leave a gap in the middle for the mirror.
+                                           Vertex(-3.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f),// 4
+                                           Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+                                           Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 0.0f),
+                                           Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.5f, 2.0f),
+
+                                           Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 2.0f),// 8
+                                           Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+                                           Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 0.0f),
+                                           Vertex(7.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 2.0f, 2.0f),
+
+                                           Vertex(-3.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),// 12
+                                           Vertex(-3.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+                                           Vertex(7.5f, 6.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 0.0f),
+                                           Vertex(7.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 6.0f, 1.0f),
+
+                                           // Mirror
+                                           Vertex(-2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f),// 16
+                                           Vertex(-2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f),
+                                           Vertex(2.5f, 4.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f),
+                                           Vertex(2.5f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f)};
+
+        std::array<std::int16_t, 30> indices = {// Floor
+                                                0, 1, 2, 0, 2, 3,
+
+                                                // Walls
+                                                4, 5, 6, 4, 6, 7,
+
+                                                8, 9, 10, 8, 10, 11,
+
+                                                12, 13, 14, 12, 14, 15,
+
+                                                // Mirror
+                                                16, 17, 18, 16, 18, 19};
+
+        SubmeshGeometry floorSubmesh;
+        floorSubmesh.IndexCount = 6;
+        floorSubmesh.StartIndexLocation = 0;
+        floorSubmesh.BaseVertexLocation = 0;
+
+        SubmeshGeometry wallSubmesh;
+        wallSubmesh.IndexCount = 18;
+        wallSubmesh.StartIndexLocation = 6;
+        wallSubmesh.BaseVertexLocation = 0;
+
+        SubmeshGeometry mirrorSubmesh;
+        mirrorSubmesh.IndexCount = 6;
+        mirrorSubmesh.StartIndexLocation = 24;
+        mirrorSubmesh.BaseVertexLocation = 0;
+
+        const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
+        const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
+
+        auto geo = std::make_unique<MeshGeometry>();
+        geo->name = "roomGeo";
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+        CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+        CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize,
+                                                   geo->VertexBufferUploader);
+
+        geo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize,
+                                                  geo->IndexBufferUploader);
+
+        geo->VertexBytesStride = sizeof(Vertex);
+        geo->VertexBufferByteSize = vbByteSize;
+        geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geo->IndexBufferBytesSize = ibByteSize;
+
+        geo->DrawArgs["floor"] = floorSubmesh;
+        geo->DrawArgs["wall"] = wallSubmesh;
+        geo->DrawArgs["mirror"] = mirrorSubmesh;
+
+        mGeometries[geo->name] = std::move(geo);
+    }
 }
 
 inline void StencilApp::BuildPSOs() {
@@ -610,34 +699,70 @@ inline void StencilApp::BuildRenderItems() {
     UINT objCBIndex = 0;
 
     {
+        auto FloorItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&FloorItem->World, XMMatrixRotationY(XMConvertToRadians(-90.0f)));
+        FloorItem->ObjectCBIndex = objCBIndex++;
+        FloorItem->Geo = mGeometries["roomGeo"].get();
+        FloorItem->Mat = mMaterials.at("checkboard").get();
+        FloorItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = FloorItem->Geo->DrawArgs["floor"];
+        FloorItem->IndexCount = SubMeshInfo.IndexCount;
+        FloorItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        FloorItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(FloorItem));
+    }
+
+    {
+        auto WallItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&WallItem->World, XMMatrixRotationY(XMConvertToRadians(-90.0f)));
+        WallItem->ObjectCBIndex = objCBIndex++;
+        WallItem->Geo = mGeometries["roomGeo"].get();
+        WallItem->Mat = mMaterials.at("bricks").get();
+        WallItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = WallItem->Geo->DrawArgs["wall"];
+        WallItem->IndexCount = SubMeshInfo.IndexCount;
+        WallItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        WallItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(WallItem));
+    }
+
+    {
         auto SkullItem = std::make_unique<RenderItem>();
-        XMStoreFloat4x4(&SkullItem->World, XMMatrixTranslation(10, 0, 0));
+        SimpleMath::Vector3 offset(5, 0, 0);
+        XMMATRIX SkullTrans = XMMatrixScaling(0.5, 0.5l, 0.5) * XMMatrixTranslation(offset.x, offset.y, offset.z);
+        XMStoreFloat4x4(&SkullItem->World, SkullTrans);
         SkullItem->ObjectCBIndex = objCBIndex++;
         SkullItem->Geo = mGeometries["Skull"].get();
-        SkullItem->Mat = mMaterials["WoodCrate"].get();
+        SkullItem->Mat = mMaterials.at("dummywhite").get();
         SkullItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         const auto &SubMeshInfo = (SkullItem->Geo->DrawArgs.begin())->second;
         SkullItem->IndexCount = SubMeshInfo.IndexCount;
         SkullItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         SkullItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+
+        auto ReflectedSkullItem = std::make_unique<RenderItem>();
+        *ReflectedSkullItem = *SkullItem;
+        ReflectedSkullItem->ObjectCBIndex = objCBIndex++;
+        XMVECTOR mirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);// xz-plane
+        XMMATRIX RMatrix = XMMatrixReflect(mirrorPlane);
+        XMStoreFloat4x4(&ReflectedSkullItem->World, SkullTrans * RMatrix);
+
         mAllRitems.push_back(std::move(SkullItem));
+        mAllRitems.push_back(std::move(ReflectedSkullItem));
     }
 
     {
-        auto ReflectedSkullItem = std::make_unique<RenderItem>();
-        XMVECTOR mirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);// xz-plane
-        XMMATRIX RMatrix = XMMatrixReflect(mirrorPlane);
-
-        XMStoreFloat4x4(&ReflectedSkullItem->World, XMMatrixTranslation(10, 0, 0) * RMatrix);
-        ReflectedSkullItem->ObjectCBIndex = objCBIndex++;
-        ReflectedSkullItem->Geo = mGeometries["Skull"].get();
-        ReflectedSkullItem->Mat = mMaterials["WoodCrate"].get();
-        ReflectedSkullItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        const auto &SubMeshInfo = (ReflectedSkullItem->Geo->DrawArgs.begin())->second;
-        ReflectedSkullItem->IndexCount = SubMeshInfo.IndexCount;
-        ReflectedSkullItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
-        ReflectedSkullItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
-        mAllRitems.push_back(std::move(ReflectedSkullItem));
+        auto MirrorItem = std::make_unique<RenderItem>();
+        XMStoreFloat4x4(&MirrorItem->World, XMMatrixRotationY(XMConvertToRadians(-90.0f)));
+        MirrorItem->ObjectCBIndex = objCBIndex++;
+        MirrorItem->Geo = mGeometries["roomGeo"].get();
+        MirrorItem->Mat = mMaterials.at("icemirror").get();
+        MirrorItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        const auto &SubMeshInfo = MirrorItem->Geo->DrawArgs["mirror"];
+        MirrorItem->IndexCount = SubMeshInfo.IndexCount;
+        MirrorItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+        MirrorItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mAllRitems.push_back(std::move(MirrorItem));
     }
 
 
@@ -648,23 +773,78 @@ inline void StencilApp::BuildRenderItems() {
 
 inline void StencilApp::BuildMaterials() {
     int matIndex = 0;
-    auto WoodCrate = std::make_unique<Material>();
-    WoodCrate->Name = "WoodCrate";
-    WoodCrate->MatCBIndex = matIndex++;
-    WoodCrate->DiffuseSrvHeapIndex = 0;
-    WoodCrate->DiffuseAlbedo = XMFLOAT4(1.0, 1.0, 1.0, 1.0);
-    WoodCrate->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    WoodCrate->Roughness = 0.2f;
-    mMaterials["WoodCrate"] = std::move(WoodCrate);
+    {
+        auto DummyWhite = std::make_unique<Material>();
+        DummyWhite->Name = "dummywhite";
+        DummyWhite->MatCBIndex = matIndex++;
+        DummyWhite->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("dummy");
+        mMaterials["dummywhite"] = std::move(DummyWhite);
+    }
+
+    {
+        auto bricks = std::make_unique<Material>();
+        bricks->Name = "bricks";
+        bricks->MatCBIndex = matIndex++;
+        bricks->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("bricks");
+        mMaterials["bricks"] = std::move(bricks);
+    }
+
+    {
+        auto checkertile = std::make_unique<Material>();
+        checkertile->Name = "checkboard";
+        checkertile->MatCBIndex = matIndex++;
+        checkertile->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("checkboard");
+        mMaterials["checkboard"] = std::move(checkertile);
+    }
+    {
+        auto icemirror = std::make_unique<Material>();
+        icemirror->Name = "icemirror";
+        icemirror->MatCBIndex = matIndex++;
+        icemirror->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("ice");
+        mMaterials[icemirror->Name] = std::move(icemirror);
+    }
 }
 
 inline void StencilApp::LoadTextures() {
+    int texIndex = 0;
+    {
+        auto dummyTex = std::make_unique<Texture>();
+        dummyTex->Name = "dummy";
+        dummyTex->Filename = dummyTex->Name;
+        CreateDummy1x1Texture(*dummyTex, mD3dDevice.Get(), mCommandList.Get(), XMFLOAT4(1, 1, 1, 1));
+        mTextureSrvHandleIndices[dummyTex->Name] = texIndex++;
+        mTextures[dummyTex->Name] = std::move(dummyTex);
+    }
 
-    auto dummyTex = std::make_unique<Texture>();
-    dummyTex->Name = "dummy";
-    dummyTex->Filename = dummyTex->Name;
-    CreateDummy1x1Texture(*dummyTex, mD3dDevice.Get(), mCommandList.Get(), XMFLOAT4(1, 0, 0, 0));
-    mTextures[dummyTex->Name] = std::move(dummyTex);
+    {
+        auto bricksTex = std::make_unique<Texture>();
+        bricksTex->Name = "bricks";
+        bricksTex->Filename = "bricks3.dds";
+        bricksTex->Filename = fs::absolute(this->mResourceManager.find_path(bricksTex->Filename)).u8string();
+        Texture::LoadAndUploadTexture(*bricksTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[bricksTex->Name] = texIndex++;
+        mTextures[bricksTex->Name] = std::move(bricksTex);
+    }
+
+    {
+        auto iceTex = std::make_unique<Texture>();
+        iceTex->Name = "ice";
+        iceTex->Filename = "ice.dds";
+        iceTex->Filename = fs::absolute(this->mResourceManager.find_path(iceTex->Filename)).u8string();
+        Texture::LoadAndUploadTexture(*iceTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[iceTex->Name] = texIndex++;
+        mTextures[iceTex->Name] = std::move(iceTex);
+    }
+
+    {
+        auto checkboardTex = std::make_unique<Texture>();
+        checkboardTex->Name = "checkboard";
+        checkboardTex->Filename = "checkboard.dds";
+        checkboardTex->Filename = fs::absolute(this->mResourceManager.find_path(checkboardTex->Filename)).u8string();
+        Texture::LoadAndUploadTexture(*checkboardTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[checkboardTex->Name] = texIndex++;
+        mTextures[checkboardTex->Name] = std::move(checkboardTex);
+    }
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
