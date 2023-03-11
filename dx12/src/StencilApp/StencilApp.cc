@@ -65,7 +65,8 @@ private:
 
     void UpdateObjectCB(const GameTimer &timer);
     void UpdateMaterialCBs(const GameTimer &timer);
-    void UpdateMainPassCB(const GameTimer &timer);
+    // 需要两个PassCB，因为Reflected的光照反向也要变化
+    void UpdatePassCBs(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12DescriptorHeap> mCbvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -85,6 +86,9 @@ private:
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
     std::vector<const RenderItem *> mOpaqueRitems;
+    std::vector<const RenderItem *> mMirrorsRitems;
+    std::vector<const RenderItem *> mTransparentRitems;
+    std::vector<const RenderItem *> mReflectedRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -94,6 +98,7 @@ private:
 
     FrameResource *mCurrFrameResource = nullptr;
     PassConstants mMainPassCB;
+    PassConstants mReflectedPassCB;
     bool mbShowWireFrame = false;
     bool mbVsync = true;
 };
@@ -165,7 +170,7 @@ inline void StencilApp::Update(const GameTimer &timer) {
     }
 
     UpdateObjectCB(timer);
-    UpdateMainPassCB(timer);
+    UpdatePassCBs(timer);
     UpdateMaterialCBs(timer);
 
     ImGuiPrepareDraw();
@@ -215,7 +220,7 @@ inline void StencilApp::UpdateMaterialCBs(const GameTimer &timer) {
         }
     }
 }
-inline void StencilApp::UpdateMainPassCB(const GameTimer &gt) {
+inline void StencilApp::UpdatePassCBs(const GameTimer &gt) {
     XMMATRIX view = XMLoadFloat4x4(&mView);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
@@ -241,13 +246,28 @@ inline void StencilApp::UpdateMainPassCB(const GameTimer &gt) {
 
     mMainPassCB.Lights[0].Direction = {0.57735f, -0.57735f, 0.57735f};
     mMainPassCB.Lights[0].Strength = {0.6f, 0.6f, 0.6f};
+
     mMainPassCB.Lights[1].Direction = {-0.57735f, -0.57735f, 0.57735f};
     mMainPassCB.Lights[1].Strength = {0.3f, 0.3f, 0.3f};
-    mMainPassCB.Lights[2].Direction = {0.0f, -0.707f, -0.707f};
-    mMainPassCB.Lights[2].Strength = {0.15f, 0.15f, 0.15f};
+
+    mMainPassCB.Lights[2].Direction = {0.707f, 0.f, -0.707f};
+    mMainPassCB.Lights[2].Strength = {0.55f, 0.15f, 0.15f};
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
+    mReflectedPassCB = mMainPassCB;
+
+    XMVECTOR mirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+    XMMATRIX R = XMMatrixReflect(mirrorPlane);
+
+    // Reflect the lighting.
+    for (int i = 0; i < 3; ++i) {
+        XMVECTOR lightDir = XMLoadFloat3(&mMainPassCB.Lights[i].Direction);
+        XMVECTOR reflectedLightDir = XMVector3TransformNormal(lightDir, R);
+        XMStoreFloat3(&mReflectedPassCB.Lights[i].Direction, reflectedLightDir);
+    }
+
+    currPassCB->CopyData(1, mReflectedPassCB);
 }
 
 inline void StencilApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
@@ -326,10 +346,13 @@ void StencilApp::Draw(const GameTimer &gt) {
         mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     }
 
+    auto passCBAddr = mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress();
+    auto passCBStride = CalcConstantBufferBytesSize(sizeof(PassConstants));
+
     std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mSrvDescriptorHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(2, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddr);
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
@@ -350,6 +373,26 @@ void StencilApp::Draw(const GameTimer &gt) {
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET));
     }
 
+    // stage 2 render stencil
+
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    mCommandList->SetPipelineState(mPSOs.at("markStencilMirrors").Get());
+    mCommandList->OMSetStencilRef(0x01);
+    DrawRenderItems(mCommandList.Get(), mMirrorsRitems);
+
+    // stage 3 render reflected
+    mCommandList->SetPipelineState(mPSOs.at("drawStencilReflections").Get());
+    // 因为物体反转以后，光源也要跟着反转，而光源保存在passCB里，所以需要两个passCB
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddr + 1 * passCBStride);
+    DrawRenderItems(mCommandList.Get(), mReflectedRitems);
+
+    // stage 4 render mirror
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddr);
+    mCommandList->SetPipelineState(mPSOs.at("transparent_blend").Get());
+    DrawRenderItems(mCommandList.Get(), mTransparentRitems);
+
+    mCommandList->OMSetStencilRef(0x0);
+    // stage last: render imgui
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
@@ -529,7 +572,7 @@ inline void StencilApp::BuildShapeGeometry() {
             Vertex v;
             v.Pos = SkullMesh.mPoses[i];
             v.Normal = SkullMesh.mNormals[i];
-            v.TexC = DirectX::XMFLOAT2(0.0, 0.0);
+            v.TexC = DirectX::XMFLOAT2(0.5, 0.5);
             vertices.push_back(v);
         }
         indices.insert(indices.end(), std::begin(SkullMesh.mIndices16), std::end(SkullMesh.mIndices16));
@@ -677,20 +720,91 @@ inline void StencilApp::BuildPSOs() {
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-    spdlog::info("Building WireFrame PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    {
+        spdlog::info("Building WireFrame PSO");
+        auto tmp = psoDesc;
+        tmp.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    }
 
-    spdlog::info("Building MSAA PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-    psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
+    {
+        spdlog::info("Building MSAA PSO");
+        auto tmp = psoDesc;
+        tmp.SampleDesc.Count = 4;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mMSAAOpaquePSO)));
+    }
+    {
+        spdlog::info("Building blend PSO");
+        // rgb  c_src * a_src + dst * (1 - a_src)
+        // a   a_src * 1 + a_dst * 0
+        auto tmp = psoDesc;
+        D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+        transparencyBlendDesc.BlendEnable = true;
+        transparencyBlendDesc.LogicOpEnable = false;
+        transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+        transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+        transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+        transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_blend"])));
+    }
+
+    {
+        spdlog::info("Building mask stencil ");
+
+        auto tmp = psoDesc;
+        CD3DX12_BLEND_DESC mirrorBlendState(D3D12_DEFAULT);
+        mirrorBlendState.RenderTarget[0].RenderTargetWriteMask = 0x00;
+        tmp.BlendState = mirrorBlendState;
+
+        CD3DX12_DEPTH_STENCIL_DESC mirrorDSS(D3D12_DEFAULT);
+        mirrorDSS.DepthEnable = true;
+        mirrorDSS.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;// 不写入深度
+        mirrorDSS.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        mirrorDSS.StencilEnable = true;
+        mirrorDSS.StencilReadMask = 0xff;
+        mirrorDSS.StencilWriteMask = 0xff;
+        // 当stencil pass的时候替换value
+        mirrorDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+        mirrorDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+        mirrorDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+        mirrorDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        tmp.DepthStencilState = mirrorDSS;
+
+        // 在绘制时需要设置StencilRef为1，这样通过的时候，会把对应的Pixel的位置设置为1
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
+    }
+    {
+        spdlog::info("Building reflection PSO");
+
+        auto tmp = psoDesc;
+
+        CD3DX12_DEPTH_STENCIL_DESC reflectionDSS(D3D12_DEFAULT);
+        reflectionDSS.StencilEnable = true;
+        reflectionDSS.StencilReadMask = 0xff;
+        reflectionDSS.StencilWriteMask = 0x00;// no need to write
+        // 当stencil pass的时候替换value
+        reflectionDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+        reflectionDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+        reflectionDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+        reflectionDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+        tmp.DepthStencilState = reflectionDSS;
+
+        tmp.RasterizerState.FrontCounterClockwise = true;
+        // 在绘制时需要设置StencilRef为1，这样通过的时候，会把对应的Pixel的位置设置为1
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["drawStencilReflections"])));
+    }
 }
 
 inline void StencilApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(
-                std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(), mMaterials.size()));
+        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), /*pass count */ 2,
+                                                                  (UINT) mAllRitems.size(), mMaterials.size()));
     }
 }
 
@@ -709,6 +823,7 @@ inline void StencilApp::BuildRenderItems() {
         FloorItem->IndexCount = SubMeshInfo.IndexCount;
         FloorItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         FloorItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mOpaqueRitems.push_back(FloorItem.get());
         mAllRitems.push_back(std::move(FloorItem));
     }
 
@@ -723,6 +838,7 @@ inline void StencilApp::BuildRenderItems() {
         WallItem->IndexCount = SubMeshInfo.IndexCount;
         WallItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         WallItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mOpaqueRitems.push_back(WallItem.get());
         mAllRitems.push_back(std::move(WallItem));
     }
 
@@ -747,7 +863,9 @@ inline void StencilApp::BuildRenderItems() {
         XMMATRIX RMatrix = XMMatrixReflect(mirrorPlane);
         XMStoreFloat4x4(&ReflectedSkullItem->World, SkullTrans * RMatrix);
 
+        mOpaqueRitems.push_back(SkullItem.get());
         mAllRitems.push_back(std::move(SkullItem));
+        mReflectedRitems.push_back(ReflectedSkullItem.get());
         mAllRitems.push_back(std::move(ReflectedSkullItem));
     }
 
@@ -762,13 +880,10 @@ inline void StencilApp::BuildRenderItems() {
         MirrorItem->IndexCount = SubMeshInfo.IndexCount;
         MirrorItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         MirrorItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+        mMirrorsRitems.push_back(MirrorItem.get());
+        mTransparentRitems.push_back(MirrorItem.get());
         mAllRitems.push_back(std::move(MirrorItem));
     }
-
-
-    spdlog::info("Build Opaque Render Items");
-    // All the render items are opaque.
-    for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
 }
 
 inline void StencilApp::BuildMaterials() {
@@ -801,6 +916,7 @@ inline void StencilApp::BuildMaterials() {
         icemirror->Name = "icemirror";
         icemirror->MatCBIndex = matIndex++;
         icemirror->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("ice");
+        icemirror->DiffuseAlbedo.w = 0.5f;
         mMaterials[icemirror->Name] = std::move(icemirror);
     }
 }
