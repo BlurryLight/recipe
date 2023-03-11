@@ -23,6 +23,8 @@ using namespace DirectX;
 
 using DirectX::PackedVector::XMCOLOR;
 const static int kNumFrameResources = 3;
+const XMVECTOR kMirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+
 
 // RenderItem is related to per object
 struct RenderItem {
@@ -89,6 +91,7 @@ private:
     std::vector<const RenderItem *> mMirrorsRitems;
     std::vector<const RenderItem *> mTransparentRitems;
     std::vector<const RenderItem *> mReflectedRitems;
+    std::vector<const RenderItem *> mShadowedRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
@@ -101,6 +104,7 @@ private:
     PassConstants mReflectedPassCB;
     bool mbShowWireFrame = false;
     bool mbVsync = true;
+    SimpleMath::Vector3 mSkullOffset = {5.0f, 1.0f, 0};
 };
 
 inline StencilApp::StencilApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -242,7 +246,7 @@ inline void StencilApp::UpdatePassCBs(const GameTimer &gt) {
     mMainPassCB.FarZ = 1000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
-    mMainPassCB.AmbientLight = {0.25, 0.25, 0.35, 1.0};
+    mMainPassCB.AmbientLight = {0.25f, 0.25f, 0.35f, 1.0f};
 
     mMainPassCB.Lights[0].Direction = {0.57735f, -0.57735f, 0.57735f};
     mMainPassCB.Lights[0].Strength = {0.6f, 0.6f, 0.6f};
@@ -257,8 +261,7 @@ inline void StencilApp::UpdatePassCBs(const GameTimer &gt) {
     currPassCB->CopyData(0, mMainPassCB);
     mReflectedPassCB = mMainPassCB;
 
-    XMVECTOR mirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-    XMMATRIX R = XMMatrixReflect(mirrorPlane);
+    XMMATRIX R = XMMatrixReflect(kMirrorPlane);
 
     // Reflect the lighting.
     for (int i = 0; i < 3; ++i) {
@@ -392,6 +395,10 @@ void StencilApp::Draw(const GameTimer &gt) {
     DrawRenderItems(mCommandList.Get(), mTransparentRitems);
 
     mCommandList->OMSetStencilRef(0x0);
+    // Draw shadows
+    mCommandList->SetPipelineState(mPSOs["shadow"].Get());
+    DrawRenderItems(mCommandList.Get(), mShadowedRitems);
+
     // stage last: render imgui
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
@@ -779,6 +786,37 @@ inline void StencilApp::BuildPSOs() {
         // 在绘制时需要设置StencilRef为1，这样通过的时候，会把对应的Pixel的位置设置为1
         HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["markStencilMirrors"])));
     }
+
+    {
+        spdlog::info("Building SHadowPSO ");
+
+        auto tmp = psoDesc;
+        CD3DX12_DEPTH_STENCIL_DESC shadowDSS(D3D12_DEFAULT);
+        shadowDSS.StencilEnable = true;
+        shadowDSS.StencilReadMask = 0xff;
+        shadowDSS.StencilWriteMask = 0xff;
+        // 当stencil pass的时候替换value
+        shadowDSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+        shadowDSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+        shadowDSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+        shadowDSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;// 当stencilBuf为0的时候，增加到1,否则不通过
+        tmp.DepthStencilState = shadowDSS;
+
+        D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+        transparencyBlendDesc.BlendEnable = true;
+        transparencyBlendDesc.LogicOpEnable = false;
+        transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+        transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+        transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+        transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
+
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["shadow"])));
+    }
     {
         spdlog::info("Building reflection PSO");
 
@@ -814,7 +852,8 @@ inline void StencilApp::BuildRenderItems() {
 
     {
         auto FloorItem = std::make_unique<RenderItem>();
-        XMStoreFloat4x4(&FloorItem->World, XMMatrixRotationY(XMConvertToRadians(-90.0f)));
+        auto FloorTrans = XMMatrixRotationY(XMConvertToRadians(-90.0f));
+        XMStoreFloat4x4(&FloorItem->World, FloorTrans);
         FloorItem->ObjectCBIndex = objCBIndex++;
         FloorItem->Geo = mGeometries["roomGeo"].get();
         FloorItem->Mat = mMaterials.at("checkboard").get();
@@ -823,8 +862,17 @@ inline void StencilApp::BuildRenderItems() {
         FloorItem->IndexCount = SubMeshInfo.IndexCount;
         FloorItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         FloorItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+
+        auto ReflectedFloorItem = std::make_unique<RenderItem>();
+        *ReflectedFloorItem = *FloorItem;
+        ReflectedFloorItem->ObjectCBIndex = objCBIndex++;
+        XMMATRIX RMatrix = XMMatrixReflect(kMirrorPlane);
+        XMStoreFloat4x4(&ReflectedFloorItem->World, FloorTrans * RMatrix);
+
         mOpaqueRitems.push_back(FloorItem.get());
+        mReflectedRitems.push_back(ReflectedFloorItem.get());
         mAllRitems.push_back(std::move(FloorItem));
+        mAllRitems.push_back(std::move(ReflectedFloorItem));
     }
 
     {
@@ -838,14 +886,15 @@ inline void StencilApp::BuildRenderItems() {
         WallItem->IndexCount = SubMeshInfo.IndexCount;
         WallItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
         WallItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+
         mOpaqueRitems.push_back(WallItem.get());
         mAllRitems.push_back(std::move(WallItem));
     }
 
     {
         auto SkullItem = std::make_unique<RenderItem>();
-        SimpleMath::Vector3 offset(5, 0, 0);
-        XMMATRIX SkullTrans = XMMatrixScaling(0.5, 0.5l, 0.5) * XMMatrixTranslation(offset.x, offset.y, offset.z);
+        XMMATRIX SkullTrans =
+                XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(mSkullOffset.x, mSkullOffset.y, mSkullOffset.z);
         XMStoreFloat4x4(&SkullItem->World, SkullTrans);
         SkullItem->ObjectCBIndex = objCBIndex++;
         SkullItem->Geo = mGeometries["Skull"].get();
@@ -859,14 +908,26 @@ inline void StencilApp::BuildRenderItems() {
         auto ReflectedSkullItem = std::make_unique<RenderItem>();
         *ReflectedSkullItem = *SkullItem;
         ReflectedSkullItem->ObjectCBIndex = objCBIndex++;
-        XMVECTOR mirrorPlane = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);// xz-plane
-        XMMATRIX RMatrix = XMMatrixReflect(mirrorPlane);
+        XMMATRIX RMatrix = XMMatrixReflect(kMirrorPlane);
         XMStoreFloat4x4(&ReflectedSkullItem->World, SkullTrans * RMatrix);
+
+        auto ShadowedSkullItem = std::make_unique<RenderItem>();
+        *ShadowedSkullItem = *SkullItem;
+        ShadowedSkullItem->ObjectCBIndex = objCBIndex++;
+        ShadowedSkullItem->Mat = mMaterials.at("shadowMat").get();
+        XMVECTOR shadowPlane = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);// xz plane
+        XMVECTOR toMainLight = -XMLoadFloat3(&mMainPassCB.Lights[0].Direction);
+        XMMATRIX S = XMMatrixShadow(shadowPlane, toMainLight);
+        XMMATRIX SlightShadowOffset = XMMatrixTranslation(0.f, 0.0001f, 0.f);// 稍微往上偏移一点
+        XMStoreFloat4x4(&ShadowedSkullItem->World, SkullTrans * S * SlightShadowOffset);
 
         mOpaqueRitems.push_back(SkullItem.get());
         mAllRitems.push_back(std::move(SkullItem));
         mReflectedRitems.push_back(ReflectedSkullItem.get());
         mAllRitems.push_back(std::move(ReflectedSkullItem));
+
+        mShadowedRitems.push_back(ShadowedSkullItem.get());
+        mAllRitems.push_back(std::move(ShadowedSkullItem));
     }
 
     {
@@ -918,6 +979,16 @@ inline void StencilApp::BuildMaterials() {
         icemirror->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("ice");
         icemirror->DiffuseAlbedo.w = 0.5f;
         mMaterials[icemirror->Name] = std::move(icemirror);
+    }
+    {
+        auto shadowMat = std::make_unique<Material>();
+        shadowMat->Name = "shadowMat";
+        shadowMat->MatCBIndex = matIndex++;
+        shadowMat->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("dummy");
+        shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);// 黑色半透
+        shadowMat->FresnelR0 = XMFLOAT3(0.001f, 0.001f, 0.001f);
+        shadowMat->Roughness = 0.0f;
+        mMaterials[shadowMat->Name] = std::move(shadowMat);
     }
 }
 
