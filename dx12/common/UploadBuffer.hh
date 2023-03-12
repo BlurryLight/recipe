@@ -45,6 +45,13 @@ class UploadBuffer : Noncopyable
         memmove(mMappedData + elementIndex * mElementByteSize, (const char*)&Data , sizeof(T));
     }
 
+    uint32_t getElementBytesSize() const { return mElementByteSize; }
+
+    uint8_t *getGPUVirtualAddress() const {
+        assert(mMappedData);
+        return mMappedData;
+    }
+
 
 private:
     Microsoft::WRL::ComPtr<ID3D12Resource> mUploadBuffer;

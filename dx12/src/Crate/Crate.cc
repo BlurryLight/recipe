@@ -554,7 +554,17 @@ inline void CrateApp::BuildPSOs() {
 
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+
+    CD3DX12_DEPTH_STENCIL_DESC DSS(D3D12_DEFAULT);
+    DSS.StencilEnable = true;
+    DSS.StencilReadMask = 0xff;
+    DSS.StencilWriteMask = 0xff;
+
+    DSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+    DSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+    DSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR_SAT;
+    DSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    psoDesc.DepthStencilState = DSS;
 
     // PSO这里指定的 Primitive 类型 和 IA那里指定的 TriangleStrip，需要是同一大类，但是不需完全匹配上
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -569,14 +579,20 @@ inline void CrateApp::BuildPSOs() {
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-    spdlog::info("Building WireFrame PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    {
+        spdlog::info("Building WireFrame PSO");
+        auto tmp = psoDesc;
+        tmp.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    }
 
-    spdlog::info("Building MSAA PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-    psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
+    {
+        spdlog::info("Building MSAA PSO");
+        auto tmp = psoDesc;
+        tmp.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+        tmp.SampleDesc.Count = 4;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mMSAAOpaquePSO)));
+    }
 }
 
 inline void CrateApp::BuildFrameResources() {
@@ -591,18 +607,21 @@ inline void CrateApp::BuildRenderItems() {
     UINT objCBIndex = 0;
 
     {
-
-        auto BoxItem = std::make_unique<RenderItem>();
-        XMStoreFloat4x4(&BoxItem->World, XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f));
-        BoxItem->ObjectCBIndex = objCBIndex++;
-        BoxItem->Geo = mGeometries["box"].get();
-        BoxItem->Mat = mMaterials["WoodCrate"].get();
-        BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        const auto &SubMeshInfo = (BoxItem->Geo->DrawArgs.begin())->second;
-        BoxItem->IndexCount = SubMeshInfo.IndexCount;
-        BoxItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
-        BoxItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
-        mAllRitems.push_back(std::move(BoxItem));
+        int n = 50;
+        for (int i = 0; i < n; i++) {
+            auto BoxItem = std::make_unique<RenderItem>();
+            XMStoreFloat4x4(&BoxItem->World,
+                            XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 2 * n - i * 2.0));
+            BoxItem->ObjectCBIndex = objCBIndex++;
+            BoxItem->Geo = mGeometries["box"].get();
+            BoxItem->Mat = mMaterials["WoodCrate"].get();
+            BoxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            const auto &SubMeshInfo = (BoxItem->Geo->DrawArgs.begin())->second;
+            BoxItem->IndexCount = SubMeshInfo.IndexCount;
+            BoxItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+            BoxItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+            mAllRitems.push_back(std::move(BoxItem));
+        }
     }
 
     {
