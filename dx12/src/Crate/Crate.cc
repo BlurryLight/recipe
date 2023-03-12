@@ -560,8 +560,10 @@ inline void CrateApp::BuildPSOs() {
     DSS.StencilReadMask = 0xff;
     DSS.StencilWriteMask = 0xff;
 
+    // ex 11.8 Depth Complexity
+
     DSS.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-    DSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+    DSS.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_INCR_SAT;
     DSS.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR_SAT;
     DSS.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
     psoDesc.DepthStencilState = DSS;
@@ -576,6 +578,8 @@ inline void CrateApp::BuildPSOs() {
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.SampleDesc.Count = 1;
     psoDesc.SampleDesc.Quality = 0;
+
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 

@@ -34,6 +34,11 @@ struct VertexOut {
   float2 TexC : TEXCOORD;
 };
 
+struct PixelOut {
+  float4 color : SV_Target;
+  float depth : SV_Depth;
+};
+
 cbuffer cbPass : register(b2) {
   float4x4 gView;
   float4x4 gInvView;
@@ -66,8 +71,8 @@ VertexOut VSMain(VertexIn vin) {
   return vout;
 };
 
-float4 PSMain(VertexOut vout) : SV_Target {
-
+PixelOut PSMain(VertexOut vout) {
+  PixelOut Res;
   vout.NormalW = normalize(vout.NormalW); // re-normalize
   // return float4(0.5 * vout.NormalW + 0.5, 1);
   float3 viewDir = normalize(gEyePosW - vout.PosW);
@@ -88,5 +93,8 @@ float4 PSMain(VertexOut vout) : SV_Target {
       ComputeDirLight(gLights[1], mat, vout.NormalW, viewDir) + 
       ComputeDirLight(gLights[2], mat, vout.NormalW, viewDir),1.0);
   litColor.a = gDiffuseAlbedo.a;
-  return litColor;
+  Res.color = litColor;
+  Res.depth =
+      vout.PosH.z + 0.0001f; // slightly move NDC-z by 0.0001 to aviod early-z
+  return Res;
 }
