@@ -5,6 +5,7 @@ set(SRC
     EulerCamera.cc
     MeshGeometry.cc
     CommonMesh.cc
+    Waves.cc
     ../third_party/MathHelper.cpp
     ../third_party/GeometryGenerator.cpp
     ../third_party/SimpleMath.cpp
