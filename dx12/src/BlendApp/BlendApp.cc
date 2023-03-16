@@ -86,8 +86,10 @@ private:
     std::vector<const RenderItem *> mAlphaCoverageRitems;
     std::vector<const RenderItem *> mAlphaBlendRitems;
     std::vector<const RenderItem *> mAlphaClipRitems;
+    std::vector<const RenderItem *> mTreeRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
     UINT mPassCbvOffset = 0;
@@ -324,10 +326,10 @@ void BlendApp::Draw(const GameTimer &gt) {
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                                                D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
 
-
         mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                                D3D12_RESOURCE_STATE_RENDER_TARGET,
                                                                                D3D12_RESOURCE_STATE_RESOLVE_DEST));
+        // 这里没有resolve depth，因为dx12没有 D24S8格式的自动resolve支持
         mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, mBackBufferFormat);
 
 
@@ -348,6 +350,9 @@ void BlendApp::Draw(const GameTimer &gt) {
         return ldis > rdis;
     });
     DrawRenderItems(mCommandList.Get(), mAlphaBlendRitems);
+
+    mCommandList->SetPipelineState(mPSOs["treeSpritePSO"].Get());
+    DrawRenderItems(mCommandList.Get(), mTreeRitems);
 
     mCommandList->SetPipelineState(mPSOs["alphaClip"].Get());
     DrawRenderItems(mCommandList.Get(), mAlphaClipRitems);
@@ -407,7 +412,7 @@ inline void BlendApp::BuildDescriptorHeaps() {
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     for (const auto &it : mTextures) {
-
+        if (it.first == "5_treeArray") continue;
         auto resource = it.second->Resource;
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -419,6 +424,17 @@ inline void BlendApp::BuildDescriptorHeaps() {
         mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
         srvHandle.Offset(1, mCbvSrvUavDescriptorSize);
     }
+    auto treeArrayTexRes = mTextures.at("5_treeArray")->Resource;
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = treeArrayTexRes->GetDesc().Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+    srvDesc.Texture2DArray.MostDetailedMip = 0;
+    srvDesc.Texture2DArray.MipLevels = -1;
+    srvDesc.Texture2DArray.ArraySize = treeArrayTexRes->GetDesc().DepthOrArraySize;
+    srvDesc.Texture2DArray.FirstArraySlice = 0;
+    mD3dDevice->CreateShaderResourceView(treeArrayTexRes.Get(), &srvDesc, srvHandle);
+    srvHandle.Offset(1, mCbvSrvUavDescriptorSize);
 }
 
 inline void BlendApp::BuildConstantBuffers() {
@@ -501,9 +517,15 @@ inline void BlendApp::BuildShaderAndInputLayout() {
     mShaders["standardVS"] = VSBlob;
     mShaders["opaquePS"] = PSBlob;
 
+
     const D3D_SHADER_MACRO alphaTestDefines[] = {{"ALPHA_TEST", "1"}, {NULL, NULL}};
     PSBlob = CompileShader(ShaderPath, alphaTestDefines, "PSMain", "ps_5_0");
     mShaders["alphaClip"] = PSBlob;
+
+    auto TreeShaderPath = mResourceManager.find_path("geometry_test.hlsl");
+    mShaders["treeSpriteVS"] = CompileShader(TreeShaderPath, nullptr, "VSMain", "vs_5_0");
+    mShaders["treeSpriteGS"] = CompileShader(TreeShaderPath, nullptr, "GSMain", "gs_5_0");
+    mShaders["treeSpritePS"] = CompileShader(TreeShaderPath, nullptr, "PSMain", "ps_5_0");
 
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
@@ -520,6 +542,11 @@ inline void BlendApp::BuildShaderAndInputLayout() {
                     0,
             },
     };
+
+    mTreeInputLayout = {
+            {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+            {"SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
 }
 
 inline void BlendApp::BuildShapeGeometry() {
@@ -533,6 +560,55 @@ inline void BlendApp::BuildShapeGeometry() {
 
     auto SphereGeo = PD::CreateSphereMesh(mD3dDevice.Get(), mCommandList.Get());
     mGeometries[SphereGeo->name] = std::move(SphereGeo);
+
+    struct TreeSpriteVertex {
+        XMFLOAT3 Pos;
+        XMFLOAT2 Size;
+    };
+
+    static const int treeCount = 16;
+    std::array<TreeSpriteVertex, 16> vertices;
+    for (UINT i = 0; i < treeCount; ++i) {
+        float x = MathHelper::RandF(-45.0f, 45.0f);
+        float z = MathHelper::RandF(-45.0f, 45.0f);
+        float y = 1.0f;
+
+        vertices[i].Pos = XMFLOAT3(x, y, z);
+        vertices[i].Size = XMFLOAT2(5.0f, 5.0f);
+    }
+
+    std::array<std::uint16_t, 16> indices = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+
+    const UINT vbByteSize = (UINT) vertices.size() * sizeof(TreeSpriteVertex);
+    const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->name = "treeSpritesGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), vertices.data(), vbByteSize,
+                                               geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = CreateDefaultBuffer(mD3dDevice.Get(), mCommandList.Get(), indices.data(), ibByteSize,
+                                              geo->IndexBufferUploader);
+
+    geo->VertexBytesStride = sizeof(TreeSpriteVertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferBytesSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT) indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs["points"] = submesh;
+    mGeometries["treeSpritesGeo"] = std::move(geo);
 }
 
 inline void BlendApp::BuildPSOs() {
@@ -614,6 +690,18 @@ inline void BlendApp::BuildPSOs() {
         tmp.PS = {(void *) (mShaders["alphaClip"]->GetBufferPointer()), mShaders["alphaClip"]->GetBufferSize()};
         tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["alphaClip"])));
+    }
+
+    {
+        spdlog::info("Building Tree Split PSO");
+        auto tmp = psoDesc;
+        tmp.VS = {(void *) (mShaders["treeSpriteVS"]->GetBufferPointer()), mShaders["treeSpriteVS"]->GetBufferSize()};
+        tmp.GS = {(void *) (mShaders["treeSpriteGS"]->GetBufferPointer()), mShaders["treeSpriteGS"]->GetBufferSize()};
+        tmp.PS = {(void *) (mShaders["treeSpritePS"]->GetBufferPointer()), mShaders["treeSpritePS"]->GetBufferSize()};
+        tmp.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+        tmp.InputLayout = {mTreeInputLayout.data(), (UINT) mTreeInputLayout.size()};
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["treeSpritePSO"])));
     }
 }
 
@@ -712,6 +800,19 @@ inline void BlendApp::BuildRenderItems() {
         mAlphaClipRitems.push_back(grassItem.get());
         mAllRitems.push_back(std::move(grassItem));
     }
+
+    auto treeItem = std::make_unique<RenderItem>();
+    treeItem->World = MathHelper::Identity4x4();
+    treeItem->ObjectCBIndex = objCBIndex++;
+    treeItem->Geo = mGeometries.at("treeSpritesGeo").get();
+    treeItem->TextureHandleIndex = 5;// tree array
+    treeItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    const auto &SubMeshInfo = (treeItem->Geo->DrawArgs.begin())->second;
+    treeItem->IndexCount = SubMeshInfo.IndexCount;
+    treeItem->StartIndexLocation = SubMeshInfo.StartIndexLocation;
+    treeItem->BaseVertexLocation = SubMeshInfo.BaseVertexLocation;
+    mTreeRitems.push_back(treeItem.get());
+    mAllRitems.push_back(std::move(treeItem));
 }
 
 inline void BlendApp::LoadTextures() {
@@ -745,6 +846,12 @@ inline void BlendApp::LoadTextures() {
     grassTex->Filename = fs::absolute(this->mResourceManager.find_path(L"grass.png")).u8string();
     Texture::LoadAndUploadTexture(*grassTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
     mTextures[grassTex->Name] = std::move(grassTex);
+
+    auto treeArrayTex = std::make_unique<Texture>();
+    treeArrayTex->Name = "5_treeArray";
+    treeArrayTex->Filename = fs::absolute(this->mResourceManager.find_path(L"treearray.dds")).u8string();
+    Texture::LoadAndUploadTexture(*treeArrayTex, mD3dDevice.Get(), mCommandList.Get(), /*flip*/ false);
+    mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {

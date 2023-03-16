@@ -254,7 +254,6 @@ void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, I
     if (suffix == ".DDS" || suffix == ".dds") {
         ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
                 device, path.wstring().c_str(), texture.Resource.ReleaseAndGetAddressOf(), imageData, subresources));
-
     } else {
         int ImageWidth;
         int ImageHeight;
