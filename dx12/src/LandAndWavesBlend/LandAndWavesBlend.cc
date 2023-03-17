@@ -24,10 +24,12 @@ const static int kNumFrameResources = 3;
 // RenderItem is related to per object
 struct RenderItem {
     XMFLOAT4X4 World = MathHelper::Identity4x4();
+    XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
     // init: every resource needs to be updated
     int NumFramesDirty = kNumFrameResources;
 
     UINT ObjectCBIndex = -1;
+    Material *Mat = nullptr;
     MeshGeometry *Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -38,8 +40,6 @@ struct RenderItem {
 };
 
 
-enum class RenderLayer : int { Opaque = 0, Count };
-
 class LandAndWavesBlendApp : public D3DApp {
 public:
     LandAndWavesBlendApp(HINSTANCE hInstance);
@@ -49,6 +49,13 @@ public:
     void Draw(const GameTimer &gt) override;
 
 private:
+    void BuildDescriptorHeaps();
+    void BuildConstantBuffers();
+    void BuildMaterials();
+    void LoadTextures();
+    void UpdateMaterialCBs(const GameTimer &timer);
+    void AnimateMaterials(const GameTimer &timer);
+
     void BuildRootSignature();
     void BuildShaderAndInputLayout();
     void BuildLandGeometry();
@@ -62,36 +69,44 @@ private:
     void UpdateMainPassCB(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    // std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
     ResourcePathSearcher mResourceManager;
 
     std::unordered_map<std::string, ComPtr<ID3D10Blob>> mShaders;
     std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+    std::unordered_map<std::string, std::unique_ptr<PD::Texture>> mTextures;
+    std::unordered_map<std::string, int> mTextureSrvHandleIndices;
+    std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
     using RenderItemLayer = std::vector<const RenderItem *>;
-    std::array<RenderItemLayer, (int) RenderLayer::Count> mRitemLayers;
+    RenderItemLayer mOpaqueRitems;
+    RenderItemLayer mTransparentRitems;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     XMFLOAT4X4 mView = MathHelper::Identity4x4();
     XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+    UINT mPassCbvOffset = 0;
     int mCurrFrameResourceIndex = 0;
 
     FrameResource *mCurrFrameResource = nullptr;
     PassConstants mMainPassCB;
-    // XMFLOAT3 mEyePos{0.0f, 5.0f, -5.0f};
     bool mbShowWireFrame = false;
     bool mbVsync = true;
     std::unique_ptr<Waves> mWaves = nullptr;
+    ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 };
 
 inline LandAndWavesBlendApp::LandAndWavesBlendApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
+    mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "models");
+    mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "textures");
     mResourceManager.add_path(path / L"Shaders");
 }
 
@@ -105,12 +120,16 @@ inline bool LandAndWavesBlendApp::Initialize() {
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
+    LoadTextures();
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildLandGeometry();
     BuildWavesGeometry();
+    BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
+    BuildDescriptorHeaps();
+    BuildConstantBuffers();
     BuildPSOs();
 
     // end of record
@@ -145,6 +164,8 @@ inline void LandAndWavesBlendApp::Update(const GameTimer &timer) {
     UpdateWaves(timer);
     UpdateObjectCB(timer);
     UpdateMainPassCB(timer);
+    AnimateMaterials(timer);
+    UpdateMaterialCBs(timer);
 
     ImGuiPrepareDraw();
     static bool bShowDemoWindow = false;
@@ -154,7 +175,6 @@ inline void LandAndWavesBlendApp::Update(const GameTimer &timer) {
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     ImGui::SliderFloat("MoveSpeed", &mCamera->MovementSpeed, 0.0f, 50.0f);
-    ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
@@ -170,10 +190,42 @@ void LandAndWavesBlendApp::UpdateObjectCB(const GameTimer &timer) {
             XMMATRIX world = XMLoadFloat4x4(&element->World);
             ObjectConstants objCB;
             XMStoreFloat4x4(&objCB.World, XMMatrixTranspose(world));
+            XMStoreFloat4x4(&objCB.InvTransWorld, XMMatrixTranspose(MathHelper::InverseTranspose(world)));
+            XMStoreFloat4x4(&objCB.TexTransform, XMLoadFloat4x4(&element->TexTransform));
             currObjectCB->CopyData(element->ObjectCBIndex, objCB);
             element->NumFramesDirty--;
         }
     }
+}
+inline void LandAndWavesBlendApp::UpdateMaterialCBs(const GameTimer &timer) {
+
+    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+    for (auto &element : mMaterials) {
+        // upload data when needed
+        Material *mat = element.second.get();
+        if (mat->NumFramesDirty > 0) {
+            MaterialConstants matConstants;
+            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+            matConstants.FresnelR0 = mat->FresnelR0;
+            matConstants.Roughness = mat->Roughness;
+            auto matTrans = XMLoadFloat4x4(&mat->MatTransform);
+            XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTrans));
+            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+            mat->NumFramesDirty--;
+        }
+    }
+}
+inline void LandAndWavesBlendApp::AnimateMaterials(const GameTimer &timer) {
+    auto mat = mMaterials.at("water").get();
+    float &tu = mat->MatTransform(3, 0);
+    float &tv = mat->MatTransform(3, 1);
+
+    tu += 0.1f * timer.DeltaTime();
+    tv += 0.02f * timer.DeltaTime();
+    if (tu >= 1.0f) tu = -1.0f;
+    if (tv >= 1.0f) tv = -1.0f;// 需要使用wrap采样
+
+    mat->NumFramesDirty = kNumFrameResources;
 }
 void LandAndWavesBlendApp::UpdateMainPassCB(const GameTimer &gt) {
     XMMATRIX view = XMLoadFloat4x4(&mView);
@@ -197,6 +249,14 @@ void LandAndWavesBlendApp::UpdateMainPassCB(const GameTimer &gt) {
     mMainPassCB.FarZ = 1000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
+    mMainPassCB.AmbientLight = {0.25f, 0.25f, 0.35f, 1.0f};
+
+    mMainPassCB.Lights[0].Direction = {0.57735f, -0.57735f, 0.57735f};
+    mMainPassCB.Lights[0].Strength = {0.9f, 0.9f, 0.8f};
+    mMainPassCB.Lights[1].Direction = {-0.57735f, -0.57735f, 0.57735f};
+    mMainPassCB.Lights[1].Strength = {0.3f, 0.3f, 0.3f};
+    mMainPassCB.Lights[2].Direction = {0.0f, -0.707f, -0.707f};
+    mMainPassCB.Lights[2].Strength = {0.15f, 0.15f, 0.15f};
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
@@ -206,7 +266,9 @@ inline void LandAndWavesBlendApp::DrawRenderItems(ID3D12GraphicsCommandList *cmd
                                                   const std::vector<const RenderItem *> &ritems) {
 
     uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
     auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+    auto matCB = mCurrFrameResource->MaterialCB->Resource();
     for (size_t i = 0; i < ritems.size(); i++) {
         // 要绘制一个物体，需要物体本身的信息，和它有关的model
         // 先设置顶点信息
@@ -216,8 +278,15 @@ inline void LandAndWavesBlendApp::DrawRenderItems(ID3D12GraphicsCommandList *cmd
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS ObjCBStartAddress = objectCB->GetGPUVirtualAddress();
+        D3D12_GPU_VIRTUAL_ADDRESS MatCBStartAddress = matCB->GetGPUVirtualAddress();
         auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
+        auto MatCBAddress = MatCBStartAddress + ri->Mat->MatCBIndex * matCBByteSize;
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+        tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
+        cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
+        cmdList->SetGraphicsRootDescriptorTable(3, tex);
         assert(ri->IndexCount > 0);
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
@@ -230,25 +299,8 @@ void LandAndWavesBlendApp::Draw(const GameTimer &gt) {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     HR(cmdListAlloc->Reset());
 
-    auto SwitchPSO = [this]() {
-        if (GetMSAAState()) { return mMSAAOpaquePSO.Get(); }
-        return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
-    };
+    auto SwitchPSO = [this]() { return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get(); };
     HR(mCommandList->Reset(cmdListAlloc.Get(), SwitchPSO()));
-
-    auto MsaaRTVHandle =
-            CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
-    auto MsaaDSVHandle =
-            CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart(), 1, mDsvDescriptorSize);
-
-    if (GetMSAAState()) {
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
-        mCommandList->ClearRenderTargetView(MsaaRTVHandle, DirectX::Colors::LightBlue, 0, nullptr);
-        mCommandList->ClearDepthStencilView(MsaaDSVHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
-                                            0, nullptr);
-    }
 
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_PRESENT,
@@ -258,40 +310,23 @@ void LandAndWavesBlendApp::Draw(const GameTimer &gt) {
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
 
-    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightBlue, 0, nullptr);
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), (float *) &mMainPassCB.FogColor, 0, nullptr);
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
                                         0, nullptr);
 
-    if (GetMSAAState()) {
-        mCommandList->OMSetRenderTargets(1, &MsaaRTVHandle, true, &MsaaDSVHandle);
-    } else {
-        mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-    }
 
-
+    auto passCBAddr = mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress();
+    std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mSrvDescriptorHeap.Get()};
+    mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(1, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddr);
 
-    DrawRenderItems(mCommandList.Get(), mRitemLayers[(int) RenderLayer::Opaque]);
+    DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
-    if (GetMSAAState()) {
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
+    mCommandList->SetPipelineState(mPSOs.at("transparent_blend").Get());
+    DrawRenderItems(mCommandList.Get(), mTransparentRitems);
 
-
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST));
-        mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, mBackBufferFormat);
-
-
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST,
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
-    }
-
-    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
@@ -314,16 +349,108 @@ void LandAndWavesBlendApp::Draw(const GameTimer &gt) {
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
+inline void LandAndWavesBlendApp::BuildDescriptorHeaps() {
+    assert(mRtvHeap.Get());
+    assert(mDsvHeap.Get());
+    spdlog::info("Building Descriptor Heaps");
 
+    UINT ObjCount = (UINT) mOpaqueRitems.size();
+    // ObjCount 是per obj的cb
+    // +1 是整个Pass共通的cb
+    UINT numDescriptor = (ObjCount + 1) * kNumFrameResources;
+
+    mPassCbvOffset = ObjCount * kNumFrameResources;
+
+    D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc{};
+    cbvHeapDesc.NumDescriptors = numDescriptor;
+    cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    cbvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
+
+    // srv
+
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+    srvHeapDesc.NumDescriptors = mTextures.size();
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    srvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+
+    for (const auto &it : mTextures) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        srvHandle.Offset(mTextureSrvHandleIndices.at(it.first), mCbvSrvUavDescriptorSize);
+
+        auto resource = it.second->Resource;
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+        mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
+    }
+}
+
+inline void LandAndWavesBlendApp::BuildConstantBuffers() {
+    spdlog::info("Building Constant Buffers");
+
+    spdlog::info("Building Objects Constant Buffers");
+    uint32_t ObjCBBytesSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
+    UINT ObjCount = (UINT) mOpaqueRitems.size();
+    for (int frameIndex = 0; frameIndex < kNumFrameResources; ++frameIndex) {
+        auto ObjectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
+        for (uint32_t i = 0; i < ObjCount; i++) {
+            D3D12_GPU_VIRTUAL_ADDRESS cbAddress = ObjectCB->GetGPUVirtualAddress();
+            // 第几个物体的ConstBuffer
+            cbAddress += i * ObjCBBytesSize;
+            int heapIndex = frameIndex * ObjCount + i;
+            auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+            handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+            cbvDesc.BufferLocation = cbAddress;
+            cbvDesc.SizeInBytes = ObjCBBytesSize;
+            mD3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+        }
+    }
+
+    spdlog::info("Building Passes Constant Buffers");
+    UINT passCBByteSize = CalcConstantBufferBytesSize(sizeof(PassConstants));
+
+    // Last three descriptors are the pass CBVs for each frame resource.
+    for (int frameIndex = 0; frameIndex < kNumFrameResources; ++frameIndex) {
+        auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
+        D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
+
+        // Offset to the pass cbv in the descriptor heap.
+        assert(mPassCbvOffset > 0);
+        int heapIndex = mPassCbvOffset + frameIndex;
+        auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+        handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
+
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+        cbvDesc.BufferLocation = cbAddress;
+        cbvDesc.SizeInBytes = passCBByteSize;
+        mD3dDevice->CreateConstantBufferView(&cbvDesc, handle);
+    }
+}
 inline void LandAndWavesBlendApp::BuildRootSignature() {
 
-    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-    // 根签名需要两个ConstantBufferView，但是不用放在堆里
-    // 一个放Object，一个放PassCB
+    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+    // 一个放Object，一个放PassCB,一个放MatCB
     slotRootParameter[0].InitAsConstantBufferView(0);
     slotRootParameter[1].InitAsConstantBufferView(1);
+    slotRootParameter[2].InitAsConstantBufferView(2);
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
+    CD3DX12_DESCRIPTOR_RANGE texTable;
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+    auto staticSamplers = PD::GetStaticSamplers();
+
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(_countof(slotRootParameter), slotRootParameter, staticSamplers.size(),
+                                            staticSamplers.data(),
                                             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
@@ -342,7 +469,8 @@ inline void LandAndWavesBlendApp::BuildShaderAndInputLayout() {
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
 
     auto VSBlob = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_0");
-    auto PSBlob = CompileShader(ShaderPath, nullptr, "PSMain", "ps_5_0");
+    const D3D_SHADER_MACRO FogDefines[] = {{"FOG", "1"}, {NULL, NULL}};
+    auto PSBlob = CompileShader(ShaderPath, FogDefines, "PSMain", "ps_5_0");
     assert(VSBlob);
     assert(PSBlob);
     mShaders["standardVS"] = VSBlob;
@@ -351,8 +479,17 @@ inline void LandAndWavesBlendApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-            {"COLOR", 0, DXGI_FORMAT_B8G8R8A8_UNORM, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
              0},
+            {
+                    "TEXCOORD",
+                    0,
+                    DXGI_FORMAT_R32G32_FLOAT,
+                    0,
+                    sizeof(XMFLOAT3) + sizeof(XMFLOAT3),
+                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                    0,
+            },
     };
 }
 
@@ -361,48 +498,31 @@ inline void LandAndWavesBlendApp::BuildLandGeometry() {
 
     GeometryGenerator geoGen;
     GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
-    GeometryGenerator::MeshData geoSphere = geoGen.CreateGeosphere(2.0, 3);
 
-    std::vector<Vertex> vertices(grid.Vertices.size() + geoSphere.Vertices.size());
+    std::vector<Vertex> vertices(grid.Vertices.size());
 
     // y = f(x,z)
     auto HeightFunc = [](float x, float z) -> float { return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z)); };
+    auto NormalFunc = [](float x, float z) {
+        // n = (-df/dx, 1, -df/dz)
+        XMFLOAT3 n(-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z), 1.0f,
+                   -0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z));
 
+        XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+        XMStoreFloat3(&n, unitNormal);
+
+        return n;
+    };
     size_t k = 0;
     for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
         auto &p = grid.Vertices[k].Position;
         vertices[k].Pos = p;
         vertices[k].Pos.y = HeightFunc(p.x, p.z);
-
-        // Color the vertex based on its height.
-        if (vertices[k].Pos.y < -10.0f) {
-            // Sandy beach color.
-            vertices[k].Color = XMCOLOR(1.0f, 0.96f, 0.62f, 1.0f);
-        } else if (vertices[k].Pos.y < 5.0f) {
-            // Light yellow-green.
-            vertices[k].Color = XMCOLOR(0.48f, 0.77f, 0.46f, 1.0f);
-        } else if (vertices[k].Pos.y < 12.0f) {
-            // Dark yellow-green.
-            vertices[k].Color = XMCOLOR(0.1f, 0.48f, 0.19f, 1.0f);
-        } else if (vertices[k].Pos.y < 20.0f) {
-            // Dark brown.
-            vertices[k].Color = XMCOLOR(0.45f, 0.39f, 0.34f, 1.0f);
-        } else {
-            // White snow.
-            vertices[k].Color = XMCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
-        }
+        vertices[k].Normal = NormalFunc(p.x, p.z);
+        vertices[k].TexC = grid.Vertices[i].TexC;
     }
-
-    for (size_t i = 0; i < geoSphere.Vertices.size(); ++i, ++k) {
-        vertices[k].Pos = geoSphere.Vertices[i].Position;
-        vertices[k].Color = XMCOLOR(1.0f, 0.f, 0.1f, 1.0f);
-    }
-
-
     std::vector<uint16_t> indices;
     indices.insert(indices.end(), grid.GetIndices16().begin(), grid.GetIndices16().end());
-    // ex 7.9.1 create GeoSphere
-    indices.insert(indices.end(), geoSphere.GetIndices16().begin(), geoSphere.GetIndices16().end());
 
     const UINT vbByteSize = (UINT) vertices.size() * sizeof(Vertex);
     const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
@@ -433,13 +553,7 @@ inline void LandAndWavesBlendApp::BuildLandGeometry() {
     gridSubmesh.StartIndexLocation = 0;
     gridSubmesh.IndexCount = grid.Indices32.size();
 
-    SubmeshGeometry GeoSphereSubmesh;
-    GeoSphereSubmesh.BaseVertexLocation = grid.Vertices.size();
-    GeoSphereSubmesh.StartIndexLocation = grid.Indices32.size();
-    GeoSphereSubmesh.IndexCount = geoSphere.Indices32.size();
-
-    geo->DrawArgs["grid"] = gridSubmesh;
-    geo->DrawArgs["geoSphere"] = GeoSphereSubmesh;
+    geo->DrawArgs["land"] = gridSubmesh;
 
     mGeometries[geo->name] = std::move(geo);
 }
@@ -473,11 +587,12 @@ inline void LandAndWavesBlendApp::BuildWavesGeometry() {
         }
     }
 
-    const UINT vbByteSize = (UINT) mWaves->TriangleCount() * sizeof(Vertex);
+    const UINT vbByteSize = (UINT) mWaves->VertexCount() * sizeof(Vertex);
     const UINT ibByteSize = (UINT) indices.size() * sizeof(std::uint16_t);
 
     auto geo = std::make_unique<MeshGeometry>();
     geo->name = "waveGeo";
+
 
     ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
     CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
@@ -528,60 +643,135 @@ inline void LandAndWavesBlendApp::BuildPSOs() {
 
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-    spdlog::info("Building WireFrame PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    {
+        spdlog::info("Building WireFrame PSO");
+        auto tmp = psoDesc;
+        tmp.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+    }
 
-    spdlog::info("Building MSAA PSO");
-    psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-    psoDesc.SampleDesc.Count = 4;
-    HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
+    {
+        spdlog::info("Building blend PSO");
+        // rgb  c_src * a_src + dst * (1 - a_src)
+        // a   a_src * 1 + a_dst * 0
+        auto tmp = psoDesc;
+        D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+        transparencyBlendDesc.BlendEnable = true;
+        transparencyBlendDesc.LogicOpEnable = false;
+        transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+        transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+        transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+        transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
+        tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_blend"])));
+    }
 }
 
 inline void LandAndWavesBlendApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(
-                std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(), mWaves->VertexCount()));
+        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(),
+                                                                  mMaterials.size(), mWaves->VertexCount()));
     }
 }
 
 inline void LandAndWavesBlendApp::BuildRenderItems() {
+    int objectIndex = 0;
     spdlog::info("Build Render Items");
 
     auto gridRitem = std::make_unique<RenderItem>();
     gridRitem->World = MathHelper::Identity4x4();
-    gridRitem->ObjectCBIndex = 0;
+    gridRitem->ObjectCBIndex = objectIndex++;
     gridRitem->Geo = mGeometries["landGeo"].get();
+    gridRitem->Mat = mMaterials.at("grass").get();
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
-    gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
-
-    auto geoSphereRitem = std::make_unique<RenderItem>();
-    auto WorldMatrix = DirectX::XMMatrixTranslation(0, 20, 10.0);
-    XMStoreFloat4x4(&geoSphereRitem->World, WorldMatrix);
-    geoSphereRitem->ObjectCBIndex = 1;
-    geoSphereRitem->Geo = mGeometries["landGeo"].get();
-    geoSphereRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    geoSphereRitem->IndexCount = geoSphereRitem->Geo->DrawArgs["geoSphere"].IndexCount;
-    geoSphereRitem->StartIndexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].StartIndexLocation;
-    geoSphereRitem->BaseVertexLocation = geoSphereRitem->Geo->DrawArgs["geoSphere"].BaseVertexLocation;
+    gridRitem->IndexCount = gridRitem->Geo->DrawArgs.at("land").IndexCount;
+    gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs.at("land").StartIndexLocation;
+    XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
 
     auto waveRitem = std::make_unique<RenderItem>();
     waveRitem->World = MathHelper::Identity4x4();
-    waveRitem->ObjectCBIndex = 2;
+    XMStoreFloat4x4(&waveRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+    waveRitem->ObjectCBIndex = objectIndex++;
     waveRitem->Geo = mGeometries["waveGeo"].get();
+    waveRitem->Mat = mMaterials.at("water").get();
     waveRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     waveRitem->IndexCount = waveRitem->Geo->DrawArgs["wave"].IndexCount;
     waveRitem->StartIndexLocation = waveRitem->Geo->DrawArgs["wave"].StartIndexLocation;
     waveRitem->BaseVertexLocation = waveRitem->Geo->DrawArgs["wave"].BaseVertexLocation;
 
-    mRitemLayers.at((int) RenderLayer::Opaque).push_back(gridRitem.get());
-    mRitemLayers.at((int) RenderLayer::Opaque).push_back(geoSphereRitem.get());
-    mRitemLayers.at((int) RenderLayer::Opaque).push_back(waveRitem.get());
+    mOpaqueRitems.push_back(gridRitem.get());
+    mTransparentRitems.push_back(waveRitem.get());
 
     mAllRitems.push_back(std::move(gridRitem));
-    mAllRitems.push_back(std::move(geoSphereRitem));
     mAllRitems.push_back(std::move(waveRitem));
+}
+
+inline void LandAndWavesBlendApp::LoadTextures() {
+    int texIndex = 0;
+    {
+        auto dummyTex = std::make_unique<Texture>();
+        dummyTex->Name = "dummy";
+        dummyTex->Filename = dummyTex->Name;
+        CreateDummy1x1Texture(*dummyTex, mD3dDevice.Get(), mCommandList.Get(), XMFLOAT4(1, 1, 1, 1));
+        mTextureSrvHandleIndices[dummyTex->Name] = texIndex++;
+        mTextures[dummyTex->Name] = std::move(dummyTex);
+    }
+    {
+        auto waterTex = std::make_unique<Texture>();
+        waterTex->Name = "water";
+        waterTex->Filename = fs::absolute(this->mResourceManager.find_path("water1.dds")).u8string();
+        mTextureSrvHandleIndices[waterTex->Name] = texIndex++;
+        Texture::LoadAndUploadTexture(*waterTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextures[waterTex->Name] = std::move(waterTex);
+    }
+
+    {
+        auto grassTex = std::make_unique<Texture>();
+        grassTex->Name = "grass";
+        grassTex->Filename = fs::absolute(this->mResourceManager.find_path("grass.dds")).u8string();
+        Texture::LoadAndUploadTexture(*grassTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[grassTex->Name] = texIndex++;
+        mTextures[grassTex->Name] = std::move(grassTex);
+    }
+}
+
+inline void LandAndWavesBlendApp::BuildMaterials() {
+    int matIndex = 0;
+    {
+        auto DummyWhite = std::make_unique<Material>();
+        DummyWhite->Name = "dummywhite";
+        DummyWhite->MatCBIndex = matIndex++;
+        DummyWhite->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("dummy");
+        mMaterials["dummywhite"] = std::move(DummyWhite);
+    }
+
+    {
+        auto water = std::make_unique<Material>();
+        water->Name = "water";
+        water->MatCBIndex = matIndex++;
+        water->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("water");
+        water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.6f);
+        water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+        water->Roughness = 0.f;
+        mMaterials["water"] = std::move(water);
+    }
+
+    {
+        auto grass = std::make_unique<Material>();
+        grass->Name = "grass";
+        grass->MatCBIndex = matIndex++;
+        grass->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("grass");
+        grass->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+        grass->Roughness = 0.125f;
+
+        mMaterials["grass"] = std::move(grass);
+    }
 }
 
 // 这个方法属实很蠢
@@ -609,13 +799,12 @@ inline void LandAndWavesBlendApp::UpdateWaves(const GameTimer &gt) {
         Vertex v;
 
         v.Pos = mWaves->Position(i);
-        v.Color = XMCOLOR(0, 1, 0, 1);
-        // v.Normal = mWaves->Normal(i);
+        v.Normal = mWaves->Normal(i);
 
         // // Derive tex-coords from position by
         // // mapping [-w/2,w/2] --> [0,1]
-        // v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
-        // v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
+        v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
+        v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
 
         currWavesVB->CopyData(i, v);
     }

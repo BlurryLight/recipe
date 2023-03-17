@@ -1,12 +1,15 @@
 
+#include "d3dUtils.hh"
 #include <MathHelper.h>
 #include <UploadBuffer.hh>
 
+
 namespace PD {
     using namespace DirectX;
-    using DirectX::PackedVector::XMCOLOR;
     struct ObjectConstants {
         DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 InvTransWorld = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
     };
 
 
@@ -26,25 +29,34 @@ namespace PD {
         float FarZ = 0;
         float TotalTime = 0;
         float DeltaTime = 0;
+
+        DirectX::XMFLOAT4 AmbientLight = {0, 0, 0, 1};
+
+        DirectX::XMFLOAT4 FogColor = {0.7f, 0.7f, 0.7f, 1.0f};
+        float gFogStart = 5.0f;
+        float gFogRange = 150.0f;
+        DirectX::XMFLOAT2 cbPerObjectPad2;
+
+        Light Lights[MaxLights];
     };
 
     struct Vertex {
         XMFLOAT3 Pos;
-
-        // Chapter 6.13 ex10 packed COLOR
-        // ARGB8
-        // in DXGI_FORMAT: BGRA8
-        // DXGI is in little-0Endine
-        XMCOLOR Color;
+        XMFLOAT3 Normal;
+        XMFLOAT2 TexC;
+        Vertex() = default;
+        Vertex(float x, float y, float z, float nx, float ny, float nz, float u, float v)
+            : Pos(x, y, z), Normal(nx, ny, nz), TexC(u, v) {}
     };
 
     struct FrameResource : Noncopyable {
-        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount, UINT waveVertices);
+        FrameResource(ID3D12Device *device, UINT passCount, UINT objectCount, UINT materialCount, UINT waveVertices);
         ~FrameResource(){};
         // every frame needs it allocator
         ComPtr<ID3D12CommandAllocator> CmdListAlloc;
         std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
         std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+        std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
         // 因为每一帧我们要上传新的数据，所以我们需要保存在FrameResource
         std::unique_ptr<UploadBuffer<Vertex>> WavesUploader = nullptr;
