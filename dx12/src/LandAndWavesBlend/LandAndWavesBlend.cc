@@ -1,3 +1,4 @@
+#include "BlurFilter.h"
 #include "FrameResource.h"
 #include "GeometryGenerator.h"
 #include "MathHelper.h"
@@ -45,6 +46,7 @@ public:
     LandAndWavesBlendApp(HINSTANCE hInstance);
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
+    virtual void OnResizeCallback() override;
     void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
 
@@ -57,6 +59,7 @@ private:
     void AnimateMaterials(const GameTimer &timer);
 
     void BuildRootSignature();
+    void BuildBlurRootSignature();
     void BuildShaderAndInputLayout();
     void BuildLandGeometry();
     void BuildWavesGeometry();
@@ -69,6 +72,7 @@ private:
     void UpdateMainPassCB(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+    ComPtr<ID3D12RootSignature> mBlurRootSignature = nullptr;
     ResourcePathSearcher mResourceManager;
 
     std::unordered_map<std::string, ComPtr<ID3D10Blob>> mShaders;
@@ -98,7 +102,10 @@ private:
     bool mbVsync = true;
     std::unique_ptr<Waves> mWaves = nullptr;
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
-    ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> mSrvUavDescriptorHeap = nullptr;
+
+    std::unique_ptr<BlurFilter> mBlurFilter = nullptr;
+    int mBlurCount = 2;
 };
 
 inline LandAndWavesBlendApp::LandAndWavesBlendApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -116,12 +123,14 @@ inline bool LandAndWavesBlendApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
     mCamera = new PD::Camera(SimpleMath::Vector3(0, 1, -5), SimpleMath::Vector3(0, 0, 1), SimpleMath::Vector3(0, 1, 0));
     mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+    mBlurFilter = std::make_unique<BlurFilter>(mD3dDevice.Get(), mWidth, mHeight, mBackBufferFormat);
     assert(mCommandList);
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
     LoadTextures();
     BuildRootSignature();
+    BuildBlurRootSignature();
     BuildShaderAndInputLayout();
     BuildLandGeometry();
     BuildWavesGeometry();
@@ -139,6 +148,11 @@ inline bool LandAndWavesBlendApp::Initialize() {
     FlushCommandQueue();
 
     return true;
+}
+
+inline void LandAndWavesBlendApp::OnResizeCallback() {
+    D3DApp::OnResizeCallback();
+    if (mBlurFilter != nullptr) { mBlurFilter->OnResize(mWidth, mHeight); }
 }
 
 inline void LandAndWavesBlendApp::Update(const GameTimer &timer) {
@@ -175,6 +189,7 @@ inline void LandAndWavesBlendApp::Update(const GameTimer &timer) {
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
     ImGui::SliderFloat("MoveSpeed", &mCamera->MovementSpeed, 0.0f, 50.0f);
+    ImGui::SliderInt("Blur Count", &mBlurCount, 1, 5);
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
@@ -282,7 +297,7 @@ inline void LandAndWavesBlendApp::DrawRenderItems(ID3D12GraphicsCommandList *cmd
         auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
         auto MatCBAddress = MatCBStartAddress + ri->Mat->MatCBIndex * matCBByteSize;
 
-        CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+        CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
         tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvUavDescriptorSize);
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
         cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
@@ -317,7 +332,7 @@ void LandAndWavesBlendApp::Draw(const GameTimer &gt) {
 
 
     auto passCBAddr = mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress();
-    std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mSrvDescriptorHeap.Get()};
+    std::vector<ID3D12DescriptorHeap *> descriptorHeaps{mSrvUavDescriptorHeap.Get()};
     mCommandList->SetDescriptorHeaps(descriptorHeaps.size(), descriptorHeaps.data());
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
     mCommandList->SetGraphicsRootConstantBufferView(2, passCBAddr);
@@ -327,7 +342,23 @@ void LandAndWavesBlendApp::Draw(const GameTimer &gt) {
     mCommandList->SetPipelineState(mPSOs.at("transparent_blend").Get());
     DrawRenderItems(mCommandList.Get(), mTransparentRitems);
 
+    mBlurFilter->Execute(mCommandList.Get(), mBlurRootSignature.Get(), mPSOs["horzBlur"].Get(), mPSOs["vertBlur"].Get(),
+                         CurrentBackBuffer(), mBlurCount);
+
+    // Prepare to copy blurred output to the back buffer.
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                           D3D12_RESOURCE_STATE_COPY_SOURCE,
+                                                                           D3D12_RESOURCE_STATE_COPY_DEST));
+
+    mCommandList->CopyResource(CurrentBackBuffer(), mBlurFilter->Output());
+
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+                                                                           D3D12_RESOURCE_STATE_COPY_DEST,
+                                                                           D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+    mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 
@@ -368,18 +399,19 @@ inline void LandAndWavesBlendApp::BuildDescriptorHeaps() {
     cbvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 
-    // srv
-
+    // srv + uav
+    int textureSize = mTextures.size();
+    int BlurDescriptorCount = 4;// 2 srv 2 uav
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
-    srvHeapDesc.NumDescriptors = mTextures.size();
+    srvHeapDesc.NumDescriptors = BlurDescriptorCount + textureSize + 1;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     srvHeapDesc.NodeMask = 0;
-    HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+    HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvUavDescriptorHeap)));
 
 
     for (const auto &it : mTextures) {
-        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
         srvHandle.Offset(mTextureSrvHandleIndices.at(it.first), mCbvSrvUavDescriptorSize);
 
         auto resource = it.second->Resource;
@@ -392,6 +424,12 @@ inline void LandAndWavesBlendApp::BuildDescriptorHeaps() {
         srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
         mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
     }
+    mBlurFilter->BuildDescriptors(
+            CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), textureSize,
+                                          mCbvSrvUavDescriptorSize),
+            CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvUavDescriptorHeap->GetGPUDescriptorHandleForHeapStart(), textureSize,
+                                          mCbvSrvUavDescriptorSize),
+            mCbvSrvUavDescriptorSize);
 }
 
 inline void LandAndWavesBlendApp::BuildConstantBuffers() {
@@ -464,17 +502,40 @@ inline void LandAndWavesBlendApp::BuildRootSignature() {
                                        IID_PPV_ARGS(&mRootSignature)));
 }
 
+inline void LandAndWavesBlendApp::BuildBlurRootSignature() {
+    CD3DX12_DESCRIPTOR_RANGE srvTable;
+    srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    CD3DX12_DESCRIPTOR_RANGE uavTable;
+    uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+    slotRootParameter[0].InitAsConstants(12, 0);
+    slotRootParameter[1].InitAsDescriptorTable(1, &srvTable);
+    slotRootParameter[2].InitAsDescriptorTable(1, &uavTable);
+
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(_countof(slotRootParameter), slotRootParameter, 0, nullptr,
+                                            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    ComPtr<ID3DBlob> serializedRootSig = nullptr;
+    ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
+
+    HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                             serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+    if (errorBlob) { spdlog::warn("Root Sig error: {}", (const char *) (errorBlob->GetBufferPointer())); }
+    HR(hr);
+
+    HR(mD3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(),
+                                       IID_PPV_ARGS(&mBlurRootSignature)));
+}
+
 inline void LandAndWavesBlendApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
 
-    auto VSBlob = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_0");
+    mShaders["standardVS"] = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_0");
     const D3D_SHADER_MACRO FogDefines[] = {{"FOG", "1"}, {NULL, NULL}};
-    auto PSBlob = CompileShader(ShaderPath, FogDefines, "PSMain", "ps_5_0");
-    assert(VSBlob);
-    assert(PSBlob);
-    mShaders["standardVS"] = VSBlob;
-    mShaders["opaquePS"] = PSBlob;
+    mShaders["opaquePS"] = CompileShader(ShaderPath, FogDefines, "PSMain", "ps_5_0");
+    mShaders["horzBlurCS"] = CompileShader(mResourceManager.find_path("blur.hlsl"), nullptr, "HorzBlurCS", "cs_5_0");
+    mShaders["vertBlurCS"] = CompileShader(mResourceManager.find_path("blur.hlsl"), nullptr, "VertBlurCS", "cs_5_0");
 
     spdlog::info("Bulding Input Layout");
     mInputLayout = {
@@ -669,6 +730,26 @@ inline void LandAndWavesBlendApp::BuildPSOs() {
         tmp.BlendState.RenderTarget[0] = transparencyBlendDesc;
         tmp.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         HR(mD3dDevice->CreateGraphicsPipelineState(&tmp, IID_PPV_ARGS(&mPSOs["transparent_blend"])));
+    }
+
+    {
+        spdlog::info("Building Horizontal PSO");
+        D3D12_COMPUTE_PIPELINE_STATE_DESC horzBlurPSO = {};
+        horzBlurPSO.CS = {(void *) (mShaders["horzBlurCS"]->GetBufferPointer()),
+                          mShaders["horzBlurCS"]->GetBufferSize()};
+        horzBlurPSO.pRootSignature = mBlurRootSignature.Get();
+        horzBlurPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        HR(mD3dDevice->CreateComputePipelineState(&horzBlurPSO, IID_PPV_ARGS(&mPSOs["horzBlur"])));
+    }
+
+    {
+        spdlog::info("Building vert PSO");
+        D3D12_COMPUTE_PIPELINE_STATE_DESC vertBlurPSO = {};
+        vertBlurPSO.CS = {(void *) (mShaders["vertBlurCS"]->GetBufferPointer()),
+                          mShaders["vertBlurCS"]->GetBufferSize()};
+        vertBlurPSO.pRootSignature = mBlurRootSignature.Get();
+        vertBlurPSO.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        HR(mD3dDevice->CreateComputePipelineState(&vertBlurPSO, IID_PPV_ARGS(&mPSOs["vertBlur"])));
     }
 }
 
