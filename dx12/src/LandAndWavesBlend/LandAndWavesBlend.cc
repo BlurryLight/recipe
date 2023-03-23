@@ -563,7 +563,7 @@ inline void LandAndWavesBlendApp::BuildLandGeometry() {
     std::vector<Vertex> vertices(grid.Vertices.size());
 
     // y = f(x,z)
-    auto HeightFunc = [](float x, float z) -> float { return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z)); };
+    auto HeightFunc = [](float x, float z) -> float { return 0.3f * (z * sinf(0.2f * x) + x * cosf(0.1f * z)); };
     auto NormalFunc = [](float x, float z) {
         // n = (-df/dx, 1, -df/dz)
         XMFLOAT3 n(-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z), 1.0f,

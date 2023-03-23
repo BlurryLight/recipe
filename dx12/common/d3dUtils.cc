@@ -65,6 +65,11 @@ HRESULT PD::CreateShaderFromFile(std::wstring_view csoFileNameInOut, std::wstrin
         return hr;
     } else {
         DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+        std::string version_str = ShaderModel.substr(ShaderModel.size() - 3);// ps_5_1
+        version_str[1] = '.';
+        float version_num = std::stof(version_str);
+        if (version_num > 5.0) { dwShaderFlags |= D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES; }
+
 #ifdef _DEBUG
         dwShaderFlags |= D3DCOMPILE_DEBUG;
         dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -275,7 +280,8 @@ void PD::Texture::LoadAndUploadTexture(Texture &texture, ID3D12Device *device, I
         textureData.pData = imageData.get();
         // https://github.com/microsoft/DirectXTex/wiki/ComputePitch
         // The rowPitch is the number of bytes in a scanline of pixels in the image. A standard pitch is 'byte' aligned and therefore it is equal to bytes-per-pixel * width-of-image.
-        textureData.RowPitch = static_cast<LONG_PTR>((ImageChannels * ImageWidth));
+        // textureData.RowPitch = static_cast<LONG_PTR>((ImageChannels * ImageWidth));
+        textureData.RowPitch = static_cast<LONG_PTR>((4 * ImageWidth));
         textureData.SlicePitch = textureData.RowPitch * ImageHeight;
         subresources.push_back(textureData);
     }

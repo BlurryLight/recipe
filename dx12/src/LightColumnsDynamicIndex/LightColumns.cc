@@ -3,10 +3,10 @@
 #include "MathHelper.h"
 #include "UploadBuffer.hh"
 #include "resource_path_searcher.h"
+#include <MeshGeometry.hh>
 #include <array>
 #include <d3dApp.hh>
 #include <spdlog/spdlog.h>
-#include <MeshGeometry.hh>
 
 
 #include "imgui.h"
@@ -27,8 +27,9 @@ struct RenderItem {
     // init: every resource needs to be updated
     int NumFramesDirty = kNumFrameResources;
 
+    XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
     UINT ObjectCBIndex = -1;
-    Material* Mat = nullptr;
+    Material *Mat = nullptr;
     MeshGeometry *Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -57,12 +58,14 @@ private:
     void BuildFrameResources();
     void BuildRenderItems();
     void BuildMaterials();
+    void LoadTextures();
 
     void UpdateObjectCB(const GameTimer &timer);
     void UpdateMaterialBuffers(const GameTimer &timer);
     void UpdateMainPassCB(const GameTimer &timer);
     void DrawRenderItems(ID3D12GraphicsCommandList *cmdList, const std::vector<const RenderItem *> &ritems);
-    ComPtr<ID3D12DescriptorHeap> mCbvHeap;
+    ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> mSrvHeap;
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     ResourcePathSearcher mResourceManager;
 
@@ -71,6 +74,8 @@ private:
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
+    std::unordered_map<std::string, std::unique_ptr<PD::Texture>> mTextures;
+    std::unordered_map<std::string, int> mTextureSrvHandleIndices;
 
     // List of all the render items.
     std::vector<std::unique_ptr<RenderItem>> mAllRitems;
@@ -92,9 +97,10 @@ inline LightColumnsApp::LightColumnsApp(HINSTANCE hInstance) : D3DApp(hInstance)
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
-    mResourceManager.add_path(  PD::ResourcePathSearcher::root_path / "resources" / "models");
+    mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "models");
+    mResourceManager.add_path(PD::ResourcePathSearcher::root_path / "resources" / "textures");
     mResourceManager.add_path(path / L"Shaders");
-    mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11"/ "resources"/ "models"/ "spot");
+    mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11" / "resources" / "models" / "spot");
 }
 
 inline void LightColumnsApp::ReleaseResource() {
@@ -104,13 +110,12 @@ inline void LightColumnsApp::ReleaseResource() {
 
 inline bool LightColumnsApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
-    mCamera = new PD::Camera(SimpleMath::Vector3(0, 2, -5),
-                            SimpleMath::Vector3(0, 0, 1),
-                            SimpleMath::Vector3(0, 1, 0));
+    mCamera = new PD::Camera(SimpleMath::Vector3(0, 2, -5), SimpleMath::Vector3(0, 0, 1), SimpleMath::Vector3(0, 1, 0));
     assert(mCommandList);
     assert(mDirectCmdListAlloc);
     HR(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
     // ready for record
+    LoadTextures();
     BuildRootSignature();
     BuildShaderAndInputLayout();
     BuildShapeGeometry();
@@ -162,7 +167,6 @@ inline void LightColumnsApp::Update(const GameTimer &timer) {
     ImGui::Begin("Hello, world!");
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
-    ImGui::Checkbox("MSAA State", &GetMSAAState());
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
@@ -176,9 +180,12 @@ void LightColumnsApp::UpdateObjectCB(const GameTimer &timer) {
         // upload data when needed
         if (element->NumFramesDirty > 0) {
             XMMATRIX world = XMLoadFloat4x4(&element->World);
-            ObjectConstants objCB;
+            XMMATRIX texTransform = XMLoadFloat4x4(&element->TexTransform);
+            ObjectConstants objCB{};
             XMStoreFloat4x4(&objCB.World, XMMatrixTranspose(world));
             XMStoreFloat4x4(&objCB.InvTransWorld, XMMatrixTranspose(MathHelper::InverseTranspose(world)));
+            XMStoreFloat4x4(&objCB.TexTransform, XMMatrixTranspose(texTransform));
+            objCB.MaterialIndex = element->Mat->MatCBIndex;
             currObjectCB->CopyData(element->ObjectCBIndex, objCB);
             element->NumFramesDirty--;
         }
@@ -186,16 +193,19 @@ void LightColumnsApp::UpdateObjectCB(const GameTimer &timer) {
 }
 inline void LightColumnsApp::UpdateMaterialBuffers(const GameTimer &timer) {
 
-    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-    for (auto& element: mMaterials) {
+    auto currMaterialBuffer = mCurrFrameResource->MaterialStructuralBuffer.get();
+    for (auto &element : mMaterials) {
         // upload data when needed
-        Material* mat = element.second.get();
+        Material *mat = element.second.get();
         if (mat->NumFramesDirty > 0) {
-            MaterialConstants matConstants;
-            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-            matConstants.FresnelR0 = mat->FresnelR0;
-            matConstants.Roughness = mat->Roughness;
-            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+            MaterialData matData{};
+            XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+            matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+            matData.FresnelR0 = mat->FresnelR0;
+            matData.Roughness = mat->Roughness;
+            XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+            matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+            currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
             mat->NumFramesDirty--;
         }
     }
@@ -222,26 +232,24 @@ inline void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
     mMainPassCB.FarZ = 1000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
-    mMainPassCB.AmbientLight = {0.25,0.25,0.35,1.0};
+    mMainPassCB.AmbientLight = {0.25f, 0.25f, 0.35f, 1.0f};
 
-    mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+    mMainPassCB.Lights[0].Direction = {0.57735f, -0.57735f, 0.57735f};
+    mMainPassCB.Lights[0].Strength = {0.6f, 0.6f, 0.6f};
+    mMainPassCB.Lights[1].Direction = {-0.57735f, -0.57735f, 0.57735f};
+    mMainPassCB.Lights[1].Strength = {0.3f, 0.3f, 0.3f};
+    mMainPassCB.Lights[2].Direction = {0.0f, -0.707f, -0.707f};
+    mMainPassCB.Lights[2].Strength = {0.15f, 0.15f, 0.15f};
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
 }
 
 inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
-                                       const std::vector<const RenderItem *> &ritems) {
+                                             const std::vector<const RenderItem *> &ritems) {
 
     uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
-    uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
     auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-    auto matCB = mCurrFrameResource->MaterialCB->Resource();
     for (size_t i = 0; i < ritems.size(); i++) {
         // 要绘制一个物体，需要物体本身的信息，和它有关的model
         // 先设置顶点信息
@@ -251,11 +259,8 @@ inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS ObjCBStartAddress = objectCB->GetGPUVirtualAddress();
-        D3D12_GPU_VIRTUAL_ADDRESS MatCBStartAddress = matCB->GetGPUVirtualAddress();
         auto ObjCBAddress = ObjCBStartAddress + ri->ObjectCBIndex * objCBByteSize;
-        auto MatCBAddress = MatCBStartAddress+ ri->Mat->MatCBIndex* matCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, ObjCBAddress);
-        cmdList->SetGraphicsRootConstantBufferView(1, MatCBAddress);
         assert(ri->IndexCount > 0);
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
@@ -268,25 +273,8 @@ void LightColumnsApp::Draw(const GameTimer &gt) {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     HR(cmdListAlloc->Reset());
 
-    auto SwitchPSO = [this]() {
-        if (GetMSAAState()) { return mMSAAOpaquePSO.Get(); }
-        return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get();
-    };
+    auto SwitchPSO = [this]() { return mbShowWireFrame ? mPSOs["opaque_wireframe"].Get() : mPSOs["opaque"].Get(); };
     HR(mCommandList->Reset(cmdListAlloc.Get(), SwitchPSO()));
-
-    auto MsaaRTVHandle =
-            CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart(), 2, mRtvDescriptorSize);
-    auto MsaaDSVHandle =
-            CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart(), 1, mDsvDescriptorSize);
-
-    if (GetMSAAState()) {
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
-        mCommandList->ClearRenderTargetView(MsaaRTVHandle, DirectX::Colors::LightBlue, 0, nullptr);
-        mCommandList->ClearDepthStencilView(MsaaDSVHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
-                                            0, nullptr);
-    }
 
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
                                                                            D3D12_RESOURCE_STATE_PRESENT,
@@ -300,35 +288,19 @@ void LightColumnsApp::Draw(const GameTimer &gt) {
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0,
                                         0, nullptr);
 
-    if (GetMSAAState()) {
-        mCommandList->OMSetRenderTargets(1, &MsaaRTVHandle, true, &MsaaDSVHandle);
-    } else {
-        mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-    }
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(2, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+
+    ID3D12DescriptorHeap *descriptorHeaps[] = {mSrvHeap.Get()};
+    mCommandList->SetDescriptorHeaps(1, descriptorHeaps);
+    mCommandList->SetGraphicsRootConstantBufferView(1, mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootShaderResourceView(
+            2, mCurrFrameResource->MaterialStructuralBuffer->Resource()->GetGPUVirtualAddress());
+    mCommandList->SetGraphicsRootDescriptorTable(3, mSrvHeap->GetGPUDescriptorHandleForHeapStart());
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
-    if (GetMSAAState()) {
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(),
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
-
-
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST));
-        mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, mBackBufferFormat);
-
-
-        mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-                                                                               D3D12_RESOURCE_STATE_RESOLVE_DEST,
-                                                                               D3D12_RESOURCE_STATE_RENDER_TARGET));
-    }
-
-    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
     mCommandList->SetPipelineState(mPSOs["opaque"].Get());
     mCommandList->SetDescriptorHeaps(1, mImGuiCbvHeap.GetAddressOf());
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
@@ -369,6 +341,30 @@ inline void LightColumnsApp::BuildDescriptorHeaps() {
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     cbvHeapDesc.NodeMask = 0;
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
+
+    int textureSize = mTextures.size();
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+    srvHeapDesc.NumDescriptors = textureSize;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    srvHeapDesc.NodeMask = 0;
+    HR(mD3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvHeap)));
+
+
+    for (const auto &it : mTextures) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(mSrvHeap->GetCPUDescriptorHandleForHeapStart());
+        srvHandle.Offset(mTextureSrvHandleIndices.at(it.first), mCbvSrvUavDescriptorSize);
+
+        auto resource = it.second->Resource;
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+        mD3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, srvHandle);
+    }
 }
 
 inline void LightColumnsApp::BuildConstantBuffers() {
@@ -415,14 +411,19 @@ inline void LightColumnsApp::BuildConstantBuffers() {
 }
 
 inline void LightColumnsApp::BuildRootSignature() {
-    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
-    // 根签名需要3个ConstantBufferView，但是不用放在堆里
-    // 一个放Object，一个放PassCB,一个放MatCB
-    slotRootParameter[0].InitAsConstantBufferView(0);
-    slotRootParameter[1].InitAsConstantBufferView(1);
-    slotRootParameter[2].InitAsConstantBufferView(2);
+    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+    slotRootParameter[0].InitAsConstantBufferView(0);   // per object cbv
+    slotRootParameter[1].InitAsConstantBufferView(1);   // pass cbv
+    slotRootParameter[2].InitAsShaderResourceView(0, 1);// space 1, structural buffer
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter, 0, nullptr,
+    CD3DX12_DESCRIPTOR_RANGE texTable;
+    assert(mTextures.size() > 0);
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, mTextures.size(), 0);
+    slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
+    auto static_samplers = GetStaticSamplers();
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(_countof(slotRootParameter), slotRootParameter, static_samplers.size(),
+                                            static_samplers.data(),
                                             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;// 如果创建root sig失败了，里面会存放错误信息
@@ -440,8 +441,8 @@ inline void LightColumnsApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
 
-    auto VSBlob = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_0");
-    auto PSBlob = CompileShader(ShaderPath, nullptr, "PSMain", "ps_5_0");
+    auto VSBlob = CompileShader(ShaderPath, nullptr, "VSMain", "vs_5_1");
+    auto PSBlob = CompileShader(ShaderPath, nullptr, "PSMain", "ps_5_1");
     assert(VSBlob);
     assert(PSBlob);
     mShaders["standardVS"] = VSBlob;
@@ -452,6 +453,8 @@ inline void LightColumnsApp::BuildShaderAndInputLayout() {
             {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
             {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
              0},
+            {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 2 * sizeof(XMFLOAT3),
+             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 }
 
@@ -465,7 +468,7 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
     // ex 7.9.3 Load Model file
-    auto ModelMeshes = LoadModelFromFile( mResourceManager.find_path("spot_triangulated.obj"));
+    auto ModelMeshes = LoadModelFromFile(mResourceManager.find_path("spot_triangulated.obj"));
     auto SkullMesh = LoadLunaFileFromFile(mResourceManager.find_path("skull.txt"));
     //
     // We are concatenating all the geometry into one big vertex/index buffer.  So
@@ -522,21 +525,25 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = box.Vertices[i].Position;
         vertices[k].Normal = box.Vertices[i].Normal;
+        vertices[k].TexC = box.Vertices[i].TexC;
     }
 
     for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = grid.Vertices[i].Position;
         vertices[k].Normal = grid.Vertices[i].Normal;
+        vertices[k].TexC = grid.Vertices[i].TexC;
     }
 
     for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = sphere.Vertices[i].Position;
         vertices[k].Normal = sphere.Vertices[i].Normal;
+        vertices[k].TexC = sphere.Vertices[i].TexC;
     }
 
     for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
         vertices[k].Pos = cylinder.Vertices[i].Position;
         vertices[k].Normal = cylinder.Vertices[i].Normal;
+        vertices[k].TexC = cylinder.Vertices[i].TexC;
     }
 
 
@@ -550,29 +557,30 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     SpotSubmesh.StartIndexLocation = indices.size();
     SpotSubmesh.BaseVertexLocation = vertices.size();
     size_t SpotMeshIndicesCount = 0;
-    for(const auto& MeshInfo : ModelMeshes)
-    {
+    for (const auto &MeshInfo : ModelMeshes) {
         totalVertexCount += MeshInfo.mPoses.size();
         for (size_t i = 0; i < MeshInfo.mPoses.size(); ++i) {
-            Vertex v;
+            Vertex v{};
             v.Pos = MeshInfo.mPoses[i];
             v.Normal = MeshInfo.mNormals[i];
+            if (!MeshInfo.mTexs.empty()) v.TexC = MeshInfo.mTexs[i];
             vertices.push_back(v);
         }
         indices.insert(indices.end(), std::begin(MeshInfo.mIndices16), std::end(MeshInfo.mIndices16));
         SpotMeshIndicesCount += MeshInfo.mIndices32.size();
     }
-    SpotSubmesh.IndexCount= SpotMeshIndicesCount;
+    SpotSubmesh.IndexCount = SpotMeshIndicesCount;
 
-    totalVertexCount+= SkullMesh.mPoses.size();
+    totalVertexCount += SkullMesh.mPoses.size();
     SubmeshGeometry SkullSubmesh;
     SkullSubmesh.StartIndexLocation = indices.size();
     SkullSubmesh.BaseVertexLocation = vertices.size();
     SkullSubmesh.IndexCount = SkullMesh.mIndices32.size();
     for (size_t i = 0; i < SkullMesh.mPoses.size(); ++i) {
-        Vertex v;
+        Vertex v = {};
         v.Pos = SkullMesh.mPoses[i];
         v.Normal = SkullMesh.mNormals[i];
+        if (!SkullMesh.mTexs.empty()) { v.TexC = SkullMesh.mTexs[i]; }
         vertices.push_back(v);
     }
     indices.insert(indices.end(), std::begin(SkullMesh.mIndices16), std::end(SkullMesh.mIndices16));
@@ -651,7 +659,8 @@ inline void LightColumnsApp::BuildPSOs() {
 
 inline void LightColumnsApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
-        mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(),mMaterials.size()));
+        mFrameResources.push_back(
+                std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(), mMaterials.size()));
     }
 }
 
@@ -686,7 +695,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     spotRitem->World = DirectX::SimpleMath::Matrix::CreateTranslation(0, 3, -5);
     spotRitem->ObjectCBIndex = objCBIndex++;
     spotRitem->Geo = mGeometries["shapeGeo"].get();
-    spotRitem->Mat = mMaterials["skullMat"].get();
+    spotRitem->Mat = mMaterials.at("spotMat").get();
     spotRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     spotRitem->IndexCount = spotRitem->Geo->DrawArgs["spot"].IndexCount;
     spotRitem->StartIndexLocation = spotRitem->Geo->DrawArgs["spot"].StartIndexLocation;
@@ -766,42 +775,108 @@ inline void LightColumnsApp::BuildRenderItems() {
 }
 
 inline void LightColumnsApp::BuildMaterials() {
+    int matIndex = 0;
     auto bricks0 = std::make_unique<Material>();
-	bricks0->Name = "bricks0";
-	bricks0->MatCBIndex = 0;
-	bricks0->DiffuseSrvHeapIndex = 0;
-	bricks0->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
-	bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-	bricks0->Roughness = 0.1f;
+    bricks0->Name = "bricks0";
+    bricks0->MatCBIndex = matIndex++;
+    bricks0->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("bricks");
+    bricks0->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
+    bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    bricks0->Roughness = 0.1f;
 
-	auto stone0 = std::make_unique<Material>();
-	stone0->Name = "stone0";
-	stone0->MatCBIndex = 1;
-	stone0->DiffuseSrvHeapIndex = 1;
-	stone0->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
-	stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	stone0->Roughness = 0.3f;
- 
-	auto tile0 = std::make_unique<Material>();
-	tile0->Name = "tile0";
-	tile0->MatCBIndex = 2;
-	tile0->DiffuseSrvHeapIndex = 2;
-	tile0->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
-	tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-	tile0->Roughness = 0.2f;
+    auto stone0 = std::make_unique<Material>();
+    stone0->Name = "stone0";
+    stone0->MatCBIndex = matIndex++;
+    stone0->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("stone");
+    stone0->DiffuseAlbedo = XMFLOAT4(Colors::LightSteelBlue);
+    stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    stone0->Roughness = 0.3f;
 
-	auto skullMat = std::make_unique<Material>();
-	skullMat->Name = "skullMat";
-	skullMat->MatCBIndex = 3;
-	skullMat->DiffuseSrvHeapIndex = 3;
-	skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05);
-	skullMat->Roughness = 0.3f;
-	
-	mMaterials["bricks0"] = std::move(bricks0);
-	mMaterials["stone0"] = std::move(stone0);
-	mMaterials["tile0"] = std::move(tile0);
-	mMaterials["skullMat"] = std::move(skullMat);
+    auto tile0 = std::make_unique<Material>();
+    tile0->Name = "tile0";
+    tile0->MatCBIndex = matIndex++;
+    tile0->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("tile");
+    tile0->DiffuseAlbedo = XMFLOAT4(Colors::LightGray);
+    tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    tile0->Roughness = 0.2f;
+
+    auto skullMat = std::make_unique<Material>();
+    skullMat->Name = "skullMat";
+    skullMat->MatCBIndex = matIndex++;
+    skullMat->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("dummy");
+    skullMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    skullMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    skullMat->Roughness = 1.0f;
+
+    auto spotMat = std::make_unique<Material>();
+    spotMat->Name = "spotMat";
+    spotMat->MatCBIndex = matIndex++;
+    spotMat->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("spot");
+    spotMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    spotMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    spotMat->Roughness = 1.0f;
+    ;
+
+    mMaterials["bricks0"] = std::move(bricks0);
+    mMaterials["stone0"] = std::move(stone0);
+    mMaterials["tile0"] = std::move(tile0);
+    mMaterials["skullMat"] = std::move(skullMat);
+    mMaterials["spotMat"] = std::move(spotMat);
+}
+
+inline void LightColumnsApp::LoadTextures() {
+    int texIndex = 0;
+    {
+        auto dummyTex = std::make_unique<Texture>();
+        dummyTex->Name = "dummy";
+        dummyTex->Filename = dummyTex->Name;
+        CreateDummy1x1Texture(*dummyTex, mD3dDevice.Get(), mCommandList.Get(), XMFLOAT4(1, 1, 1, 1));
+        mTextureSrvHandleIndices[dummyTex->Name] = texIndex++;
+        mTextures[dummyTex->Name] = std::move(dummyTex);
+    }
+    {
+        auto stoneTex = std::make_unique<Texture>();
+        stoneTex->Name = "stone";
+        stoneTex->Filename = fs::absolute(this->mResourceManager.find_path("stone.dds")).u8string();
+        mTextureSrvHandleIndices[stoneTex->Name] = texIndex++;
+        Texture::LoadAndUploadTexture(*stoneTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextures[stoneTex->Name] = std::move(stoneTex);
+    }
+
+    {
+        auto tileTex = std::make_unique<Texture>();
+        tileTex->Name = "tile";
+        tileTex->Filename = fs::absolute(this->mResourceManager.find_path("tile.dds")).u8string();
+        Texture::LoadAndUploadTexture(*tileTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[tileTex->Name] = texIndex++;
+        mTextures[tileTex->Name] = std::move(tileTex);
+    }
+
+    {
+        auto woodCrateTex = std::make_unique<Texture>();
+        woodCrateTex->Name = "woodCrate";
+        woodCrateTex->Filename = fs::absolute(this->mResourceManager.find_path("woodCrate01.dds")).u8string();
+        Texture::LoadAndUploadTexture(*woodCrateTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[woodCrateTex->Name] = texIndex++;
+        mTextures[woodCrateTex->Name] = std::move(woodCrateTex);
+    }
+    {
+        auto bricksTex = std::make_unique<Texture>();
+        bricksTex->Name = "bricks";
+        bricksTex->Filename = fs::absolute(this->mResourceManager.find_path("bricks.dds")).u8string();
+        Texture::LoadAndUploadTexture(*bricksTex, mD3dDevice.Get(), mCommandList.Get());
+        mTextureSrvHandleIndices[bricksTex->Name] = texIndex++;
+        mTextures[bricksTex->Name] = std::move(bricksTex);
+    }
+
+    {
+        auto spotTex = std::make_unique<Texture>();
+        spotTex->Name = "spot";
+        spotTex->Filename = fs::absolute(this->mResourceManager.find_path("spot_texture.png")).u8string();
+        Texture::LoadAndUploadTexture(*spotTex, mD3dDevice.Get(), mCommandList.Get(), true);
+        mTextureSrvHandleIndices[spotTex->Name] = texIndex++;
+        mTextures[spotTex->Name] = std::move(spotTex);
+    }
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
