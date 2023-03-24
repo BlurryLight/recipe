@@ -19,17 +19,19 @@ void PD::DxTrace(const wchar_t *file, unsigned long line, HRESULT hr, const wcha
                    hr, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (char *) &output, 0, NULL);
     std::wcerr << "file:" << file << "line:" << line << ", " << proc << std::endl;
     std::printf("Error Msg: %s", output);
+    LocalFree(output);
 }
 
 std::string PD::utf16_to_utf8_windows(std::wstring const &utf16s) {
     // https://stackoverflow.com/questions/215963/how-do-you-properly-use-widechartomultibyte
+    if (utf16s.empty()) return {};
     int count = WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) (utf16s.c_str()), (int) utf16s.size(), NULL, 0, NULL, NULL);
     std::string res;
     res.resize(count);
     int flag =
             WideCharToMultiByte(CP_UTF8, 0, (wchar_t *) utf16s.c_str(), utf16s.size(), res.data(), count, NULL, NULL);
     if (!flag) {
-        std::cerr << "converted u16 to utf8 failed" << std::endl;
+        DxTrace(__FILEW__, __LINE__, GetLastError(), L"utf16_to_utf8_windows");
         return "";
     }
     return res;
@@ -42,13 +44,14 @@ std::wstring PD::utf8_to_utf16_windows(std::string const &utf8) {
     // 注意要传入准确地utf8.size(),size()是不包含\0的长度
     // 否则WindowsAPI 会计入包含 \0的长度
     // 因为结果填充到std::wstring里，std::wstring自带补0，所以WinAPI返回的字符串应该为不含0的字符
+    if (utf8.empty()) return {};
     int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(), (int) utf8.size(), NULL, 0);
     std::wstring res;
     res.resize(count);
     int flag = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(), (int) utf8.size(),
                                    (wchar_t *) (res.data()), count);
     if (!flag) {
-        std::cerr << "converted u8 to utf16 failed" << std::endl;
+        DxTrace(__FILEW__, __LINE__, GetLastError(), L"utf16_to_utf8_windows");
         return L"";
     }
     return res;
