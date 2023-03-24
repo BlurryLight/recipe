@@ -9,21 +9,20 @@ template <typename T>
 class UploadBuffer : Noncopyable
 {
     public:
-    UploadBuffer(ID3D12Device* device,uint32_t elementCount,bool bIsConstantBuffer)
-    :mbIsConstantBuffer(bIsConstantBuffer)
-    {
-        assert(device);
-        mElementByteSize = bIsConstantBuffer ? CalcConstantBufferBytesSize(sizeof(T)) : sizeof(T);
+        UploadBuffer(ID3D12Device *device, uint32_t elementCount, bool bIsConstantBuffer)
+            : mbIsConstantBuffer(bIsConstantBuffer), elemCount(elementCount) {
+            assert(device);
+            mElementByteSize = bIsConstantBuffer ? CalcConstantBufferBytesSize(sizeof(T)) : sizeof(T);
 
-        auto HeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        auto HeapDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount);
-        HR(device->CreateCommittedResource(&HeapProperties, D3D12_HEAP_FLAG_NONE, &HeapDesc,
-                                           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                           IID_PPV_ARGS(mUploadBuffer.GetAddressOf())));
+            auto HeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+            auto HeapDesc = CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount);
+            HR(device->CreateCommittedResource(&HeapProperties, D3D12_HEAP_FLAG_NONE, &HeapDesc,
+                                               D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                               IID_PPV_ARGS(mUploadBuffer.GetAddressOf())));
 
-        // TODO: 阅读这个函数的文档
-        HR(mUploadBuffer->Map(0, nullptr, (void **) &mMappedData));
-    }
+            // TODO: 阅读这个函数的文档
+            HR(mUploadBuffer->Map(0, nullptr, (void **) &mMappedData));
+        }
     ~UploadBuffer()
     {
         if(mUploadBuffer)
@@ -42,6 +41,7 @@ class UploadBuffer : Noncopyable
     void CopyData(int elementIndex,const T& Data)
     {
         assert(mMappedData);
+        assert(elementIndex < elemCount);
         memmove(mMappedData + elementIndex * mElementByteSize, (const char*)&Data , sizeof(T));
     }
 
@@ -58,5 +58,6 @@ private:
     uint8_t* mMappedData = nullptr;
     uint32_t mElementByteSize = 0;
     bool mbIsConstantBuffer = false;
+    int elemCount = 0;
 };
 }
