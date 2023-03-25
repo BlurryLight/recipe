@@ -34,6 +34,7 @@ struct RenderItem {
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
     UINT InstanceCount = 1;
+    BoundingBox Bounds;
     int BaseVertexLocation = 0;
 };
 
@@ -43,6 +44,7 @@ public:
     LightColumnsApp(HINSTANCE hInstance);
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
+    virtual void OnResizeCallback() override;
     void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
 
@@ -88,6 +90,9 @@ private:
     PassConstants mMainPassCB;
     bool mbShowWireFrame = false;
     bool mbVsync = true;
+    BoundingFrustum mCamFrustum;
+    bool mbFrustumCulling = false;
+    std::string mCullingInfo = "";
 };
 
 inline LightColumnsApp::LightColumnsApp(HINSTANCE hInstance) : D3DApp(hInstance) {
@@ -132,15 +137,18 @@ inline bool LightColumnsApp::Initialize() {
     return true;
 }
 
+inline void LightColumnsApp::OnResizeCallback() {
+    D3DApp::OnResizeCallback();
+    float aspect = GetAspectRatio();
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
+    XMStoreFloat4x4(&mProj, P);
+    BoundingFrustum::CreateFromMatrix(mCamFrustum, P);
+}
+
 inline void LightColumnsApp::Update(const GameTimer &timer) {
 
     D3DApp::Update(timer);
     XMStoreFloat4x4(&mView, mCamera->GetViewMatrix());
-
-    // The window resized, so update the aspect ratio and recompute the projection matrix.
-    float aspect = GetAspectRatio();
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, aspect, 1.0f, 1000.0f);
-    XMStoreFloat4x4(&mProj, P);
 
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % kNumFrameResources;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
@@ -167,20 +175,42 @@ inline void LightColumnsApp::Update(const GameTimer &timer) {
     ImGui::Checkbox("WireFrame", &mbShowWireFrame);
     ImGui::Checkbox("VSync", &mbVsync);
     ImGui::Checkbox("DemoWindow", &bShowDemoWindow);
+    ImGui::Checkbox("Frustum Culling", &mbFrustumCulling);
+    ImGui::TextUnformatted(mCullingInfo.data());
     ImGui::End();
     ImGui::Render();
 }
 
 void LightColumnsApp::UpdateObjectInstanceData(const GameTimer &timer) {
+    XMMATRIX view = mCamera->GetViewMatrix();
+    XMMATRIX invView = XMMatrixInverse(nullptr, view);
+
     auto currInstanceBuffer = mCurrFrameResource->ObjectInstanceBuffer.get();
     // 目前只允许绘制一个物体的实例
     auto &element = mAllRitems[0];
     // upload data when needed
-    if (element->NumFramesDirty > 0) {
-        const auto &instanceData = element->instanceData;
-        for (int i = 0; i < instanceData.size(); i++) { currInstanceBuffer->CopyData(i, instanceData[i]); }
-        element->NumFramesDirty--;
+    const auto &instanceData = element->instanceData;
+    int visiableInstanceCount = 0;
+
+    for (int i = 0; i < instanceData.size(); i++) {
+        auto world = XMLoadFloat4x4(&instanceData[i].World);
+        auto invWorld = XMMatrixInverse(nullptr, world);
+        auto TexTrans = XMLoadFloat4x4(&instanceData[i].TexTransform);
+        auto invTransWorld = XMLoadFloat4x4(&instanceData[i].InvTransWorld);
+        auto viewToLocal = invView * invWorld;
+        BoundingFrustum localFrustum;
+        mCamFrustum.Transform(localFrustum, viewToLocal);
+        if (!mbFrustumCulling || (localFrustum.Contains(element->Bounds) != DirectX::DISJOINT)) {
+            InstanceData data;
+            XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
+            XMStoreFloat4x4(&data.InvTransWorld, XMMatrixTranspose(invTransWorld));
+            XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(TexTrans));
+            data.MaterialIndex = instanceData[i].MaterialIndex;
+            currInstanceBuffer->CopyData(visiableInstanceCount++, data);
+        }
     }
+    element->InstanceCount = visiableInstanceCount;
+    mCullingInfo = fmt::format("Visible: {} / {}", visiableInstanceCount, instanceData.size());
 }
 inline void LightColumnsApp::UpdateMaterialBuffers(const GameTimer &timer) {
 
@@ -518,6 +548,8 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     SubmeshGeometry SpotSubmesh;
     SpotSubmesh.StartIndexLocation = indices.size();
     SpotSubmesh.BaseVertexLocation = vertices.size();
+    XMVECTOR vMin = SimpleMath::Vector3(MathHelper::Infinity, MathHelper::Infinity, MathHelper::Infinity);
+    XMVECTOR vMax = SimpleMath::Vector3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
     size_t SpotMeshIndicesCount = 0;
     for (const auto &MeshInfo : ModelMeshes) {
         totalVertexCount += MeshInfo.mPoses.size();
@@ -527,11 +559,19 @@ inline void LightColumnsApp::BuildShapeGeometry() {
             v.Normal = MeshInfo.mNormals[i];
             if (!MeshInfo.mTexs.empty()) v.TexC = MeshInfo.mTexs[i];
             vertices.push_back(v);
+
+            XMVECTOR P = XMLoadFloat3(&v.Pos);
+            vMin = XMVectorMin(vMin, P);
+            vMax = XMVectorMax(vMax, P);
         }
         indices.insert(indices.end(), std::begin(MeshInfo.mIndices16), std::end(MeshInfo.mIndices16));
         SpotMeshIndicesCount += MeshInfo.mIndices32.size();
     }
     SpotSubmesh.IndexCount = SpotMeshIndicesCount;
+    BoundingBox SpotBounds;
+    XMStoreFloat3(&SpotBounds.Center, (vMin + vMax));
+    XMStoreFloat3(&SpotBounds.Extents, (vMax - vMin) * 0.5f);
+    SpotSubmesh.Bounds = SpotBounds;
 
     totalVertexCount += SkullMesh.mPoses.size();
     SubmeshGeometry SkullSubmesh;
@@ -638,6 +678,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     spotRitem->BaseVertexLocation = spotRitem->Geo->DrawArgs["spot"].BaseVertexLocation;
     spotRitem->InstanceCount = instanceCount;
     spotRitem->instanceData.resize(instanceCount);
+    spotRitem->Bounds = spotRitem->Geo->DrawArgs["spot"].Bounds.value();
     srand(1234);
     auto get_random_float = []() { return (double) rand() / RAND_MAX; };
     for (int i = 0; i < instanceCount; i++) {
@@ -646,9 +687,8 @@ inline void LightColumnsApp::BuildRenderItems() {
         float z = (get_random_float() * 2) * 10;
         float scale = (get_random_float() + 1) * 2;
         auto trans = XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, y, z);
-        XMStoreFloat4x4(&spotRitem->instanceData[i].World, XMMatrixTranspose(trans));
-        XMStoreFloat4x4(&spotRitem->instanceData[i].InvTransWorld,
-                        XMMatrixTranspose(MathHelper::InverseTranspose(trans)));
+        XMStoreFloat4x4(&spotRitem->instanceData[i].World, trans);
+        XMStoreFloat4x4(&spotRitem->instanceData[i].InvTransWorld, MathHelper::InverseTranspose(trans));
         spotRitem->instanceData[i].TexTransform = MathHelper::Identity4x4();
         spotRitem->instanceData[i].MaterialIndex = i % mMaterials.size();
     }
