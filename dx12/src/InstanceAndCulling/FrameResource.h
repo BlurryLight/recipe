@@ -6,7 +6,15 @@
 
 namespace PD {
     using namespace DirectX;
-    struct InstanceData {
+    struct InstanceDataCPU {
+        DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 InvTransWorld = MathHelper::Identity4x4();
+        DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+        UINT MaterialIndex;
+        bool picked = false;
+    };
+
+    struct InstanceDataGPU {
         DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
         DirectX::XMFLOAT4X4 InvTransWorld = MathHelper::Identity4x4();
         DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
@@ -60,7 +68,7 @@ namespace PD {
         // every frame needs it allocator
         ComPtr<ID3D12CommandAllocator> CmdListAlloc;
         std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-        std::unique_ptr<UploadBuffer<InstanceData>> ObjectInstanceBuffer = nullptr;
+        std::unique_ptr<UploadBuffer<InstanceDataGPU>> ObjectInstanceBuffer = nullptr;
         std::unique_ptr<UploadBuffer<MaterialData>> MaterialStructuralBuffer = nullptr;
 
         UINT64 Fence = 0;

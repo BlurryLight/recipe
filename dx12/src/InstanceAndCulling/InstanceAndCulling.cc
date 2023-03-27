@@ -29,7 +29,7 @@ struct RenderItem {
     MeshGeometry *Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    std::vector<InstanceData> instanceData;
+    std::vector<InstanceDataCPU> instanceData;
     // draw instance params
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
@@ -45,8 +45,10 @@ public:
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
     virtual void OnResizeCallback() override;
+    virtual void OnMouseDownCallback(WPARAM btnState, int x, int y) override;
     void Update(const GameTimer &timer) override;
     void Draw(const GameTimer &gt) override;
+    void AABBPick(int x, int y);
 
 private:
     void BuildDescriptorHeaps();
@@ -145,6 +147,14 @@ inline void LightColumnsApp::OnResizeCallback() {
     BoundingFrustum::CreateFromMatrix(mCamFrustum, P);
 }
 
+inline void LightColumnsApp::OnMouseDownCallback(WPARAM btnState, int x, int y) {
+    D3DApp::OnMouseDownCallback(btnState, x, y);
+    if (btnState & MK_RBUTTON) {
+        fmt::print("Picking: {} {}", x, y);
+        AABBPick(x, y);
+    }
+}
+
 inline void LightColumnsApp::Update(const GameTimer &timer) {
 
     D3DApp::Update(timer);
@@ -201,7 +211,7 @@ void LightColumnsApp::UpdateObjectInstanceData(const GameTimer &timer) {
         BoundingFrustum localFrustum;
         mCamFrustum.Transform(localFrustum, viewToLocal);
         if (!mbFrustumCulling || (localFrustum.Contains(element->Bounds) != DirectX::DISJOINT)) {
-            InstanceData data;
+            InstanceDataGPU data;
             XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
             XMStoreFloat4x4(&data.InvTransWorld, XMMatrixTranspose(invTransWorld));
             XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(TexTrans));
@@ -340,6 +350,72 @@ void LightColumnsApp::Draw(const GameTimer &gt) {
     // 同时往GPU插一条命令，当GPU任务执行完时，应该把mFence的值设置为mCurrentFence
     mCurrFrameResource->Fence = ++mCurrentFence;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
+
+inline void LightColumnsApp::AABBPick(int x, int y) {
+    float vx = (2.0 * x / mWidth - 1) / mProj._11;
+    float vy = (-2.0 * y / mHeight + 1) / mProj._22;
+
+    SimpleMath::Vector4 rayOrigin(0, 0, 0, 1);
+    SimpleMath::Vector4 rayDir(vx, vy, 1, 0);
+
+    auto view = mCamera->GetViewMatrix();
+    XMMATRIX invView = XMMatrixInverse(nullptr, view);
+
+    auto &element = mAllRitems[0];
+    auto &instanceData = element->instanceData;
+
+    int target_index = -1;
+    float tmin = std::numeric_limits<float>::max();
+
+    // 从CPU Buffer里重建所有三角形
+    auto *vertices = (Vertex *) element->Geo->VertexBufferCPU->GetBufferPointer();
+    auto *indices = (uint16_t *) element->Geo->IndexBufferCPU->GetBufferPointer();
+    UINT triangle_count = element->IndexCount / 3;
+    struct Triangle {
+        XMVECTOR v0, v1, v2;
+    };
+    std::vector<Triangle> tris(triangle_count);
+    uint16_t baseOffset = element->StartIndexLocation;
+    for (int i = 0; i < triangle_count; i++) {
+        uint16_t i0 = indices[baseOffset + i * 3 + 0];
+        uint16_t i1 = indices[baseOffset + i * 3 + 1];
+        uint16_t i2 = indices[baseOffset + i * 3 + 2];
+        tris[i].v0 = XMLoadFloat3(&vertices[i0].Pos);
+        tris[i].v1 = XMLoadFloat3(&vertices[i1].Pos);
+        tris[i].v2 = XMLoadFloat3(&vertices[i2].Pos);
+    }
+
+    for (int i = 0; i < instanceData.size(); i++) {
+        // ignore already highlighted objects
+        if (instanceData[i].picked) continue;
+
+        auto world = XMLoadFloat4x4(&instanceData[i].World);
+        auto invWorld = XMMatrixInverse(nullptr, world);
+        auto toLocal = invView * invWorld;
+
+        auto lRayOrigin = XMVector3TransformCoord(rayOrigin, toLocal);
+        SimpleMath::Vector4 lRayDir = XMVector3TransformNormal(rayDir, toLocal);
+        lRayDir.Normalize();
+
+        float t = std::numeric_limits<float>::max();
+        if (element->Bounds.Intersects(lRayOrigin, lRayDir, t)) {
+            if (t > tmin) continue;
+            // 精细判断每个三角形
+            for (int j = 0; j < triangle_count; j++) {
+                if (TriangleTests::Intersects(lRayOrigin, lRayDir, tris[j].v0, tris[j].v1, tris[j].v2, t)) {
+                    if (t < tmin) {
+                        tmin = t;
+                        target_index = i;
+                    }
+                }
+            }
+        }
+    }
+    if (target_index >= 0) {
+        instanceData[target_index].MaterialIndex = mMaterials.at("highlightMat")->MatCBIndex;
+        instanceData[target_index].picked = true;
+    }
 }
 
 inline void LightColumnsApp::BuildDescriptorHeaps() {
@@ -690,7 +766,7 @@ inline void LightColumnsApp::BuildRenderItems() {
         XMStoreFloat4x4(&spotRitem->instanceData[i].World, trans);
         XMStoreFloat4x4(&spotRitem->instanceData[i].InvTransWorld, MathHelper::InverseTranspose(trans));
         spotRitem->instanceData[i].TexTransform = MathHelper::Identity4x4();
-        spotRitem->instanceData[i].MaterialIndex = i % mMaterials.size();
+        spotRitem->instanceData[i].MaterialIndex = i % (mMaterials.size() - 1);// exluce highlightMat
     }
     mAllRitems.push_back(std::move(spotRitem));
 
@@ -741,13 +817,21 @@ inline void LightColumnsApp::BuildMaterials() {
     spotMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     spotMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
     spotMat->Roughness = 1.0f;
-    ;
+
+    auto hightlightMat = std::make_unique<Material>();
+    hightlightMat->Name = "highlightMat";
+    hightlightMat->MatCBIndex = matIndex++;
+    hightlightMat->DiffuseSrvHeapIndex = mTextureSrvHandleIndices.at("dummy");
+    hightlightMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 0.0f, 0.6f);
+    hightlightMat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+    hightlightMat->Roughness = 1.0f;
 
     mMaterials["bricks0"] = std::move(bricks0);
     mMaterials["stone0"] = std::move(stone0);
     mMaterials["tile0"] = std::move(tile0);
     mMaterials["skullMat"] = std::move(skullMat);
     mMaterials["spotMat"] = std::move(spotMat);
+    mMaterials["highlightMat"] = std::move(hightlightMat);
 }
 
 inline void LightColumnsApp::LoadTextures() {
@@ -760,6 +844,7 @@ inline void LightColumnsApp::LoadTextures() {
         mTextureSrvHandleIndices[dummyTex->Name] = texIndex++;
         mTextures[dummyTex->Name] = std::move(dummyTex);
     }
+
     {
         auto stoneTex = std::make_unique<Texture>();
         stoneTex->Name = "stone";
