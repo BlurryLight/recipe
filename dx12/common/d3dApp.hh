@@ -49,7 +49,7 @@ namespace PD {
 
         void CreateCommandObjects();
         void CreateSwapChain();
-        void CreateRtvAndDsvDescriptorHeaps();
+        virtual void CreateRtvAndDsvDescriptorHeaps();
         void CreateMSAAObjects();
 
         void FlushCommandQueue();

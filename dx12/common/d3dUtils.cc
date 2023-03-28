@@ -125,7 +125,7 @@ ComPtr<ID3D12Resource> PD::CreateDefaultBuffer(ID3D12Device *device, ID3D12Graph
     auto defaultResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
     // 创建了DefaultBuffer，但是内部是空的
     HR(device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &defaultResourceDesc,
-                                       D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&defaultBuffer)));
+                                       D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&defaultBuffer)));
 
     auto uploadHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     auto uploadResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
@@ -142,8 +142,8 @@ ComPtr<ID3D12Resource> PD::CreateDefaultBuffer(ID3D12Device *device, ID3D12Graph
     subResourceData.RowPitch = byteSize;
     subResourceData.SlicePitch = byteSize;
 
-    cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(), D3D12_RESOURCE_STATE_COMMON,
-                                                                      D3D12_RESOURCE_STATE_COPY_DEST));
+    // cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(), D3D12_RESOURCE_STATE_COMMON,
+    //                                                                   D3D12_RESOURCE_STATE_COPY_DEST));
     // 首先从CPU端拷贝到uploader里，再拷贝到default heap里
     UpdateSubresources<1>(cmdList, defaultBuffer.Get(), outUploader.Get(), 0, 0, 1, &subResourceData);
     cmdList->ResourceBarrier(1,

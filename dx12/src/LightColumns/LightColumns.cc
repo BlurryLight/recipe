@@ -39,9 +39,9 @@ struct RenderItem {
 };
 
 
-class LightColumnsApp : public D3DApp {
+class DynamicCubeMapApp : public D3DApp {
 public:
-    LightColumnsApp(HINSTANCE hInstance);
+    DynamicCubeMapApp(HINSTANCE hInstance);
     virtual void ReleaseResource() override;
     virtual bool Initialize() override;
     void Update(const GameTimer &timer) override;
@@ -88,7 +88,7 @@ private:
     bool mbVsync = true;
 };
 
-inline LightColumnsApp::LightColumnsApp(HINSTANCE hInstance) : D3DApp(hInstance) {
+inline DynamicCubeMapApp::DynamicCubeMapApp(HINSTANCE hInstance) : D3DApp(hInstance) {
     auto path = PD::ResourcePathSearcher::Path(PROJECT_DIR);
     if (!path.is_absolute()) { path = fs::absolute(path); }
     mResourceManager.add_path(path);
@@ -97,12 +97,12 @@ inline LightColumnsApp::LightColumnsApp(HINSTANCE hInstance) : D3DApp(hInstance)
     mResourceManager.add_path(path / ".." / ".." / ".." / "dx11" / "cpp-dx11"/ "resources"/ "models"/ "spot");
 }
 
-inline void LightColumnsApp::ReleaseResource() {
+inline void DynamicCubeMapApp::ReleaseResource() {
     mRootSignature.Reset();
     mCbvHeap.Reset();
 }
 
-inline bool LightColumnsApp::Initialize() {
+inline bool DynamicCubeMapApp::Initialize() {
     if (!D3DApp::Initialize()) { return false; }
     mCamera = new PD::Camera(SimpleMath::Vector3(0, 2, -5),
                             SimpleMath::Vector3(0, 0, 1),
@@ -130,7 +130,7 @@ inline bool LightColumnsApp::Initialize() {
     return true;
 }
 
-inline void LightColumnsApp::Update(const GameTimer &timer) {
+inline void DynamicCubeMapApp::Update(const GameTimer &timer) {
 
     D3DApp::Update(timer);
     XMStoreFloat4x4(&mView, mCamera->GetViewMatrix());
@@ -170,7 +170,7 @@ inline void LightColumnsApp::Update(const GameTimer &timer) {
     ImGui::Render();
 }
 
-void LightColumnsApp::UpdateObjectCB(const GameTimer &timer) {
+void DynamicCubeMapApp::UpdateObjectCB(const GameTimer &timer) {
     auto currObjectCB = mCurrFrameResource->ObjectCB.get();
     for (auto &element : mAllRitems) {
         // upload data when needed
@@ -184,7 +184,7 @@ void LightColumnsApp::UpdateObjectCB(const GameTimer &timer) {
         }
     }
 }
-inline void LightColumnsApp::UpdateMaterialBuffers(const GameTimer &timer) {
+inline void DynamicCubeMapApp::UpdateMaterialBuffers(const GameTimer &timer) {
 
     auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
     for (auto& element: mMaterials) {
@@ -200,7 +200,7 @@ inline void LightColumnsApp::UpdateMaterialBuffers(const GameTimer &timer) {
         }
     }
 }
-inline void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
+inline void DynamicCubeMapApp::UpdateMainPassCB(const GameTimer &gt) {
     XMMATRIX view = XMLoadFloat4x4(&mView);
     XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
@@ -235,8 +235,8 @@ inline void LightColumnsApp::UpdateMainPassCB(const GameTimer &gt) {
     currPassCB->CopyData(0, mMainPassCB);
 }
 
-inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
-                                       const std::vector<const RenderItem *> &ritems) {
+inline void DynamicCubeMapApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
+                                               const std::vector<const RenderItem *> &ritems) {
 
     uint32_t objCBByteSize = CalcConstantBufferBytesSize(sizeof(ObjectConstants));
     uint32_t matCBByteSize = CalcConstantBufferBytesSize(sizeof(MaterialConstants));
@@ -261,7 +261,7 @@ inline void LightColumnsApp::DrawRenderItems(ID3D12GraphicsCommandList *cmdList,
     }
 }
 
-void LightColumnsApp::Draw(const GameTimer &gt) {
+void DynamicCubeMapApp::Draw(const GameTimer &gt) {
 
 
     // 取出当前帧的Alloc,然后把cmdlist关联到这个alloc
@@ -351,7 +351,7 @@ void LightColumnsApp::Draw(const GameTimer &gt) {
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-inline void LightColumnsApp::BuildDescriptorHeaps() {
+inline void DynamicCubeMapApp::BuildDescriptorHeaps() {
     assert(mRtvHeap.Get());
     assert(mDsvHeap.Get());
     spdlog::info("Building Descriptor Heaps");
@@ -371,7 +371,7 @@ inline void LightColumnsApp::BuildDescriptorHeaps() {
     HR(mD3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
 }
 
-inline void LightColumnsApp::BuildConstantBuffers() {
+inline void DynamicCubeMapApp::BuildConstantBuffers() {
     spdlog::info("Building Constant Buffers");
 
     spdlog::info("Building Objects Constant Buffers");
@@ -414,7 +414,7 @@ inline void LightColumnsApp::BuildConstantBuffers() {
     }
 }
 
-inline void LightColumnsApp::BuildRootSignature() {
+inline void DynamicCubeMapApp::BuildRootSignature() {
     CD3DX12_ROOT_PARAMETER slotRootParameter[3];
     // 根签名需要3个ConstantBufferView，但是不用放在堆里
     // 一个放Object，一个放PassCB,一个放MatCB
@@ -436,7 +436,7 @@ inline void LightColumnsApp::BuildRootSignature() {
                                        IID_PPV_ARGS(&mRootSignature)));
 }
 
-inline void LightColumnsApp::BuildShaderAndInputLayout() {
+inline void DynamicCubeMapApp::BuildShaderAndInputLayout() {
     spdlog::info("Bulding Shaders");
     auto ShaderPath = mResourceManager.find_path("color.hlsl");
 
@@ -455,7 +455,7 @@ inline void LightColumnsApp::BuildShaderAndInputLayout() {
     };
 }
 
-inline void LightColumnsApp::BuildShapeGeometry() {
+inline void DynamicCubeMapApp::BuildShapeGeometry() {
     spdlog::info("Bulding Shape Geometries");
 
     GeometryGenerator geoGen;
@@ -611,7 +611,7 @@ inline void LightColumnsApp::BuildShapeGeometry() {
     mGeometries[geo->name] = std::move(geo);
 }
 
-inline void LightColumnsApp::BuildPSOs() {
+inline void DynamicCubeMapApp::BuildPSOs() {
 
     spdlog::info("Building PSO");
     spdlog::info("Building Opaque PSO");
@@ -649,13 +649,13 @@ inline void LightColumnsApp::BuildPSOs() {
     HR(mD3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mMSAAOpaquePSO)));
 }
 
-inline void LightColumnsApp::BuildFrameResources() {
+inline void DynamicCubeMapApp::BuildFrameResources() {
     for (int i = 0; i < kNumFrameResources; i++) {
         mFrameResources.push_back(std::make_unique<FrameResource>(mD3dDevice.Get(), 1, (UINT) mAllRitems.size(),mMaterials.size()));
     }
 }
 
-inline void LightColumnsApp::BuildRenderItems() {
+inline void DynamicCubeMapApp::BuildRenderItems() {
     spdlog::info("Build Render Items");
     UINT objCBIndex = 0;
 
@@ -765,7 +765,7 @@ inline void LightColumnsApp::BuildRenderItems() {
     for (auto &e : mAllRitems) mOpaqueRitems.push_back(e.get());
 }
 
-inline void LightColumnsApp::BuildMaterials() {
+inline void DynamicCubeMapApp::BuildMaterials() {
     auto bricks0 = std::make_unique<Material>();
 	bricks0->Name = "bricks0";
 	bricks0->MatCBIndex = 0;
@@ -814,7 +814,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     freopen("CONIN$", "r", stdin);
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-    LightColumnsApp theApp(hInstance);
+    DynamicCubeMapApp theApp(hInstance);
     if (!theApp.Initialize()) return 0;
 
     return theApp.MessageLoopRun();
