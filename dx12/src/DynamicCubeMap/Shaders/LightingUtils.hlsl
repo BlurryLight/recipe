@@ -17,7 +17,6 @@ struct Material {
   float Shininess;
 };
 
-// R0是材质有关的常数，90度直射的材质的反射率
 float3 SchlickFresnel(float3 R0, float3 normalW, float3 lightVec) {
   float cosTheta = saturate(dot(lightVec, normalW));
   float tmp = 1.0 - cosTheta;
@@ -28,7 +27,7 @@ float3 SchlickFresnel(float3 R0, float3 normalW, float3 lightVec) {
 
 float3 BlinnPhong(float3 lightStrength, float3 lightDir, float3 normalW,
                   float3 viewDir, Material mat) {
-  const float m = mat.Shininess * 256.0f; // 决定高光斑大小
+  const float m = mat.Shininess * 256.0f;
   float3 halfVec = normalize(viewDir + lightDir);
 
   float roughFactor = (m + 8.0) * pow(max(dot(normalW, halfVec), 0.0), m) / 8.0;

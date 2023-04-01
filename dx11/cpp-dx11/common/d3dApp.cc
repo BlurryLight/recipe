@@ -65,25 +65,7 @@ void D3DApp::DrawImGUI() {
 
 int D3DApp::Run() {
   while (!glfwWindowShouldClose(window_)) {
-    // Deal with glfw3
-    this->ProcessInput(window_);
-    // Deal with ImGUI
-    ImGui_ImplDX11_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    DrawImGUI();
-    ImGui::Render();
-    pd3dDeviceIMContext_->OMSetDepthStencilState(
-        reverse_z_ ? DepthFuncGreaterStencilState_.Get()
-                   : DepthFuncDefaultStencilState_.Get(),
-        0);
-    DrawScene();
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    HRESULT hr;
-    HR(pSwapChain_->Present(vsync_ ? 1 : 0, 0));
-
-    //轮询并处理事件
+    RenderScene();
     glfwPollEvents();
   }
 
@@ -196,8 +178,13 @@ bool D3DApp::InitMainWindow() {
         ->glfw_mouse_callback(xpos, ypos);
   };
 
+  auto window_refresh_cb = [](GLFWwindow *win) {
+    static_cast<D3DApp *>(glfwGetWindowUserPointer(win))->RenderScene();
+  };
+
   glfwSetKeyCallback(window_, key_cb);
   glfwSetCursorPosCallback(window_, mouse_cb);
+  glfwSetWindowRefreshCallback(window_, window_refresh_cb);
 
   // IMGUI INIT
   IMGUI_CHECKVERSION();
@@ -354,4 +341,25 @@ void PD::D3DApp::glfw_mouse_callback(double xPos, double yPos) {
   } else {
     firstMouse = true;
   }
+}
+void PD::D3DApp::RenderScene() {
+  if (!window_)
+    return;
+  // Deal with glfw3
+  this->ProcessInput(window_);
+  // Deal with ImGUI
+  ImGui_ImplDX11_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+
+  DrawImGUI();
+  ImGui::Render();
+  pd3dDeviceIMContext_->OMSetDepthStencilState(
+      reverse_z_ ? DepthFuncGreaterStencilState_.Get()
+                 : DepthFuncDefaultStencilState_.Get(),
+      0);
+  DrawScene();
+  ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+  HRESULT hr;
+  HR(pSwapChain_->Present(vsync_ ? 1 : 0, 0));
 }

@@ -37,6 +37,7 @@ public:
    *
    */
   virtual void DrawImGUI();
+  void RenderScene();
 
 protected:
   bool InitMainWindow();
