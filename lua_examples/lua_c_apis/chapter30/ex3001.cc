@@ -114,7 +114,9 @@ int t_tuple(lua_State *L){
         luaL_argcheck(L, op <= 256 && op > 0, top, "index out of range [1,256]");
         if(lua_isnone(L,lua_upvalueindex(op)))
         {
-            return 0;
+            // return 0;
+            lua_pushnil(L);
+            return 1;
         }
         lua_pushvalue(L,lua_upvalueindex(op));
         return 1;
