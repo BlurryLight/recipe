@@ -46,3 +46,15 @@ print("test concat")
 ---@type fun(arr: string[],seq: string): string
 local l_string_concat = my_string_concat
 print(l_string_concat({ "hello", "I", "am", "going", "to", "be", "concatted" }, "!"));
+
+print("test tuple")
+local l_tuple_new = my_tuple_new; 
+local t = l_tuple_new(1, "str", {});
+
+print(t(0)) -- should print all
+print(t()) -- should print all
+
+print(t(1))
+print(t(2))
+print(t(3))
+print(t(4)) -- should print nil

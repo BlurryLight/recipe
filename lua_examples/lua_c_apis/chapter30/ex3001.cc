@@ -91,6 +91,44 @@ static int l_string_concat(lua_State* L)
     return 1;
 }
 
+// an interesting implementation of tuple
+int t_tuple(lua_State *L){
+    int top = lua_gettop(L);
+    luaL_argcheck(L, top <= 1, top, "too many args");
+
+    // if args[0] is integer
+    lua_Integer op = luaL_optinteger(L, 1, 0);
+    
+    if(op == 0)
+    {
+        int i = 1;
+        for(;!lua_isnone(L,lua_upvalueindex(i));i++)
+        {
+            // 索引上值需要通过一个特殊的宏
+            lua_pushvalue(L,lua_upvalueindex(i));
+        }
+        return i - 1;
+    }
+    else
+    {
+        luaL_argcheck(L, op <= 256 && op > 0, top, "index out of range [1,256]");
+        if(lua_isnone(L,lua_upvalueindex(op)))
+        {
+            return 0;
+        }
+        lua_pushvalue(L,lua_upvalueindex(op));
+        return 1;
+    }
+}
+
+int t_tuple_new(lua_State* L)
+{
+    int top = lua_gettop(L);
+    luaL_argcheck(L, top < 256, top, "too many field");
+    lua_pushcclosure(L, t_tuple, top);
+    return 1;
+}
+
 int main()
 {
     int error = 0;
@@ -108,6 +146,9 @@ int main()
 
         lua_pushcfunction(ls, l_string_concat);
         lua_setglobal(ls,"my_string_concat");
+
+        lua_pushcfunction(ls, t_tuple_new);
+        lua_setglobal(ls,"my_tuple_new");
 
         std::string filename{"ex3001.lua"};
         error = luaL_loadfile(ls, filename.data()) || lua_pcall(ls,0,0,0);
