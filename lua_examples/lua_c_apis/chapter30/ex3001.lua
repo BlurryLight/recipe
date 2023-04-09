@@ -24,5 +24,25 @@ local add_three = add_by_value(3)
 
 l_map(t, add_three)
 
-
 print_debug("after map", t)
+
+-- test split
+print("test split")
+
+---@type string
+s = "Hi:Lua:Split:From:C:Client";
+
+---@type fun(str: string): string[]
+local l_split = my_split;
+local split_s = l_split(s, ':');
+print(table.concat(split_s, '_'))
+
+print("test upper")
+---@type fun(str: string): string
+local l_string_upper = my_string_upper;
+print(l_string_upper("i'm going to be an upper string"));
+
+print("test concat")
+---@type fun(arr: string[],seq: string): string
+local l_string_concat = my_string_concat
+print(l_string_concat({ "hello", "I", "am", "going", "to", "be", "concatted" }, "!"));
