@@ -83,8 +83,26 @@ static int l_GetSize(lua_State *L) {
   lua_pushinteger(L, arr->size);
   return 1;
 }
-static const struct luaL_Reg BitArrayLib[] = {
+
+static int l_array2string(lua_State *L) {
+  BitArray *const arr = (BitArray *)luaL_checkudata(L, 1, kBitArrayKey);
+  lua_pushfstring(L, "BitArray(%d)",arr->size);
+  return 1;
+}
+
+static const struct luaL_Reg BitArrayLib_funcs[] = {
     {"new", l_NewBitArray},
+    {"set", l_SetBit},
+    {"get", l_GetBit},
+    {"size", l_GetSize},
+    {NULL, NULL} // sentinel
+};
+
+static const struct luaL_Reg BitArrayLib_methods[] = {
+    {"__tostring", l_array2string},
+    {"__len", l_GetSize},
+    {"__newindex", l_SetBit},
+
     {"set", l_SetBit},
     {"get", l_GetBit},
     {"size", l_GetSize},
@@ -94,7 +112,10 @@ static const struct luaL_Reg BitArrayLib[] = {
 extern "C" {
 __declspec(dllexport) int luaopen_BitArrayLib(lua_State *L) {
   luaL_newmetatable(L, kBitArrayKey);
-  luaL_newlib(L, BitArrayLib);
+  lua_pushvalue(L, -1); // copy metatable
+  lua_setfield(L, -2, "__index");// meta.__index = meta
+  luaL_setfuncs(L, BitArrayLib_methods, 0); // register metatable funcs
+  luaL_newlib(L, BitArrayLib_funcs);
   return 1;
 }
 }
