@@ -1,7 +1,14 @@
 #include  <VulkanExampleBase.h>
 
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)									
-{																									
-    MessageBoxW(nullptr, L"你好",L"Hello Vulkan",MB_OK);
-	return 0;																						
+int main(int argc,char** argv)
+{
+    VKApplicationBase app;
+    try {
+        app.run();
+    } catch (const std::exception& e)
+    {
+        spdlog::error(e.what());
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }

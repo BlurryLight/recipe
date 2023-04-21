@@ -21,7 +21,9 @@ IF (NOT Vulkan_FOUND)
     set(VK_SDK_INCLUDE ${VK_SDK_PATH}/Include)
     set(VK_SDK_LIB ${VK_SDK_PATH}/Lib/vulkan-1.lib)
     set(VK_SDK_BIN ${VK_SDK_PATH}/Bin)
+    include_directories(${VK_SDK_INCLUDE})
 ELSE()
+    include_directories(${Vulkan_INCLUDE_DIRS})
 	message(STATUS ${Vulkan_LIBRARY})
 ENDIF()
 
@@ -31,6 +33,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8 /W3")
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 find_package(spdlog REQUIRED)
+find_package(glfw3)
 
 add_subdirectory(base)
 
