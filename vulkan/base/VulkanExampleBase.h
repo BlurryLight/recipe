@@ -10,17 +10,20 @@ class VKApplicationBase
     public:
     void run()
     {
-       initWindow();
-       initVulkan();
-       mainLoop();
-       cleanup(); 
+        initWindow();
+        createInstance();
+        initVulkan();
+        mainLoop();
+        cleanup();
     }
     private:
-    virtual void initVulkan(){}
-    virtual void mainLoop();
-    virtual void cleanup();
-    void initWindow();
+        void createInstance();
+        virtual void initVulkan() {}
+        virtual void mainLoop();
+        virtual void cleanup();
+        void initWindow();
 
     protected:
     GLFWwindow* mWindow = nullptr;
+    VkInstance mInstance;
 };
