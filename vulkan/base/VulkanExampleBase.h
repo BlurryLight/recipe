@@ -1,6 +1,9 @@
 #pragma once
-#include <vulkan/vulkan.h>
+#include "VulkanUtils.hh"
+#include <Volk/volk.h>
 #include <spdlog/spdlog.h>
+
+
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -12,6 +15,7 @@ class VKApplicationBase
     {
         initWindow();
         createInstance();
+        setupDebugMessenger();
         initVulkan();
         mainLoop();
         cleanup();
@@ -22,8 +26,10 @@ class VKApplicationBase
         virtual void mainLoop();
         virtual void cleanup();
         void initWindow();
+        void setupDebugMessenger();
 
     protected:
     GLFWwindow* mWindow = nullptr;
     VkInstance mInstance;
+    VkDebugUtilsMessengerEXT mDebugMessenger;
 };
