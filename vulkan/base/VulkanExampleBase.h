@@ -14,22 +14,22 @@ class VKApplicationBase
     void run()
     {
         initWindow();
-        createInstance();
-        setupDebugMessenger();
         initVulkan();
         mainLoop();
         cleanup();
     }
     private:
         void createInstance();
-        virtual void initVulkan() {}
+        virtual void initVulkan();
         virtual void mainLoop();
         virtual void cleanup();
         void initWindow();
         void setupDebugMessenger();
+        void pickPhysicalDevice();
 
     protected:
     GLFWwindow* mWindow = nullptr;
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
+    VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
 };

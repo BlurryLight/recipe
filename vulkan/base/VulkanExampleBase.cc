@@ -1,4 +1,5 @@
 #include "VulkanExampleBase.h"
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -114,7 +115,7 @@ void VKApplicationBase::createInstance() {
     std::set<std::string> supportedExtensionNameSet;
     for (const auto &Prop : supportedExtensions) {
         supportedExtensionNameSet.emplace(Prop.extensionName);
-        spdlog::info("available extention name {}", Prop.extensionName);
+        spdlog::debug("available extention name {}", Prop.extensionName);
     }
 
 
@@ -136,6 +137,12 @@ void VKApplicationBase::createInstance() {
     VK_CHECK_RESULT(vkCreateInstance(&createInfo, nullptr, &mInstance));
 
     volkLoadInstance(mInstance);
+}
+
+void VKApplicationBase::initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    pickPhysicalDevice();
 }
 
 void VKApplicationBase::mainLoop() {
@@ -167,4 +174,58 @@ void VKApplicationBase::setupDebugMessenger() {
     populateDebugMessengerCreateInfo(createInfo);
 
     VK_CHECK_RESULT(vkCreateDebugUtilsMessengerEXT(mInstance, &createInfo, nullptr, &mDebugMessenger));
+}
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> computeFamily;
+    bool isComplete() const { return graphicsFamily.has_value() && computeFamily.has_value(); }
+};
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+
+    QueueFamilyIndices queueIndices;
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps.data());
+    for (int i = 0; i < queueFamilyCount; i++) {
+        if (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { queueIndices.graphicsFamily = i; }
+        if (queueFamilyProps[i].queueFlags & VK_QUEUE_COMPUTE_BIT) { queueIndices.computeFamily = i; }
+        if (queueIndices.isComplete()) { break; }
+    }
+    return queueIndices;
+}
+
+void VKApplicationBase::pickPhysicalDevice() {
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(mInstance, &deviceCount, nullptr);
+    if (!deviceCount) { throw std::runtime_error("No available gpu device for vulkan found"); }
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(mInstance, &deviceCount, devices.data());
+
+    spdlog::info("We have {} available GPUs", deviceCount);
+
+    auto checkDeviceSuitable = [](VkPhysicalDevice device) {
+        VkPhysicalDeviceProperties deviceProps;
+        vkGetPhysicalDeviceProperties(device, &deviceProps);
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+        spdlog::info("device Name: {}", deviceProps.deviceName);
+        bool bDiscrete = deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+
+        QueueFamilyIndices queueIndices = findQueueFamilies(device);
+        return bDiscrete && queueIndices.isComplete();
+    };
+    // we just pick the last one discrect gpu
+    for (auto &device : devices) {
+        bool bFound = checkDeviceSuitable(device);
+        if (bFound) { mPhysicalDevice = device; }
+    }
+
+    {
+        VkPhysicalDeviceProperties deviceProps;
+        vkGetPhysicalDeviceProperties(mPhysicalDevice, &deviceProps);
+        spdlog::info("Final Device Name: {} ,device ID: {} ", deviceProps.deviceName, deviceProps.deviceID);
+    }
 }
