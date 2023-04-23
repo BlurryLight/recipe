@@ -4,7 +4,6 @@
 #include <spdlog/spdlog.h>
 
 
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -26,10 +25,13 @@ class VKApplicationBase
         void initWindow();
         void setupDebugMessenger();
         void pickPhysicalDevice();
+        void createLogicalDevice();
 
     protected:
     GLFWwindow* mWindow = nullptr;
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
     VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
+    VkDevice mDevice = VK_NULL_HANDLE;
+    VkQueue mGraphicsQueue = VK_NULL_HANDLE;// auto cleanup with VkDevice
 };

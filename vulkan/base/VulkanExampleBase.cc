@@ -143,6 +143,7 @@ void VKApplicationBase::initVulkan() {
     createInstance();
     setupDebugMessenger();
     pickPhysicalDevice();
+    createLogicalDevice();
 }
 
 void VKApplicationBase::mainLoop() {
@@ -151,6 +152,7 @@ void VKApplicationBase::mainLoop() {
 
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
+    vkDestroyDevice(mDevice, nullptr);
     vkDestroyInstance(mInstance, nullptr);
     mInstance = nullptr;
     glfwDestroyWindow(mWindow);
@@ -207,9 +209,9 @@ void VKApplicationBase::pickPhysicalDevice() {
     spdlog::info("We have {} available GPUs", deviceCount);
 
     auto checkDeviceSuitable = [](VkPhysicalDevice device) {
-        VkPhysicalDeviceProperties deviceProps;
+        VkPhysicalDeviceProperties deviceProps{};
         vkGetPhysicalDeviceProperties(device, &deviceProps);
-        VkPhysicalDeviceFeatures deviceFeatures;
+        VkPhysicalDeviceFeatures deviceFeatures{};
         vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
         spdlog::info("device Name: {}", deviceProps.deviceName);
         bool bDiscrete = deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
@@ -228,4 +230,27 @@ void VKApplicationBase::pickPhysicalDevice() {
         vkGetPhysicalDeviceProperties(mPhysicalDevice, &deviceProps);
         spdlog::info("Final Device Name: {} ,device ID: {} ", deviceProps.deviceName, deviceProps.deviceID);
     }
+}
+
+void VKApplicationBase::createLogicalDevice() {
+    QueueFamilyIndices indices = findQueueFamilies(mPhysicalDevice);
+    assert(indices.isComplete());
+    VkDeviceQueueCreateInfo queueCreateInfo{};
+    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    static float queuePriority = 1.0f;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    VkPhysicalDeviceFeatures deviceFeatures{};
+    VkDeviceCreateInfo deviceCreateInfo{};
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+    // currently we ignore any device extensions
+
+    VK_CHECK_RESULT(vkCreateDevice(mPhysicalDevice, &deviceCreateInfo, nullptr, &mDevice));
+
+    vkGetDeviceQueue(mDevice, /*queueFamilyIndex*/ indices.graphicsFamily.value(), /*queueIndex*/ 0, &mGraphicsQueue);
 }
