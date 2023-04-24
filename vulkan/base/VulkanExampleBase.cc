@@ -142,9 +142,11 @@ void VKApplicationBase::createInstance() {
 void VKApplicationBase::initVulkan() {
     createInstance();
     setupDebugMessenger();
+    createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
 }
+
 
 void VKApplicationBase::mainLoop() {
     while (!glfwWindowShouldClose(mWindow)) { glfwPollEvents(); }
@@ -153,6 +155,7 @@ void VKApplicationBase::mainLoop() {
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
     vkDestroyDevice(mDevice, nullptr);
+    vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
     vkDestroyInstance(mInstance, nullptr);
     mInstance = nullptr;
     glfwDestroyWindow(mWindow);
@@ -181,19 +184,27 @@ void VKApplicationBase::setupDebugMessenger() {
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> computeFamily;
-    bool isComplete() const { return graphicsFamily.has_value() && computeFamily.has_value(); }
+    std::optional<uint32_t> presentFamily;
+    bool isComplete() const {
+        return graphicsFamily.has_value() && computeFamily.has_value() && presentFamily.has_value();
+    }
 };
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
 
     QueueFamilyIndices queueIndices;
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
     std::vector<VkQueueFamilyProperties> queueFamilyProps(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps.data());
+
     for (int i = 0; i < queueFamilyCount; i++) {
         if (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { queueIndices.graphicsFamily = i; }
         if (queueFamilyProps[i].queueFlags & VK_QUEUE_COMPUTE_BIT) { queueIndices.computeFamily = i; }
+
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+        if (presentSupport) { queueIndices.presentFamily = i; }
         if (queueIndices.isComplete()) { break; }
     }
     return queueIndices;
@@ -208,7 +219,7 @@ void VKApplicationBase::pickPhysicalDevice() {
 
     spdlog::info("We have {} available GPUs", deviceCount);
 
-    auto checkDeviceSuitable = [](VkPhysicalDevice device) {
+    auto checkDeviceSuitable = [this](VkPhysicalDevice device) {
         VkPhysicalDeviceProperties deviceProps{};
         vkGetPhysicalDeviceProperties(device, &deviceProps);
         VkPhysicalDeviceFeatures deviceFeatures{};
@@ -216,7 +227,7 @@ void VKApplicationBase::pickPhysicalDevice() {
         spdlog::info("device Name: {}", deviceProps.deviceName);
         bool bDiscrete = deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 
-        QueueFamilyIndices queueIndices = findQueueFamilies(device);
+        QueueFamilyIndices queueIndices = findQueueFamilies(device, mSurface);
         return bDiscrete && queueIndices.isComplete();
     };
     // we just pick the last one discrect gpu
@@ -224,7 +235,7 @@ void VKApplicationBase::pickPhysicalDevice() {
         bool bFound = checkDeviceSuitable(device);
         if (bFound) { mPhysicalDevice = device; }
     }
-
+    CHECK(mPhysicalDevice != nullptr, "No PhysicalDevice");
     {
         VkPhysicalDeviceProperties deviceProps;
         vkGetPhysicalDeviceProperties(mPhysicalDevice, &deviceProps);
@@ -233,24 +244,37 @@ void VKApplicationBase::pickPhysicalDevice() {
 }
 
 void VKApplicationBase::createLogicalDevice() {
-    QueueFamilyIndices indices = findQueueFamilies(mPhysicalDevice);
+
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    QueueFamilyIndices indices = findQueueFamilies(mPhysicalDevice, mSurface);
     assert(indices.isComplete());
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-    queueCreateInfo.queueCount = 1;
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    static float queuePriority = 1.0f;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+    // 尽管大概率一个QueueFamily就足以创建所有不同的Queue类型，但是这里还是假设他们可能属于多个不同的queue family
+    std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+    for (auto queueFamily : uniqueQueueFamilies) {
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        static float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueCreateInfo);
+    }
 
     VkPhysicalDeviceFeatures deviceFeatures{};
     VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+    deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
     // currently we ignore any device extensions
 
     VK_CHECK_RESULT(vkCreateDevice(mPhysicalDevice, &deviceCreateInfo, nullptr, &mDevice));
 
     vkGetDeviceQueue(mDevice, /*queueFamilyIndex*/ indices.graphicsFamily.value(), /*queueIndex*/ 0, &mGraphicsQueue);
+    vkGetDeviceQueue(mDevice, /*queueFamilyIndex*/ indices.presentFamily.value(), /*queueIndex*/ 0, &mPresentQueue);
+    ENSURE(mGraphicsQueue == mPresentQueue, "NOT SAME QUEUE");
+}
+
+void VKApplicationBase::createSurface() {
+    VK_CHECK_RESULT(glfwCreateWindowSurface(mInstance, mWindow, nullptr, &mSurface));
 }

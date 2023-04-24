@@ -26,12 +26,15 @@ class VKApplicationBase
         void setupDebugMessenger();
         void pickPhysicalDevice();
         void createLogicalDevice();
+        void createSurface();
 
     protected:
     GLFWwindow* mWindow = nullptr;
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
-    VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
-    VkDevice mDevice = VK_NULL_HANDLE;
-    VkQueue mGraphicsQueue = VK_NULL_HANDLE;// auto cleanup with VkDevice
+    VkPhysicalDevice mPhysicalDevice = nullptr;
+    VkDevice mDevice = nullptr;
+    VkQueue mGraphicsQueue = nullptr;// auto cleanup with VkDevice
+    VkSurfaceKHR mSurface = nullptr;
+    VkQueue mPresentQueue = nullptr;
 };
