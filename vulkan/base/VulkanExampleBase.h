@@ -27,6 +27,7 @@ class VKApplicationBase
         void pickPhysicalDevice();
         void createLogicalDevice();
         void createSurface();
+        void createSwapChain();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -37,4 +38,8 @@ class VKApplicationBase
     VkQueue mGraphicsQueue = nullptr;// auto cleanup with VkDevice
     VkSurfaceKHR mSurface = nullptr;
     VkQueue mPresentQueue = nullptr;
+    VkSwapchainKHR mSwapchain = nullptr;
+    std::vector<VkImage> mSwapchainImages;
+    VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
+    VkExtent2D mSwapchainExtent = {};
 };

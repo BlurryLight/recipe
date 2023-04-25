@@ -38,3 +38,17 @@
         throw std::runtime_error("Check Failed: " + std::string(#condition) + std::string(message) + " (file " +       \
                                  __FILE__ + ", line " + std::to_string(__LINE__) + ")");                               \
     }
+
+namespace DR {
+
+    template<typename T>
+    const T &clamp(const T &value, const T &min, const T &max) {
+        if (value < min) {
+            return min;
+        } else if (value > max) {
+            return max;
+        } else {
+            return value;
+        }
+    }
+};// namespace DR
