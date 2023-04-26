@@ -15,6 +15,7 @@ find_package(Vulkan)
 set(VK_SDK_PATH $ENV{VK_SDK_PATH})
 set(VK_SDK_INCLUDE_DIRS ${VK_SDK_PATH}/Include)
 set(VK_SDK_LIB_DIRS ${VK_SDK_PATH}/Lib)
+set(VK_GLSLC_COMPILER "${VK_SDK_PATH}/Bin/glslc.exe")
 message(STATUS ${Vulkan_LIBRARY})
 
 include_directories(${VK_SDK_INCLUDE_DIRS})
@@ -28,6 +29,4 @@ find_package(spdlog REQUIRED)
 find_package(glfw3)
 
 add_subdirectory(base)
-
-add_executable(main main.cc)
-target_link_libraries(main base)
+add_subdirectory(src)

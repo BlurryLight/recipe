@@ -29,6 +29,7 @@ class VKApplicationBase
         void createSurface();
         void createSwapChain();
         void createImageViews();
+        void createGraphicsPipeline();
 
     protected:
     GLFWwindow* mWindow = nullptr;

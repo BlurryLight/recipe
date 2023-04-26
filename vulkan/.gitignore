@@ -44,3 +44,4 @@ out
 cmake_vars.h
 .idea
 *.cso
+*.spirv

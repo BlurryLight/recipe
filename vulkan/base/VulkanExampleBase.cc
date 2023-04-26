@@ -147,6 +147,7 @@ void VKApplicationBase::initVulkan() {
     pickPhysicalDevice();
     createLogicalDevice();
     createSwapChain();
+    createGraphicsPipeline();
 }
 
 
@@ -445,3 +446,5 @@ void VKApplicationBase::createImageViews() {
         VK_CHECK_RESULT(vkCreateImageView(mDevice, &createInfo, nullptr, &mSwapChainImageViews[i]));
     }
 }
+
+void VKApplicationBase::createGraphicsPipeline() {}
