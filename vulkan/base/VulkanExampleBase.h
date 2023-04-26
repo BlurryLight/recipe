@@ -28,6 +28,7 @@ class VKApplicationBase
         void createLogicalDevice();
         void createSurface();
         void createSwapChain();
+        void createImageViews();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -39,7 +40,10 @@ class VKApplicationBase
     VkSurfaceKHR mSurface = nullptr;
     VkQueue mPresentQueue = nullptr;
     VkSwapchainKHR mSwapchain = nullptr;
-    std::vector<VkImage> mSwapchainImages;
     VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
     VkExtent2D mSwapchainExtent = {};
+
+    // swapchain
+    std::vector<VkImage> mSwapchainImages;
+    std::vector<VkImageView> mSwapChainImageViews;
 };

@@ -156,6 +156,7 @@ void VKApplicationBase::mainLoop() {
 
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
+    for (auto imageView : mSwapChainImageViews) { vkDestroyImageView(mDevice, imageView, nullptr); }
     vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
     vkDestroyDevice(mDevice, nullptr);
     vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
@@ -420,4 +421,27 @@ void VKApplicationBase::createSwapChain() {
     mSwapchainExtent = extent;
     mSwapchainImages.resize(imageCount);
     vkGetSwapchainImagesKHR(mDevice, mSwapchain, &imageCount, mSwapchainImages.data());
+}
+
+void VKApplicationBase::createImageViews() {
+    mSwapChainImageViews.resize(mSwapchainImages.size());
+    for (size_t i = 0; i < mSwapchainImages.size(); i++) {
+        VkImageViewCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = mSwapchainImages[i];
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = mSwapchainImageFormat;
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;// 可以通过view swizzle image的数据，但是这里不需要
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;// 可以通过view swizzle image的数据，但是这里不需要
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;// 可以通过view swizzle image的数据，但是这里不需要
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;// 可以通过view swizzle image的数据，但是这里不需要
+
+        createInfo.subresourceRange.aspectMask =
+                VK_IMAGE_ASPECT_COLOR_BIT;// 可以通过subresourceRange控制view可以看到哪些范围，这里默认COLOR
+        createInfo.subresourceRange.layerCount = 1;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        VK_CHECK_RESULT(vkCreateImageView(mDevice, &createInfo, nullptr, &mSwapChainImageViews[i]));
+    }
 }
