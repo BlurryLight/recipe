@@ -2,7 +2,7 @@ add_executable(FirstTriangle FirstTriangle.cc)
 target_link_libraries(FirstTriangle base)
 
 set(ShaderDir "${CMAKE_SOURCE_DIR}/resources/shader/glsl/FirstTriangle")
-file(GLOB SHADERS "${ShaderDir}/*" )
+file(GLOB SHADERS "${ShaderDir}/*.vert" "${ShaderDir}/*.frag")
 foreach(Shader ${SHADERS})
  add_custom_command(
     TARGET FirstTriangle

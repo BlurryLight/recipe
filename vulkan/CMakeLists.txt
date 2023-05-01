@@ -18,6 +18,7 @@ set(VK_SDK_LIB_DIRS ${VK_SDK_PATH}/Lib)
 set(VK_GLSLC_COMPILER "${VK_SDK_PATH}/Bin/glslc.exe")
 message(STATUS ${Vulkan_LIBRARY})
 
+include(cmake/generate_header.cmake)
 include_directories(${VK_SDK_INCLUDE_DIRS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_WIN32_KHR")
@@ -27,6 +28,7 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 find_package(spdlog REQUIRED)
 find_package(glfw3)
+
 
 add_subdirectory(base)
 add_subdirectory(src)

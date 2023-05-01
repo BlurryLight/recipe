@@ -1,9 +1,15 @@
 #pragma once
 #include <Volk/volk.h>
+#include <cmake_vars.h>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 #include <vulkan/vk_enum_string_helper.h>
 
+
+
+namespace fs = std::filesystem;
 
 #define VK_CHECK_RESULT(f)                                                                                             \
     {                                                                                                                  \
@@ -51,4 +57,7 @@ namespace DR {
             return value;
         }
     }
+
+    std::vector<char> readFile(fs::path filename);
+
 };// namespace DR

@@ -44,6 +44,8 @@ class VKApplicationBase
     VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
     VkExtent2D mSwapchainExtent = {};
 
+    VkPipelineLayout mPipelineLayout;
+
     // swapchain
     std::vector<VkImage> mSwapchainImages;
     std::vector<VkImageView> mSwapChainImageViews;
