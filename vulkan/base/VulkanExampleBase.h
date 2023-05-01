@@ -29,6 +29,7 @@ class VKApplicationBase
         void createSurface();
         void createSwapChain();
         void createImageViews();
+        void createRenderPass();
         void createGraphicsPipeline();
 
     protected:
@@ -44,7 +45,9 @@ class VKApplicationBase
     VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
     VkExtent2D mSwapchainExtent = {};
 
-    VkPipelineLayout mPipelineLayout;
+    VkPipelineLayout mPipelineLayout = nullptr;
+    VkRenderPass mRenderPass = nullptr;
+    VkPipeline mGraphicsPipeline = nullptr;
 
     // swapchain
     std::vector<VkImage> mSwapchainImages;

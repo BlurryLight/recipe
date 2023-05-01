@@ -150,6 +150,7 @@ void VKApplicationBase::initVulkan() {
     pickPhysicalDevice();
     createLogicalDevice();
     createSwapChain();
+    createRenderPass();
     createGraphicsPipeline();
 }
 
@@ -161,7 +162,9 @@ void VKApplicationBase::mainLoop() {
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
     for (auto imageView : mSwapChainImageViews) { vkDestroyImageView(mDevice, imageView, nullptr); }
+    vkDestroyPipeline(mDevice, mGraphicsPipeline, nullptr);
     vkDestroyPipelineLayout(mDevice, mPipelineLayout, nullptr);
+    vkDestroyRenderPass(mDevice, mRenderPass, nullptr);
     vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
     vkDestroyDevice(mDevice, nullptr);
     vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
@@ -451,6 +454,37 @@ void VKApplicationBase::createImageViews() {
     }
 }
 
+void VKApplicationBase::createRenderPass() {
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = mSwapchainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;    // 不关心之前的layout
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;// 用于交换链
+
+    VkAttachmentReference colorAttachmentRef{};
+    colorAttachmentRef.attachment = 0;// 0 is the index , 对应fragment shader的 layout(location = 0) out vec4 outcolor;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpassInfo{};
+    subpassInfo.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpassInfo.colorAttachmentCount = 1;
+    subpassInfo.pColorAttachments = &colorAttachmentRef;
+
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpassInfo;
+
+    VK_CHECK_RESULT(vkCreateRenderPass(mDevice, &renderPassInfo, nullptr, &mRenderPass));
+}
+
 static VkShaderModule createShaderModule(VkDevice device, const std::vector<char> &code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -479,12 +513,13 @@ void VKApplicationBase::createGraphicsPipeline() {
     vertShaderStageInfo.pSpecializationInfo = nullptr;// macro definitnion
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertShaderStageInfo, fragShaderStageInfo};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.pName = "main";
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragShaderStageInfo.pSpecializationInfo = nullptr;// macro definitnion
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertShaderStageInfo, fragShaderStageInfo};
 
     std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
@@ -573,6 +608,29 @@ void VKApplicationBase::createGraphicsPipeline() {
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
     VK_CHECK_RESULT(vkCreatePipelineLayout(mDevice, &pipelineLayoutInfo, nullptr, &mPipelineLayout));
+
+
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo{};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineCreateInfo.pStages = shaderStages.data();
+    pipelineCreateInfo.stageCount = shaderStages.size();
+    pipelineCreateInfo.pVertexInputState = &vertexInputInfo;
+    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyInfo;
+    pipelineCreateInfo.pViewportState = &viewportState;
+    pipelineCreateInfo.pRasterizationState = &rasterizer;
+    pipelineCreateInfo.pMultisampleState = &multisampling;
+    pipelineCreateInfo.pDepthStencilState = nullptr;// TODO
+    pipelineCreateInfo.pColorBlendState = &colorBlending;
+    pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+    pipelineCreateInfo.layout = mPipelineLayout;
+    pipelineCreateInfo.renderPass = mRenderPass;
+    pipelineCreateInfo.subpass = 0;// index
+    // we can derive a pipelien from an existing pipeline
+    pipelineCreateInfo.basePipelineIndex = -1;
+    pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+    VK_CHECK_RESULT(
+            vkCreateGraphicsPipelines(mDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &mGraphicsPipeline));
 
 
     vkDestroyShaderModule(mDevice, vertShaderModule, nullptr);
