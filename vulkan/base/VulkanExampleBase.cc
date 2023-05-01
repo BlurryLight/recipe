@@ -152,6 +152,7 @@ void VKApplicationBase::initVulkan() {
     createSwapChain();
     createRenderPass();
     createGraphicsPipeline();
+    createFramebuffers();
 }
 
 
@@ -161,7 +162,8 @@ void VKApplicationBase::mainLoop() {
 
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
-    for (auto imageView : mSwapChainImageViews) { vkDestroyImageView(mDevice, imageView, nullptr); }
+    for (auto framebuffer : mSwapchainFramebuffers) { vkDestroyFramebuffer(mDevice, framebuffer, nullptr); }
+    for (auto imageView : mSwapchainImageViews) { vkDestroyImageView(mDevice, imageView, nullptr); }
     vkDestroyPipeline(mDevice, mGraphicsPipeline, nullptr);
     vkDestroyPipelineLayout(mDevice, mPipelineLayout, nullptr);
     vkDestroyRenderPass(mDevice, mRenderPass, nullptr);
@@ -432,7 +434,7 @@ void VKApplicationBase::createSwapChain() {
 }
 
 void VKApplicationBase::createImageViews() {
-    mSwapChainImageViews.resize(mSwapchainImages.size());
+    mSwapchainImageViews.resize(mSwapchainImages.size());
     for (size_t i = 0; i < mSwapchainImages.size(); i++) {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -635,4 +637,21 @@ void VKApplicationBase::createGraphicsPipeline() {
 
     vkDestroyShaderModule(mDevice, vertShaderModule, nullptr);
     vkDestroyShaderModule(mDevice, fragShaderModule, nullptr);
+}
+
+void VKApplicationBase::createFramebuffers() {
+    mSwapchainFramebuffers.resize(mSwapchainImageViews.size());
+    for (size_t i = 0; i < mSwapchainImageViews.size(); i++) {
+        VkImageView attachments[] = {mSwapchainImageViews[i]};
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = mRenderPass;
+        framebufferInfo.width = mSwapchainExtent.width;
+        framebufferInfo.height = mSwapchainExtent.height;
+        framebufferInfo.layers = 1;// number of layers in vkimage
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.attachmentCount = 1;
+        vkCreateFramebuffer(mDevice, &framebufferInfo, nullptr, &mSwapchainFramebuffers[i]);
+    }
 }

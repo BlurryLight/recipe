@@ -31,6 +31,7 @@ class VKApplicationBase
         void createImageViews();
         void createRenderPass();
         void createGraphicsPipeline();
+        void createFramebuffers();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -51,5 +52,7 @@ class VKApplicationBase
 
     // swapchain
     std::vector<VkImage> mSwapchainImages;
-    std::vector<VkImageView> mSwapChainImageViews;
+    std::vector<VkImageView> mSwapchainImageViews;
+
+    std::vector<VkFramebuffer> mSwapchainFramebuffers;
 };
