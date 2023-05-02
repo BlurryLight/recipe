@@ -150,20 +150,32 @@ void VKApplicationBase::initVulkan() {
     pickPhysicalDevice();
     createLogicalDevice();
     createSwapChain();
+    createImageViews();
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
+    createCommandPool();
+    createCommandBuffer();
+    createSyncObjects();
 }
 
 
 void VKApplicationBase::mainLoop() {
-    while (!glfwWindowShouldClose(mWindow)) { glfwPollEvents(); }
+    while (!glfwWindowShouldClose(mWindow)) {
+        glfwPollEvents();
+        drawFrames();
+    }
+    vkDeviceWaitIdle(mDevice);
 }
 
 void VKApplicationBase::cleanup() {
     if (enableValidationLayers) { vkDestroyDebugUtilsMessengerEXT(mInstance, mDebugMessenger, nullptr); }
     for (auto framebuffer : mSwapchainFramebuffers) { vkDestroyFramebuffer(mDevice, framebuffer, nullptr); }
     for (auto imageView : mSwapchainImageViews) { vkDestroyImageView(mDevice, imageView, nullptr); }
+    vkDestroySemaphore(mDevice, mImageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(mDevice, mRenderFinishedSemaphore, nullptr);
+    vkDestroyFence(mDevice, mInFlightFence, nullptr);
+    vkDestroyCommandPool(mDevice, mCommandPool, nullptr);
     vkDestroyPipeline(mDevice, mGraphicsPipeline, nullptr);
     vkDestroyPipelineLayout(mDevice, mPipelineLayout, nullptr);
     vkDestroyRenderPass(mDevice, mRenderPass, nullptr);
@@ -177,13 +189,49 @@ void VKApplicationBase::cleanup() {
     glfwTerminate();
 }
 
+void VKApplicationBase::drawFrames() {
+    vkWaitForFences(mDevice, 1, &mInFlightFence, VK_TRUE, /*timeout*/ UINT64_MAX);
+    vkResetFences(mDevice, 1, &mInFlightFence);
+
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(mDevice, mSwapchain, UINT64_MAX, mImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkResetCommandBuffer(mCommandBuffer, 0);
+    recordCommandBuffer(mCommandBuffer, imageIndex);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    VkSemaphore waitSemaphores[] = {mImageAvailableSemaphore};
+    // TODO: 研究一下
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &mCommandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &mRenderFinishedSemaphore;
+    submitInfo.pWaitDstStageMask = waitStages;
+    // 实现很低效，每一帧都要等待上一阵结束
+    VK_CHECK_RESULT(vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, mInFlightFence));
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &mRenderFinishedSemaphore;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &mSwapchain;
+
+    vkQueuePresentKHR(mPresentQueue, &presentInfo);
+}
+
 void VKApplicationBase::initWindow() {
     glfwInit();
     assert(glfwVulkanSupported());
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);// no opengl
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);    // currently we don't handle resize
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
-    mWindow = glfwCreateWindow(kWidth, kHeight, "VulkanExmample", nullptr, nullptr);
+    mWindow = glfwCreateWindow(kWidth, kHeight, "VulkanExample", nullptr, nullptr);
     if (!mWindow) { throw std::runtime_error(fmt::format("Create Window {} x {} Failed!", kWidth, kHeight)); }
 }
 void VKApplicationBase::setupDebugMessenger() {
@@ -452,7 +500,7 @@ void VKApplicationBase::createImageViews() {
         createInfo.subresourceRange.levelCount = 1;
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.baseMipLevel = 0;
-        VK_CHECK_RESULT(vkCreateImageView(mDevice, &createInfo, nullptr, &mSwapChainImageViews[i]));
+        VK_CHECK_RESULT(vkCreateImageView(mDevice, &createInfo, nullptr, &mSwapchainImageViews[i]));
     }
 }
 
@@ -476,6 +524,14 @@ void VKApplicationBase::createRenderPass() {
     subpassInfo.colorAttachmentCount = 1;
     subpassInfo.pColorAttachments = &colorAttachmentRef;
 
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -483,6 +539,8 @@ void VKApplicationBase::createRenderPass() {
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpassInfo;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     VK_CHECK_RESULT(vkCreateRenderPass(mDevice, &renderPassInfo, nullptr, &mRenderPass));
 }
@@ -640,6 +698,7 @@ void VKApplicationBase::createGraphicsPipeline() {
 }
 
 void VKApplicationBase::createFramebuffers() {
+    CHECK(mSwapchainImageViews.size() > 0, "");
     mSwapchainFramebuffers.resize(mSwapchainImageViews.size());
     for (size_t i = 0; i < mSwapchainImageViews.size(); i++) {
         VkImageView attachments[] = {mSwapchainImageViews[i]};
@@ -654,4 +713,79 @@ void VKApplicationBase::createFramebuffers() {
         framebufferInfo.attachmentCount = 1;
         vkCreateFramebuffer(mDevice, &framebufferInfo, nullptr, &mSwapchainFramebuffers[i]);
     }
+}
+
+void VKApplicationBase::createCommandPool() {
+    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(mPhysicalDevice, mSurface);
+    CHECK(queueFamilyIndices.isComplete(), "");
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags =
+            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;// command buffer will be record every frame individually
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+    VK_CHECK_RESULT(vkCreateCommandPool(mDevice, &poolInfo, nullptr, &mCommandPool));
+}
+
+void VKApplicationBase::createCommandBuffer() {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = mCommandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;// can be submited directly
+    allocInfo.commandBufferCount = 1;
+
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(mDevice, &allocInfo, &mCommandBuffer));
+}
+
+void VKApplicationBase::recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t imageIndex) {
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = 0;// 这里有一个flag可以指明这个cmdbuf可以被多次提交
+    beginInfo.pInheritanceInfo = nullptr;
+
+    VK_CHECK_RESULT(vkBeginCommandBuffer(mCommandBuffer, &beginInfo));
+
+    VkRenderPassBeginInfo renderpassInfo{};
+    renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderpassInfo.renderPass = mRenderPass;
+    renderpassInfo.framebuffer = mSwapchainFramebuffers[imageIndex];
+    renderpassInfo.renderArea.offset = {0, 0};
+    renderpassInfo.renderArea.extent = mSwapchainExtent;
+
+    VkClearValue clearColor = {{{0.f, 0.f, 0.f, 1.0f}}};
+    renderpassInfo.clearValueCount = 1;
+    renderpassInfo.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(cmdBuf, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, mGraphicsPipeline);
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float) mSwapchainExtent.width;
+    viewport.height = (float) mSwapchainExtent.height;
+    viewport.minDepth = 0.0;
+    viewport.maxDepth = 1.0;
+    vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = mSwapchainExtent;
+    vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
+    vkCmdDraw(cmdBuf, /*vertex cound*/ 3, /* instance count*/ 1, /*fisrt vertex*/ 0, /*first instance*/ 0);
+
+    vkCmdEndRenderPass(cmdBuf);
+    VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuf));
+}
+
+void VKApplicationBase::createSyncObjects() {
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;// 创建时就是signaled的状态，否则第一帧会卡死
+
+    VK_CHECK_RESULT(vkCreateSemaphore(mDevice, &semaphoreInfo, nullptr, &mRenderFinishedSemaphore));
+    VK_CHECK_RESULT(vkCreateSemaphore(mDevice, &semaphoreInfo, nullptr, &mImageAvailableSemaphore));
+    VK_CHECK_RESULT(vkCreateFence(mDevice, &fenceInfo, nullptr, &mInFlightFence));
 }

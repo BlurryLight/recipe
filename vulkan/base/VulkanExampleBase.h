@@ -22,6 +22,7 @@ class VKApplicationBase
         virtual void initVulkan();
         virtual void mainLoop();
         virtual void cleanup();
+        virtual void drawFrames();
         void initWindow();
         void setupDebugMessenger();
         void pickPhysicalDevice();
@@ -32,6 +33,10 @@ class VKApplicationBase
         void createRenderPass();
         void createGraphicsPipeline();
         void createFramebuffers();
+        void createCommandPool();
+        void createCommandBuffer();
+        void recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t imageIndex);
+        void createSyncObjects();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -55,4 +60,10 @@ class VKApplicationBase
     std::vector<VkImageView> mSwapchainImageViews;
 
     std::vector<VkFramebuffer> mSwapchainFramebuffers;
+    VkCommandPool mCommandPool = nullptr;
+    VkCommandBuffer mCommandBuffer = nullptr;
+
+    VkSemaphore mImageAvailableSemaphore;// trigged when image was aquired from wapchain
+    VkSemaphore mRenderFinishedSemaphore;// triggerd when drawcalls are all issued
+    VkFence mInFlightFence;
 };
