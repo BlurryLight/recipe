@@ -10,6 +10,7 @@ import re
 import random
 import json
 import hashlib
+import argparse
 
 
 class BaiDuFanyi:
@@ -74,18 +75,27 @@ last_request_time = 0
 secret_id = os.environ.get("baidu_secret_id")
 secret_key = os.environ.get("baidu_secret_key")
 
+# Create ArgumentParser object
+parser = argparse.ArgumentParser()
+
+# Add arguments
+parser.add_argument("-i", "--input", type=str, default="ManualTransFile.json", help="input JSON file name")
+parser.add_argument("-o", "--output", type=str, default="TrsData.json", help="output JSON file name")
+
+# Parse arguments
+args = parser.parse_args()
+
+# Access arguments
+input_filename = args.input
+output_filename = args.output
+
 if (len(secret_id) == 0 or len(secret_key) == 0):
     print("env error")
     sys.exit(0)
 
 BaiDuTranslator = BaiDuFanyi(secret_id, secret_key)
-# lst = ["【蒼魔導士ルーナ】～天才魔導士と伝説の魔導士～",
-#        "■マップを夜にする",
-#        "情報屋ベム"]
-# print(BaiDuTranslator.BdTrans('\n'.join(lst)))
 
-with open('game.json', "r", encoding="utf-8") as f:
-    # 你的待翻译文件名改为‘game.json’
+with open(input_filename, "r", encoding="utf-8") as f:
     script = json.load(f)
 
 # 原始文档中有一些key不应该被翻译
@@ -111,7 +121,7 @@ def translate(text):
                 key = item['src']
                 value = item['dst']
                 script[key] = value
-            with open("game_zh.json", "w", encoding="utf-8") as f:
+            with open(output_filename, "w", encoding="utf-8") as f:
                 json.dump(script, f, ensure_ascii=False, indent=4)
         else:
             print(translated_json)
@@ -136,7 +146,7 @@ for batch_text in failed_batches:
 
 # 将翻译后的对话脚本保存到一个新的文件中
 
-with open("game_zh.json", "w", encoding="utf-8") as f:
+with open(output_filename, "w", encoding="utf-8") as f:
     json.dump(script, f, ensure_ascii=False, indent=4)
 
 pbar.close()
