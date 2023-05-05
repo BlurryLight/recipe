@@ -559,6 +559,8 @@ static VkShaderModule createShaderModule(VkDevice device, const std::vector<char
 void VKApplicationBase::createGraphicsPipeline() {
     auto vertShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.vert.spirv");
     auto fragShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.frag.spirv");
+    // auto vertShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.vert.spirv");
+    // auto fragShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.frag.spirv");
     CHECK(vertShaderCode.size() > 0, "Vert Shader not found");
     CHECK(fragShaderCode.size() > 0, "Frag Shader not found");
 
@@ -567,6 +569,7 @@ void VKApplicationBase::createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // vertShaderStageInfo.pName = "VSMain"; // for hlsl
     vertShaderStageInfo.pName = "main";
     vertShaderStageInfo.module = vertShaderModule;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -574,6 +577,7 @@ void VKApplicationBase::createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // fragShaderStageInfo.pName = "PSMain"; // for hlsl
     fragShaderStageInfo.pName = "main";
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;

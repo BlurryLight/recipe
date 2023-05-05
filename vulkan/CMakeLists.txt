@@ -16,6 +16,7 @@ set(VK_SDK_PATH $ENV{VK_SDK_PATH})
 set(VK_SDK_INCLUDE_DIRS ${VK_SDK_PATH}/Include)
 set(VK_SDK_LIB_DIRS ${VK_SDK_PATH}/Lib)
 set(VK_GLSLC_COMPILER "${VK_SDK_PATH}/Bin/glslc.exe")
+set(VK_DXC_COMPILER "${VK_SDK_PATH}/Bin/dxc.exe")
 message(STATUS ${Vulkan_LIBRARY})
 
 include(cmake/generate_header.cmake)
