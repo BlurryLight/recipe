@@ -1,0 +1,1 @@
+添加若干命令用于windows terminal
