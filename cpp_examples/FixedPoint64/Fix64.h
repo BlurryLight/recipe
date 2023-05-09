@@ -4,6 +4,7 @@
 #include <stdint.h>
 #pragma once
 
+constexpr int kIntegerBit = 40;
 constexpr int kFracBit = 24;
 class Fix64 {
 private:
@@ -15,8 +16,11 @@ public:
 
 
   // constants
-  static constexpr int64_t kOne = 1L << kFracBit;
-  static constexpr int64_t kHalf = 1L << (kFracBit - 1);
+  static constexpr int64_t kMin = 1LL << 63; 
+  static constexpr int64_t kPosMin = 1LL;
+  static constexpr int64_t kMax = ~(1LL << 63); //0_ 11111.....
+  static constexpr int64_t kOne = 1LL << kFracBit;
+  static constexpr int64_t kHalf = 1LL << (kFracBit - 1);
   static constexpr double kDelta = 1.0 / kOne;
 
   // cast
@@ -41,7 +45,11 @@ public:
   bool operator!();
 
   // members
-  int sign() const;
+  int Sign() const;
+  // return kMax at abs(kMin)
+  Fix64 Abs() const;
+  // return kMin at abs(kMin)
+  Fix64 FastAbs() const;
 
   // binary
   Fix64 operator+(const Fix64& other) const;

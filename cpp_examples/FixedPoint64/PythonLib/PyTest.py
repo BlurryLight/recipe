@@ -28,6 +28,8 @@ class TestBasicFix64(unittest.TestCase):
     def test_constants(self):
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kOne).toFloat(), 1)
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kHalf).toFloat(), 0.5)
+        self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kMax).toDouble(), pow(2, Fix64.kIntegerBit - 1))
+        self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kMin).toDouble(), -pow(2, Fix64.kIntegerBit - 1))
 
     def test_compare(self):
         a = Fix64.Fix64_long(1)
@@ -55,12 +57,12 @@ class TestBasicFix64(unittest.TestCase):
         a = Fix64.Fix64_long(2)
         b = Fix64.Fix64_long(0)
         c = Fix64.Fix64_long(-2)
-        self.assertEqual(a.sign(), 1)
-        self.assertEqual((-a).sign(), -1)
-        self.assertEqual(b.sign(), 0)
-        self.assertEqual((-b).sign(), 0)
-        self.assertEqual(c.sign(), -1)
-        self.assertEqual((-c).sign(), 1)
+        self.assertEqual(a.Sign(), 1)
+        self.assertEqual((-a).Sign(), -1)
+        self.assertEqual(b.Sign(), 0)
+        self.assertEqual((-b).Sign(), 0)
+        self.assertEqual(c.Sign(), -1)
+        self.assertEqual((-c).Sign(), 1)
 
     def test_binary(self):
         a = Fix64.Fix64.FromDouble(1.5)
@@ -70,6 +72,24 @@ class TestBasicFix64(unittest.TestCase):
         self.assertEqual(a + b, Fix64.Fix64_long(4))
         self.assertEqual(a - b, Fix64.Fix64_long(-1))
         self.assertEqual(a - b, c)
+
+    def test_abs(self):
+        min_fix = Fix64.Fix64_FromRaw(Fix64.Fix64.kMin)
+        max_fix = Fix64.Fix64_FromRaw(Fix64.Fix64.kMax)
+        self.assertEqual(min_fix.Abs(), max_fix)
+        self.assertEqual(min_fix.FastAbs(), min_fix)
+        self.assertEqual(max_fix.Abs(), max_fix)
+        self.assertEqual(max_fix.FastAbs(), max_fix)
+
+        zero = Fix64.Fix64.FromDouble(0)
+        a = Fix64.Fix64.FromDouble(1.5)
+        c = Fix64.Fix64.FromDouble(-1.0)
+        self.assertEqual(zero.Abs(), zero)
+        self.assertEqual(zero.FastAbs(), zero)
+        self.assertEqual(a.Abs(), a)
+        self.assertEqual(c.Abs(), Fix64.Fix64_FromDouble(1.0))
+        self.assertEqual(a.FastAbs(), a)
+        self.assertEqual(c.FastAbs(), Fix64.Fix64_FromDouble(1.0))
 
 
 if __name__ == '__main__':
