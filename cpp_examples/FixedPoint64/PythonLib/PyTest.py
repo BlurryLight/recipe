@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 import unittest
 import Fix64
+import random
+
+
+random.seed(1234.0)
 
 
 class TestBasicFix64(unittest.TestCase):
@@ -64,14 +68,36 @@ class TestBasicFix64(unittest.TestCase):
         self.assertEqual(c.Sign(), -1)
         self.assertEqual((-c).Sign(), 1)
 
-    def test_binary(self):
-        a = Fix64.Fix64.FromDouble(1.5)
-        b = Fix64.Fix64.FromDouble(2.5)
-        c = Fix64.Fix64.FromDouble(-1.0)
+    def test_add(self):
+        n = 1000
+        a = [random.randint(-10000, 10000) for i in range(n)]
+        b = [random.randint(-10000, 10000) for i in range(n)]
+        c = [(a[i] + b[i]) for i in range(n)]
+        for i in range(n):
+            self.assertEqual(Fix64.Fix64_FromRaw(a[i]) + Fix64.Fix64_FromRaw(b[i]),
+                             Fix64.Fix64_FromRaw(c[i]))
+            self.assertEqual(Fix64.Fix64_FromRaw(a[i]).SafeAdd(Fix64.Fix64_FromRaw(b[i])),
+                             Fix64.Fix64_FromRaw(c[i]))
 
-        self.assertEqual(a + b, Fix64.Fix64_long(4))
-        self.assertEqual(a - b, Fix64.Fix64_long(-1))
-        self.assertEqual(a - b, c)
+    def test_minus(self):
+        n = 1000
+        a = [random.randint(-10000, 10000) for i in range(n)]
+        b = [random.randint(-10000, 10000) for i in range(n)]
+        c = [(a[i] - b[i]) for i in range(n)]
+        for i in range(n):
+            self.assertEqual(Fix64.Fix64_FromRaw(a[i]) - Fix64.Fix64_FromRaw(b[i]),
+                             Fix64.Fix64_FromRaw(c[i]))
+            self.assertEqual(Fix64.Fix64_FromRaw(a[i]).SafeMinus(Fix64.Fix64_FromRaw(b[i])),
+                             Fix64.Fix64_FromRaw(c[i]))
+
+    def test_mul(self):
+        n = 1000
+        a = [random.randint(-10000, 10000) for i in range(n)]
+        b = [random.randint(-10000, 10000) for i in range(n)]
+        c = [(a[i] * b[i]) for i in range(n)]
+        for i in range(n):
+            self.assertAlmostEqual(Fix64.Fix64_FromRaw(a[i]) * Fix64.Fix64_FromRaw(b[i]),
+                                   Fix64.Fix64_FromRaw(c[i]), None, None, Fix64.Fix64_FromFloat(0.005))
 
     def test_abs(self):
         min_fix = Fix64.Fix64_FromRaw(Fix64.Fix64.kMin)

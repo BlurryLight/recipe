@@ -9,15 +9,26 @@
 %}
 
 %include "stdint.i"
+%include "std_string.i"
 %include "typemaps.i"
 
 %rename(Fix64_long) Fix64(int64_t);
-%rename(toFloat) operator float();
-%rename(toLong) operator int64_t();
-%rename(toDouble) operator double();
-%ignore operator!();
+%rename(toFloat) operator float() const;
+%rename(toLong) operator int64_t() const;
+%rename(toDouble) operator double() const;
+%ignore operator!() const;
 %inline %{
     #include "Fix64.h"
 %}
 
 %include <Fix64.h>
+
+
+%extend Fix64{
+  std::string __repr__() {
+    return $self->GetDesc();
+  }
+  Fix64 __abs__() {
+    return $self->Abs();
+  }
+};
