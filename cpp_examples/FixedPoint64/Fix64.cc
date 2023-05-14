@@ -151,12 +151,88 @@ Fix64 Fix64::operator/(const Fix64 &other) const {
     // without int128_t, it's unusable
     // return Fix64::FromRaw(this->mRawValue << kFracBit / other.mRawValue);
 
+    // method 0 native way
     int64_t mask = (std::numeric_limits<int64_t>::min() >> (kFracBit - 1)); // 前24位mask,注意类型要带符号
     std::int64_t xhi = (this->mRawValue & mask) >> (kIntegerBit) ;
     std::int64_t xli = this->mRawValue << kFracBit;
 
     std::int64_t res = _div128(xhi, xli, other.mRawValue , nullptr);
     return Fix64::FromRaw(res);
+
+    // method 1 portable way
+    // https://danlark.org/2020/06/14/128-bit-division/
+
+/*
+    auto CountLeadingZeroes = [](int64_t x) {
+      int result = 0;
+      while ((x & 0xF000000000000000) == 0) {
+        result += 4;
+        x <<= 4;
+      }
+      while ((x & 0x8000000000000000) == 0) {
+        result += 1;
+        x <<= 1;
+      }
+      return result;
+    };
+    auto Distance = [&CountLeadingZeroes](int64_t x,int64_t y) {
+      return CountLeadingZeroes(y) - CountLeadingZeroes(x);
+    };
+
+    uint64_t dividend = (uint64_t)(this->mRawValue > 0 ? this->mRawValue : -this->mRawValue);
+    uint64_t divisor = (uint64_t)(other.mRawValue > 0 ? other.mRawValue: -other.mRawValue);
+
+    // 直接移kFracBit很可能溢出，除以divisor的后部分如果是全0的话，可以少移动几个bit
+    int ShiftBits = kFracBit;
+    while((divisor & 0x1) == 0 && ShiftBits >= 1)
+    {
+      ShiftBits -= 1;
+      divisor >>=  1;
+    }
+
+    int64_t quotient = 0;
+
+    // // 最naive的实现
+    // // 这串仍然有溢出的风险。
+    // dividend <<= ShiftBits;
+    // // Calculate the distance between most significant bits, 128 > shift >= 0.
+    // int shift = Distance(dividend, divisor);
+    // divisor <<= shift;
+    // for (; shift >= 0; --shift) {
+    //   quotient <<= 1;
+    //   if (dividend >= divisor) {
+    //     dividend -= divisor;
+    //     quotient |= 1;
+    //   }
+    //   divisor >>= 1;
+    // }
+    // google method,如果一次移位会溢出就分多次移位
+    uint64_t rem = dividend;
+    while(rem != 0 && ShiftBits >= 0)
+    {
+      auto shift = CountLeadingZeroes(rem);
+      if (shift > ShiftBits)
+      {
+        shift = ShiftBits; // 如果这次一次能够移位完，就一次移位完
+      }
+
+      rem<<= shift;
+      ShiftBits -= shift;
+      auto div = rem / divisor;
+      rem = rem % divisor;
+      quotient += div << ShiftBits; // 如果一次未能移完所有的bits，那么算出来的商也要乘以剩下未移位的bits
+
+      rem <<=1;
+      --ShiftBits;
+    }
+
+    // 异号
+    if (((this->mRawValue ^ other.mRawValue) & std::numeric_limits<int64_t>::min()) != 0)
+    {
+      quotient = -quotient;
+    }
+    return Fix64::FromRaw(quotient);
+ */
 }
 
 std::string Fix64::GetDesc() const {

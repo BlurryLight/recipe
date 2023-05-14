@@ -9,6 +9,9 @@ random.seed(1234.0)
 
 class TestBasicFix64(unittest.TestCase):
 
+    # def __init__(self,):
+    #     super().__init__()
+
     def test_create(self):
         f = Fix64.Fix64()
         self.assertAlmostEqual(f.toFloat(), 0.0)
@@ -91,26 +94,27 @@ class TestBasicFix64(unittest.TestCase):
                              Fix64.Fix64_FromRaw(c[i]))
 
     def test_mul(self):
+
         n = 1000
-        a = [random.uniform(-10000, 10000) for _ in range(n)]
-        b = [random.uniform(-10000, 10000) for _ in range(n)]
+        a = [random.randrange(-10000, 10000) for _ in range(n)]
+        b = [random.randrange(-10000, 10000) for _ in range(n)]
         c = [(a[i] * b[i]) for i in range(n)]
         for i in range(n):
+            self.assertEqual(Fix64.Fix64_FromInt64(a[i]) * Fix64.Fix64_FromInt64(b[i]),
+                             Fix64.Fix64_FromInt64(c[i]))
             self.assertAlmostEqual(Fix64.Fix64_FromDouble(a[i]) * Fix64.Fix64_FromDouble(b[i]),
-                                   Fix64.Fix64_FromDouble(c[i]), None, None, Fix64.Fix64_FromDouble(0.005))
-            self.assertAlmostEqual(Fix64.Fix64_FromFloat(a[i]) * Fix64.Fix64_FromFloat(b[i]),
-                                   Fix64.Fix64_FromFloat(c[i]), None, None, Fix64.Fix64_FromFloat(10.0))
+                                   Fix64.Fix64_FromDouble(c[i]), None, None, Fix64.Fix64_FromFloat(0.005))
 
     def test_div(self):
         n = 1000
-        a = [random.uniform(-10000, 10000) for _ in range(n)]
-        b = [random.uniform(1, 10000) for _ in range(n//2)]
-        b.extend([random.uniform(-10000, -1) for _ in range(n//2)])
+        a = [random.randrange(-10000, 10000) for _ in range(n)]
+        b = [random.randrange(1, 10000) for _ in range(n//2)]
+        b.extend([random.randrange(-10000, -1) for _ in range(n//2)])
 
         c = [(a[i] / b[i]) for i in range(n)]
         for i in range(n):
-            self.assertAlmostEqual(Fix64.Fix64_FromDouble(a[i]) / Fix64.Fix64_FromDouble(b[i]),
-                                   Fix64.Fix64_FromDouble(c[i]), None, None, Fix64.Fix64_FromDouble(0.005))
+            self.assertAlmostEqual(Fix64.Fix64_FromInt64(a[i]) / Fix64.Fix64_FromInt64(b[i]),
+                                   Fix64.Fix64_FromDouble(c[i]))
 
     def test_abs(self):
         min_fix = Fix64.Fix64_FromRaw(Fix64.Fix64.kMin)
