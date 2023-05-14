@@ -1,10 +1,42 @@
 #include "VulkanExampleBase.h"
 #include <array>
+#include <glm/glm.hpp>
 #include <optional>
 #include <set>
 #include <string>
 #include <vector>
 
+
+struct Vertex {
+    glm::vec2 pos;
+    glm::vec3 color;
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;//  表示vbuffer应该绑定在0上
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+        // 类似于InputLayout吧
+
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+        attributeDescriptions[1].binding = 0;// 从 0号buffer取数据
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    }
+};
+const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
+                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
 
 const uint32_t kWidth = 800;
 const uint32_t kHeight = 600;
@@ -154,6 +186,7 @@ void VKApplicationBase::initVulkan() {
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
+    createVertexBuffer();
     createCommandPool();
     createCommandBuffer();
     createSyncObjects();
@@ -180,6 +213,8 @@ void VKApplicationBase::cleanup() {
     vkDestroyPipelineLayout(mDevice, mPipelineLayout, nullptr);
     vkDestroyRenderPass(mDevice, mRenderPass, nullptr);
     vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
+    vkDestroyBuffer(mDevice, mVertexBuffer, nullptr);
+    vkFreeMemory(mDevice, mVertexBufferMemory, nullptr);
     vkDestroyDevice(mDevice, nullptr);
     vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
     vkDestroyInstance(mInstance, nullptr);
@@ -557,10 +592,10 @@ static VkShaderModule createShaderModule(VkDevice device, const std::vector<char
 }
 
 void VKApplicationBase::createGraphicsPipeline() {
-    auto vertShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.vert.spirv");
-    auto fragShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.frag.spirv");
-    // auto vertShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.vert.spirv");
-    // auto fragShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.frag.spirv");
+    // auto vertShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.vert.spirv");
+    // auto fragShaderCode = DR::readFile(resourcePath / "shader" / "glsl" / "FirstTriangle" / "shader.frag.spirv");
+    auto vertShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.vert.spirv");
+    auto fragShaderCode = DR::readFile(resourcePath / "shader" / "hlsl" / "FirstTriangle" / "shader.frag.spirv");
     CHECK(vertShaderCode.size() > 0, "Vert Shader not found");
     CHECK(fragShaderCode.size() > 0, "Frag Shader not found");
 
@@ -569,16 +604,16 @@ void VKApplicationBase::createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    // vertShaderStageInfo.pName = "VSMain"; // for hlsl
-    vertShaderStageInfo.pName = "main";
+    vertShaderStageInfo.pName = "VSMain";// for hlsl
+    // vertShaderStageInfo.pName = "main";
     vertShaderStageInfo.module = vertShaderModule;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertShaderStageInfo.pSpecializationInfo = nullptr;// macro definitnion
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    // fragShaderStageInfo.pName = "PSMain"; // for hlsl
-    fragShaderStageInfo.pName = "main";
+    fragShaderStageInfo.pName = "PSMain";// for hlsl
+    // fragShaderStageInfo.pName = "main";
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragShaderStageInfo.pSpecializationInfo = nullptr;// macro definitnion
@@ -592,12 +627,14 @@ void VKApplicationBase::createGraphicsPipeline() {
     dynamicStateCreateInfo.dynamicStateCount = dynamicStates.size();
     dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
+    auto bindingDesc = Vertex::getBindingDescription();
+    auto attributeDesc = Vertex::getAttributeDescriptions();
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDesc;
+    vertexInputInfo.vertexAttributeDescriptionCount = (int32_t) attributeDesc.size();
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDesc.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
     inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -763,6 +800,11 @@ void VKApplicationBase::recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t ima
     vkCmdBeginRenderPass(cmdBuf, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, mGraphicsPipeline);
+    VkBuffer vertexBuffers[] = {mVertexBuffer};
+    VkDeviceSize offsets[] = {0};// buffer offsets
+    vkCmdBindVertexBuffers(cmdBuf, /*firstBinding*/ 0, /*bindong count*/ 1, vertexBuffers, offsets);
+
+
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -792,4 +834,41 @@ void VKApplicationBase::createSyncObjects() {
     VK_CHECK_RESULT(vkCreateSemaphore(mDevice, &semaphoreInfo, nullptr, &mRenderFinishedSemaphore));
     VK_CHECK_RESULT(vkCreateSemaphore(mDevice, &semaphoreInfo, nullptr, &mImageAvailableSemaphore));
     VK_CHECK_RESULT(vkCreateFence(mDevice, &fenceInfo, nullptr, &mInFlightFence));
+}
+
+static int findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    return -1;
+}
+void VKApplicationBase::createVertexBuffer() {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;// no share with outher queue
+    VK_CHECK_RESULT(vkCreateBuffer(mDevice, &bufferInfo, nullptr, &mVertexBuffer));
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(mDevice, mVertexBuffer, &memRequirements);
+
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex =
+            findMemoryType(mPhysicalDevice, memRequirements.memoryTypeBits,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    VK_CHECK_RESULT(vkAllocateMemory(mDevice, &allocInfo, nullptr, &mVertexBufferMemory));
+    vkBindBufferMemory(mDevice, mVertexBuffer, mVertexBufferMemory, 0);// 可以只绑定buffer到memory的一小段，后面是偏移量
+    void *data;
+    vkMapMemory(mDevice, mVertexBufferMemory, 0, bufferInfo.size, 0, &data);
+    memcpy(data, vertices.data(), (size_t) bufferInfo.size);// 我们之前申请的内存加了coherent,所以不需要手动flash
+    vkUnmapMemory(mDevice, mVertexBufferMemory);
 }

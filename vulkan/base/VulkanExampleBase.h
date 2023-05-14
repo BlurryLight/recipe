@@ -37,6 +37,7 @@ class VKApplicationBase
         void createCommandBuffer();
         void recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t imageIndex);
         void createSyncObjects();
+        void createVertexBuffer();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -58,6 +59,9 @@ class VKApplicationBase
     // swapchain
     std::vector<VkImage> mSwapchainImages;
     std::vector<VkImageView> mSwapchainImageViews;
+
+    VkBuffer mVertexBuffer = nullptr;
+    VkDeviceMemory mVertexBufferMemory = nullptr;
 
     std::vector<VkFramebuffer> mSwapchainFramebuffers;
     VkCommandPool mCommandPool = nullptr;
