@@ -32,6 +32,15 @@ class TestBasicFix64(unittest.TestCase):
         self.assertAlmostEqual(f.toDouble(), 4.3)
         self.assertAlmostEqual(f.toInt64(), 4)
 
+    def test_special_val(self):
+        fix64_max = Fix64.Fix64_FromRaw(Fix64.Fix64.kMax)
+        fix64_min = Fix64.Fix64_FromRaw(Fix64.Fix64.kMin)
+        fix64_one = Fix64.Fix64_FromInt64(1)
+        fix64_delta = Fix64.Fix64_FromRaw(1)
+
+        self.assertEqual(fix64_max * fix64_one, fix64_max)
+        self.assertEqual(fix64_max + fix64_delta, fix64_min)
+
     def test_constants(self):
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kOne).toFloat(), 1)
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kHalf).toFloat(), 0.5)
