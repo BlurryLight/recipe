@@ -52,7 +52,7 @@ add_custom_command(TARGET Fix64Py POST_BUILD
 
 if(WIN32)
 # windows 还需要拷贝dll
-add_custom_command(TARGET Fix64Py POST_BUILD
+add_custom_command(TARGET Fix64Lib POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:Fix64Lib> ${CMAKE_SOURCE_DIR}/PythonLib/$<TARGET_FILE_NAME:Fix64Lib>
 )
 endif()
@@ -62,3 +62,7 @@ enable_testing()
 if(NOT "${Python_EXECUTABLE}" STREQUAL "")
   add_test(NAME pythonTest COMMAND ${Python_EXECUTABLE} PyTest.py WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/PythonLib)
 endif()
+
+
+add_executable(cpptest cpptest.cc)
+target_link_libraries(cpptest Fix64Lib)

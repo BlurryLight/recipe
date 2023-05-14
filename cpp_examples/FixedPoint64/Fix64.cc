@@ -120,41 +120,42 @@ Fix64 Fix64::operator*(const Fix64 &other) const {
   // return Fix64::FromRaw(this->mRawValue * other.mRawValue >> kFracBit);
 
   // method 2 模拟十进制手算的方式,取出小数部分和整数部分,分开手算
-//   uint64_t mask =
-//       ~(~0ULL << kFracBit); // stupid trick to get all kFracBit 1 mask
+  // https://stackoverflow.com/a/15123849
+    uint64_t mask =
+        ~(~0ULL << kFracBit); // stupid trick to get all kFracBit 1 mask
 
-//   uint64_t xfrac = this->mRawValue & mask;
-//   uint64_t xinteger = this->mRawValue >> kFracBit;
+    uint64_t xfrac = this->mRawValue & mask;
+    uint64_t xinteger = this->mRawValue >> kFracBit;
 
-//   uint64_t yfrac = other.mRawValue & mask;
-//   uint64_t yinteger = other.mRawValue >> kFracBit;
+    uint64_t yfrac = other.mRawValue & mask;
+    uint64_t yinteger = other.mRawValue >> kFracBit;
 
-//   auto xyff = xfrac * yfrac;
-//   auto xyfi = xfrac * yinteger << kFracBit;
-//   auto yxfi = yfrac * xinteger << kFracBit;
-//   auto xyii = xinteger * yinteger << (kFracBit + kFracBit);
+    auto xyff = xfrac * yfrac >>kFracBit ;
+    auto xyfi = xfrac * yinteger;
+    auto yxfi = yfrac * xinteger;
+    auto xyii = xinteger * yinteger << kFracBit;
 
-//   return Fix64::FromRaw(xyii + xyfi + yxfi + xyff);
+    return Fix64::FromRaw(xyii + xyfi + yxfi + xyff);
 
 
-    std::int64_t retHigh = 0;
-    std::int64_t retLow = _mul128(this->mRawValue,other.mRawValue,&retHigh);
-    uint64_t mask = ~(~0ULL << kFracBit);
-    uint64_t hi = (retHigh & mask) << kIntegerBit ;
-    uint64_t lo = retLow >> kFracBit;
-    lo &= ~(~0ULL << kIntegerBit);
-    return Fix64(hi | lo);
+    // std::int64_t retHigh = 0;
+    // std::int64_t retLow = _mul128(this->mRawValue,other.mRawValue,&retHigh);
+    // uint64_t mask = ~(~0ULL << kFracBit);// 后24位mask
+    // uint64_t hi = (retHigh & mask) << kIntegerBit ;
+    // uint64_t lo = retLow >> kFracBit;
+    // lo &= ~(~0ULL << kIntegerBit);
+    // return Fix64(hi | lo);
 }
 
 Fix64 Fix64::operator/(const Fix64 &other) const {
     // without int128_t, it's unusable
     // return Fix64::FromRaw(this->mRawValue << kFracBit / other.mRawValue);
 
-    uint64_t mask = (std::numeric_limits<int64_t>::min() >> (kFracBit - 1));
-    std::int64_t xhi = (this->mRawValue & mask) >> (kIntegerBit);
+    int64_t mask = (std::numeric_limits<int64_t>::min() >> (kFracBit - 1)); // 前24位mask,注意类型要带符号
+    std::int64_t xhi = (this->mRawValue & mask) >> (kIntegerBit) ;
     std::int64_t xli = this->mRawValue << kFracBit;
 
-    std::int64_t res = _div128(xhi, xli, other.mRawValue, nullptr);
+    std::int64_t res = _div128(xhi, xli, other.mRawValue , nullptr);
     return Fix64::FromRaw(res);
 }
 

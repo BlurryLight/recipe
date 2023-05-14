@@ -13,21 +13,21 @@ class TestBasicFix64(unittest.TestCase):
         f = Fix64.Fix64()
         self.assertAlmostEqual(f.toFloat(), 0.0)
 
-        f = Fix64.Fix64_long(1)
+        f = Fix64.Fix64_FromInt64(1)
         self.assertAlmostEqual(f.toFloat(), 1.0)
-        self.assertAlmostEqual(f.toLong(), 1)
+        self.assertAlmostEqual(f.toInt64(), 1)
 
-        f = Fix64.Fix64_long(-1)
+        f = Fix64.Fix64_FromInt64(-1)
         self.assertAlmostEqual(f.toFloat(), -1.0)
-        self.assertAlmostEqual(f.toLong(), -1)
+        self.assertAlmostEqual(f.toInt64(), -1)
 
         f = Fix64.Fix64_FromFloat(3.5)
         self.assertAlmostEqual(f.toFloat(), 3.5)
-        self.assertAlmostEqual(f.toLong(), 4)
+        self.assertAlmostEqual(f.toInt64(), 4)
 
         f = Fix64.Fix64_FromDouble(4.3)
         self.assertAlmostEqual(f.toDouble(), 4.3)
-        self.assertAlmostEqual(f.toLong(), 4)
+        self.assertAlmostEqual(f.toInt64(), 4)
 
     def test_constants(self):
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kOne).toFloat(), 1)
@@ -36,10 +36,10 @@ class TestBasicFix64(unittest.TestCase):
         self.assertAlmostEqual(Fix64.Fix64_FromRaw(Fix64.Fix64.kMin).toDouble(), -pow(2, Fix64.kIntegerBit - 1))
 
     def test_compare(self):
-        a = Fix64.Fix64_long(1)
-        b = Fix64.Fix64_long(2)
-        c = Fix64.Fix64_long(1)
-        d = Fix64.Fix64_long(-1)
+        a = Fix64.Fix64_FromInt64(1)
+        b = Fix64.Fix64_FromInt64(2)
+        c = Fix64.Fix64_FromInt64(1)
+        d = Fix64.Fix64_FromInt64(-1)
         self.assertEqual(a, c)
         self.assertNotEqual(a, b)
         self.assertEqual(a, -d)
@@ -58,9 +58,9 @@ class TestBasicFix64(unittest.TestCase):
         self.assertFalse(Fix64.Fix64())
 
     def test_sign(self):
-        a = Fix64.Fix64_long(2)
-        b = Fix64.Fix64_long(0)
-        c = Fix64.Fix64_long(-2)
+        a = Fix64.Fix64_FromInt64(2)
+        b = Fix64.Fix64_FromInt64(0)
+        c = Fix64.Fix64_FromInt64(-2)
         self.assertEqual(a.Sign(), 1)
         self.assertEqual((-a).Sign(), -1)
         self.assertEqual(b.Sign(), 0)
@@ -92,12 +92,25 @@ class TestBasicFix64(unittest.TestCase):
 
     def test_mul(self):
         n = 1000
-        a = [random.randint(-10000, 10000) for i in range(n)]
-        b = [random.randint(-10000, 10000) for i in range(n)]
+        a = [random.uniform(-10000, 10000) for _ in range(n)]
+        b = [random.uniform(-10000, 10000) for _ in range(n)]
         c = [(a[i] * b[i]) for i in range(n)]
         for i in range(n):
-            self.assertAlmostEqual(Fix64.Fix64_FromRaw(a[i]) * Fix64.Fix64_FromRaw(b[i]),
-                                   Fix64.Fix64_FromRaw(c[i]), None, None, Fix64.Fix64_FromFloat(0.005))
+            self.assertAlmostEqual(Fix64.Fix64_FromDouble(a[i]) * Fix64.Fix64_FromDouble(b[i]),
+                                   Fix64.Fix64_FromDouble(c[i]), None, None, Fix64.Fix64_FromDouble(0.005))
+            self.assertAlmostEqual(Fix64.Fix64_FromFloat(a[i]) * Fix64.Fix64_FromFloat(b[i]),
+                                   Fix64.Fix64_FromFloat(c[i]), None, None, Fix64.Fix64_FromFloat(10.0))
+
+    def test_div(self):
+        n = 1000
+        a = [random.uniform(-10000, 10000) for _ in range(n)]
+        b = [random.uniform(1, 10000) for _ in range(n//2)]
+        b.extend([random.uniform(-10000, -1) for _ in range(n//2)])
+
+        c = [(a[i] / b[i]) for i in range(n)]
+        for i in range(n):
+            self.assertAlmostEqual(Fix64.Fix64_FromDouble(a[i]) / Fix64.Fix64_FromDouble(b[i]),
+                                   Fix64.Fix64_FromDouble(c[i]), None, None, Fix64.Fix64_FromDouble(0.005))
 
     def test_abs(self):
         min_fix = Fix64.Fix64_FromRaw(Fix64.Fix64.kMin)

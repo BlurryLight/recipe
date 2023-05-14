@@ -12,9 +12,9 @@
 %include "std_string.i"
 %include "typemaps.i"
 
-%rename(Fix64_long) Fix64(int64_t);
+%rename(Fix64_FromInt64) Fix64(int64_t);
 %rename(toFloat) operator float() const;
-%rename(toLong) operator int64_t() const;
+%rename(toInt64) operator int64_t() const;
 %rename(toDouble) operator double() const;
 %ignore operator!() const;
 %inline %{
