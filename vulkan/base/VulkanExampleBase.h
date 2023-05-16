@@ -37,6 +37,9 @@ class VKApplicationBase
         void createCommandBuffer();
         void recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t imageIndex);
         void createSyncObjects();
+        void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                          VkBuffer &buffer, VkDeviceMemory &bufferMemory);
+        void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
         void createVertexBuffer();
 
     protected:

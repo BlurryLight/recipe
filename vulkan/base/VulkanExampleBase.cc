@@ -186,9 +186,9 @@ void VKApplicationBase::initVulkan() {
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
-    createVertexBuffer();
     createCommandPool();
     createCommandBuffer();
+    createVertexBuffer();
     createSyncObjects();
 }
 
@@ -846,29 +846,80 @@ static int findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, 
     }
     return -1;
 }
-void VKApplicationBase::createVertexBuffer() {
+
+void VKApplicationBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                                     VkBuffer &buffer, VkDeviceMemory &bufferMemory) {
+
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;// no share with outher queue
-    VK_CHECK_RESULT(vkCreateBuffer(mDevice, &bufferInfo, nullptr, &mVertexBuffer));
+    VK_CHECK_RESULT(vkCreateBuffer(mDevice, &bufferInfo, nullptr, &buffer));
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(mDevice, mVertexBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(mDevice, buffer, &memRequirements);
 
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex =
-            findMemoryType(mPhysicalDevice, memRequirements.memoryTypeBits,
-                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = findMemoryType(mPhysicalDevice, memRequirements.memoryTypeBits, properties);
 
-    VK_CHECK_RESULT(vkAllocateMemory(mDevice, &allocInfo, nullptr, &mVertexBufferMemory));
-    vkBindBufferMemory(mDevice, mVertexBuffer, mVertexBufferMemory, 0);// 可以只绑定buffer到memory的一小段，后面是偏移量
-    void *data;
-    vkMapMemory(mDevice, mVertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, vertices.data(), (size_t) bufferInfo.size);// 我们之前申请的内存加了coherent,所以不需要手动flash
-    vkUnmapMemory(mDevice, mVertexBufferMemory);
+    VK_CHECK_RESULT(vkAllocateMemory(mDevice, &allocInfo, nullptr, &bufferMemory));
+    vkBindBufferMemory(mDevice, buffer, bufferMemory, 0);// 可以只绑定buffer到memory的一小段，后面是偏移量
+}
+
+void VKApplicationBase::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = mCommandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmdBuf = nullptr;
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(mDevice, &allocInfo, &cmdBuf));
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(cmdBuf, &beginInfo);
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;// Optional
+    copyRegion.dstOffset = 0;// Optional
+    copyRegion.size = size;
+
+    vkCmdCopyBuffer(cmdBuf, srcBuffer, dstBuffer, 1, &copyRegion);
+    vkEndCommandBuffer(cmdBuf);
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmdBuf;
+
+    vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(mGraphicsQueue);
+    vkFreeCommandBuffers(mDevice, mCommandPool, 1, &cmdBuf);
+}
+
+void VKApplicationBase::createVertexBuffer() {
+
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    VkBuffer stagingBuffer = nullptr;
+    VkDeviceMemory stagingBufferMem = nullptr;
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+                 stagingBufferMem);
+
+    void *data = nullptr;
+    vkMapMemory(mDevice, stagingBufferMem, 0, bufferSize, 0, &data);
+    memcpy(data, vertices.data(), (size_t) bufferSize);// 我们之前申请的内存加了coherent,所以不需要手动flash
+    vkUnmapMemory(mDevice, stagingBufferMem);
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mVertexBuffer, mVertexBufferMemory);
+
+    copyBuffer(stagingBuffer, mVertexBuffer, bufferSize);
+    vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
+    vkFreeMemory(mDevice, stagingBufferMem, nullptr);
 }
