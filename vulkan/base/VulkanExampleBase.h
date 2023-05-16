@@ -41,6 +41,7 @@ class VKApplicationBase
                           VkBuffer &buffer, VkDeviceMemory &bufferMemory);
         void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
         void createVertexBuffer();
+        void createIndexBuffer();
 
     protected:
     GLFWwindow* mWindow = nullptr;
@@ -65,6 +66,8 @@ class VKApplicationBase
 
     VkBuffer mVertexBuffer = nullptr;
     VkDeviceMemory mVertexBufferMemory = nullptr;
+    VkBuffer mIndexBuffer = nullptr;
+    VkDeviceMemory mIndexBufferMemory = nullptr;
 
     std::vector<VkFramebuffer> mSwapchainFramebuffers;
     VkCommandPool mCommandPool = nullptr;

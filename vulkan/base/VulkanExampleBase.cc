@@ -34,9 +34,11 @@ struct Vertex {
         return attributeDescriptions;
     }
 };
-const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                      {{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
-                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+const std::vector<Vertex> vertices = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},//left top
+                                      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}, // right top
+                                      {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},  // right bottom
+                                      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};// left bottom
+const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
 const uint32_t kWidth = 800;
 const uint32_t kHeight = 600;
@@ -189,6 +191,7 @@ void VKApplicationBase::initVulkan() {
     createCommandPool();
     createCommandBuffer();
     createVertexBuffer();
+    createIndexBuffer();
     createSyncObjects();
 }
 
@@ -215,6 +218,9 @@ void VKApplicationBase::cleanup() {
     vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
     vkDestroyBuffer(mDevice, mVertexBuffer, nullptr);
     vkFreeMemory(mDevice, mVertexBufferMemory, nullptr);
+    vkDestroyBuffer(mDevice, mIndexBuffer, nullptr);
+    vkFreeMemory(mDevice, mIndexBufferMemory, nullptr);
+
     vkDestroyDevice(mDevice, nullptr);
     vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
     vkDestroyInstance(mInstance, nullptr);
@@ -803,6 +809,7 @@ void VKApplicationBase::recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t ima
     VkBuffer vertexBuffers[] = {mVertexBuffer};
     VkDeviceSize offsets[] = {0};// buffer offsets
     vkCmdBindVertexBuffers(cmdBuf, /*firstBinding*/ 0, /*bindong count*/ 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(cmdBuf, mIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
 
     VkViewport viewport{};
@@ -818,7 +825,10 @@ void VKApplicationBase::recordCommandBuffer(VkCommandBuffer cmdBuf, uint32_t ima
     scissor.offset = {0, 0};
     scissor.extent = mSwapchainExtent;
     vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
-    vkCmdDraw(cmdBuf, /*vertex cound*/ 3, /* instance count*/ 1, /*fisrt vertex*/ 0, /*first instance*/ 0);
+    // vkCmdDraw(cmdBuf, /*vertex cound*/ vertices.size(), /* instance count*/ 1, /*fisrt vertex*/ 0,
+    //           /*first instance*/ 0);
+    vkCmdDrawIndexed(cmdBuf, (uint32_t) indices.size(), /*instanceCount*/ 1, /*firstIndex*/ 0, /*vertexoffset*/ 0,
+                     /*first instance*/ 0);
 
     vkCmdEndRenderPass(cmdBuf);
     VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuf));
@@ -920,6 +930,28 @@ void VKApplicationBase::createVertexBuffer() {
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mVertexBuffer, mVertexBufferMemory);
 
     copyBuffer(stagingBuffer, mVertexBuffer, bufferSize);
+    vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
+    vkFreeMemory(mDevice, stagingBufferMem, nullptr);
+}
+
+void VKApplicationBase::createIndexBuffer() {
+
+    VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+    VkBuffer stagingBuffer = nullptr;
+    VkDeviceMemory stagingBufferMem = nullptr;
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+                 stagingBufferMem);
+
+    void *data = nullptr;
+    vkMapMemory(mDevice, stagingBufferMem, 0, bufferSize, 0, &data);
+    memcpy(data, indices.data(), (size_t) bufferSize);// 我们之前申请的内存加了coherent,所以不需要手动flash
+    vkUnmapMemory(mDevice, stagingBufferMem);
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mIndexBuffer, mIndexBufferMemory);
+
+    copyBuffer(stagingBuffer, mIndexBuffer, bufferSize);
     vkDestroyBuffer(mDevice, stagingBuffer, nullptr);
     vkFreeMemory(mDevice, stagingBufferMem, nullptr);
 }
