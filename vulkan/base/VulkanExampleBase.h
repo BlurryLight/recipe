@@ -42,38 +42,52 @@ class VKApplicationBase
         void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
         void createVertexBuffer();
         void createIndexBuffer();
+        void createDesciptorSetLayout();
+        void createUniformBuffers();
+        void updateUniformBuffer(uint32_t imageIndex);
+        void createDescriptorPool();
+        void createDescriptorSets();
+
 
     protected:
-    GLFWwindow* mWindow = nullptr;
-    VkInstance mInstance;
-    VkDebugUtilsMessengerEXT mDebugMessenger;
-    VkPhysicalDevice mPhysicalDevice = nullptr;
-    VkDevice mDevice = nullptr;
-    VkQueue mGraphicsQueue = nullptr;// auto cleanup with VkDevice
-    VkSurfaceKHR mSurface = nullptr;
-    VkQueue mPresentQueue = nullptr;
-    VkSwapchainKHR mSwapchain = nullptr;
-    VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
-    VkExtent2D mSwapchainExtent = {};
+        GLFWwindow *mWindow = nullptr;
+        VkInstance mInstance;
+        VkDebugUtilsMessengerEXT mDebugMessenger;
+        VkPhysicalDevice mPhysicalDevice = nullptr;
+        VkDevice mDevice = nullptr;
+        VkQueue mGraphicsQueue = nullptr;// auto cleanup with VkDevice
+        VkSurfaceKHR mSurface = nullptr;
+        VkQueue mPresentQueue = nullptr;
+        VkSwapchainKHR mSwapchain = nullptr;
+        VkFormat mSwapchainImageFormat = VK_FORMAT_MAX_ENUM;
+        VkExtent2D mSwapchainExtent = {};
 
-    VkPipelineLayout mPipelineLayout = nullptr;
-    VkRenderPass mRenderPass = nullptr;
-    VkPipeline mGraphicsPipeline = nullptr;
+        VkDescriptorSetLayout mDescriptorSetLayout = nullptr;
+        VkPipelineLayout mPipelineLayout = nullptr;
+        VkRenderPass mRenderPass = nullptr;
+        VkPipeline mGraphicsPipeline = nullptr;
 
-    // swapchain
-    std::vector<VkImage> mSwapchainImages;
-    std::vector<VkImageView> mSwapchainImageViews;
+        // swapchain
+        std::vector<VkImage> mSwapchainImages;
+        std::vector<VkImageView> mSwapchainImageViews;
 
-    VkBuffer mVertexBuffer = nullptr;
-    VkDeviceMemory mVertexBufferMemory = nullptr;
-    VkBuffer mIndexBuffer = nullptr;
-    VkDeviceMemory mIndexBufferMemory = nullptr;
+        VkBuffer mVertexBuffer = nullptr;
+        VkDeviceMemory mVertexBufferMemory = nullptr;
+        VkBuffer mIndexBuffer = nullptr;
+        VkDeviceMemory mIndexBufferMemory = nullptr;
 
-    std::vector<VkFramebuffer> mSwapchainFramebuffers;
-    VkCommandPool mCommandPool = nullptr;
-    VkCommandBuffer mCommandBuffer = nullptr;
+        std::vector<VkBuffer> mUniformBuffers;
+        std::vector<VkDeviceMemory> mUniformBuffersMemory;
+        std::vector<void *> mUniformBuffersMapped;
 
-    VkSemaphore mImageAvailableSemaphore;// trigged when image was aquired from wapchain
-    VkSemaphore mRenderFinishedSemaphore;// triggerd when drawcalls are all issued
-    VkFence mInFlightFence;
+        std::vector<VkFramebuffer> mSwapchainFramebuffers;
+        VkCommandPool mCommandPool = nullptr;
+        VkCommandBuffer mCommandBuffer = nullptr;
+
+        VkSemaphore mImageAvailableSemaphore;// trigged when image was aquired from wapchain
+        VkSemaphore mRenderFinishedSemaphore;// triggerd when drawcalls are all issued
+        VkFence mInFlightFence;
+
+        VkDescriptorPool mDescriptorPool = nullptr;
+        std::vector<VkDescriptorSet> mDescriptorSets;
 };
