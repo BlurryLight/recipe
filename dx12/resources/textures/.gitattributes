@@ -1,0 +1,16 @@
+checkboard.dds filter=lfs diff=lfs merge=lfs -text
+grass.dds filter=lfs diff=lfs merge=lfs -text
+grasscube1024.dds filter=lfs diff=lfs merge=lfs -text
+tile.dds filter=lfs diff=lfs merge=lfs -text
+water1.dds filter=lfs diff=lfs merge=lfs -text
+bricks.dds filter=lfs diff=lfs merge=lfs -text
+bricks3.dds filter=lfs diff=lfs merge=lfs -text
+stone.dds filter=lfs diff=lfs merge=lfs -text
+treearray.dds filter=lfs diff=lfs merge=lfs -text
+treeArray2.dds filter=lfs diff=lfs merge=lfs -text
+WoodCrate01.dds filter=lfs diff=lfs merge=lfs -text
+awesomeface.png filter=lfs diff=lfs merge=lfs -text
+grass.png filter=lfs diff=lfs merge=lfs -text
+ice.dds filter=lfs diff=lfs merge=lfs -text
+window.png filter=lfs diff=lfs merge=lfs -text
+wood.png filter=lfs diff=lfs merge=lfs -text
