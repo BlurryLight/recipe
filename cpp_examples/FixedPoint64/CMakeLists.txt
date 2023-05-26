@@ -24,7 +24,8 @@ if(SWIG_FOUND)
   message("SWIG found: ${SWIG_EXECUTABLE}")
 endif()
 include(${SWIG_USE_FILE})
-
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 add_library(Fix64Lib SHARED Fix64.cc)
 target_compile_options(Fix64Lib PUBLIC "$<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>")
 message(${CMAKE_SOURCE_DIR})
@@ -51,7 +52,7 @@ add_custom_command(TARGET Fix64Py POST_BUILD
 
 if(WIN32)
 # windows 还需要拷贝dll
-add_custom_command(TARGET Fix64Py POST_BUILD
+add_custom_command(TARGET Fix64Lib POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:Fix64Lib> ${CMAKE_SOURCE_DIR}/PythonLib/$<TARGET_FILE_NAME:Fix64Lib>
 )
 endif()
@@ -61,3 +62,7 @@ enable_testing()
 if(NOT "${Python_EXECUTABLE}" STREQUAL "")
   add_test(NAME pythonTest COMMAND ${Python_EXECUTABLE} PyTest.py WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/PythonLib)
 endif()
+
+
+add_executable(cpptest cpptest.cc)
+target_link_libraries(cpptest Fix64Lib)
