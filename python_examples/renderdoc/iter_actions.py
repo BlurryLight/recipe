@@ -1,5 +1,7 @@
+import re
 import sys
 import os
+from itertools import accumulate
 # Import renderdoc if not already imported (e.g. in the UI)
 if 'renderdoc' not in sys.modules and '_renderdoc' not in sys.modules:
     os.environ["PATH"] += os.pathsep + os.path.abspath(R'C:\coderepo\githubbase\renderdoc-1.26\x64\Development')
@@ -11,38 +13,67 @@ if 'renderdoc' not in sys.modules and '_renderdoc' not in sys.modules:
 rd = renderdoc
 
 # Define a recursive function for iterating over actions
+pattern = "IndirectDraw\(<\d+,\s*(\d+)>\)"
+prog = re.compile(pattern)
 
 
-def AccumulateActions(Action: renderdoc.ActionDescription) -> int:
+def accumulateActions(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False) -> int:
     Sum = 0
     for Child in Action.children:
-        Sum += AccumulateActions(Child)
-        if (Child.flags & renderdoc.ActionFlags.Drawcall) > 0:
-            Sum += 1
+        Sum += accumulateActions(controller, Child, FilterZero)
+        if (Child.flags & renderdoc.ActionFlags.Drawcall) == 0:
+            continue
+        if (FilterZero):
+            ChildName = Child.GetName(controller.GetStructuredFile())
+            m = prog.search(ChildName)
+            if (m is not None and int(m.group(1)) == 0):
+                continue
+        Sum += 1
     return Sum
+
+
+def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> renderdoc.ActionDescription:
+    if Action.GetName(controller.GetStructuredFile()) == name:
+        return Action
+    for Child in Action.children:
+        Result = locateAction(controller, Child, name)
+        if Result is not None:
+            return Result
+    return None
+
+
+def iterScene(controller: renderdoc.ReplayController, SceneAction: renderdoc.ActionDescription, FilterZero):
+    print("Iter SceneAction, Filtering Zero {}", FilterZero)
+    # Iterate over the actions
+    SceneCounter = {}
+    for d in SceneAction.children:
+        ActionName: str = d.GetName(controller.GetStructuredFile())
+        ActionNums = accumulateActions(controller, d, FilterZero=FilterZero)
+        if (ActionNums > 0):
+            SceneCounter[ActionName] = ActionNums
+        # sort SceneCounter by value
+    OrderedArr = sorted(SceneCounter.items(), key=lambda x: x[1], reverse=True)
+    Total = sum(list(SceneCounter.values()))
+    PrefixSum = list(accumulate([item[1] for item in OrderedArr]))
+    print("{:50s} {:>10s} {:>10s} {:>10s}" .format("PassName/DC", "DC%", "PrefixSum", "PrefixSum%"))
+    for i in range(len(OrderedArr)):
+        PassName, DC = OrderedArr[i]
+        print("{:50s} {:2.2%} {} {:2.2%}" .format(OrderedArr[i], DC / Total, PrefixSum[i], PrefixSum[i] / Total))
+    print("TotalDC: ", Total)
 
 
 def sampleCode(controller: renderdoc.ReplayController):
     SceneAction: renderdoc.ActionDescription = None
     for d in controller.GetRootActions():
-        if d.GetName(controller.GetStructuredFile()) == 'Scene':
-            SceneAction = d
+        SceneAction = locateAction(controller, d, "Scene")
+        if (SceneAction):
             break
+
     if SceneAction is None:
         return
 
-    # Iterate over the actions
-    SceneCounter = {}
-    for d in SceneAction.children:
-        ActionName: str = d.GetName(controller.GetStructuredFile())
-        ActionNums = AccumulateActions(d)
-        if (ActionNums > 0):
-            SceneCounter[ActionName] = ActionNums
-        # sort SceneCounter by value
-    Arr = sorted(SceneCounter.items(), key=lambda x: x[1], reverse=True)
-    Total = sum(list(SceneCounter.values()))
-    for item in Arr:
-        print("{:50s} {:2.2%}" .format(str(item), item[1] / Total))
+    iterScene(controller, SceneAction, True)
+    iterScene(controller, SceneAction, False)
 
 
 def loadCapture(filename):
