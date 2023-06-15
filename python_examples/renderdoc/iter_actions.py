@@ -2,6 +2,7 @@ import re
 import sys
 import os
 from itertools import accumulate
+from typing import List
 # Import renderdoc if not already imported (e.g. in the UI)
 if 'renderdoc' not in sys.modules and '_renderdoc' not in sys.modules:
     os.environ["PATH"] += os.pathsep + os.path.abspath(R'C:\coderepo\githubbase\renderdoc-1.26\x64\Development')
@@ -32,6 +33,7 @@ def accumulateActions(controller: renderdoc.ReplayController, Action: renderdoc.
     return Sum
 
 
+# accurate locate only one
 def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> renderdoc.ActionDescription:
     if Action.GetName(controller.GetStructuredFile()) == name:
         return Action
@@ -40,6 +42,25 @@ def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> 
         if Result is not None:
             return Result
     return None
+
+# dfs search Action has substring
+
+
+def searchAction(controller, BeginAction: renderdoc.ActionDescription, Name: str, ResActions: List[renderdoc.ActionDescription]):
+    if BeginAction.GetName(controller.GetStructuredFile()).find(Name) != -1:
+        ResActions.append(BeginAction)
+    for Child in BeginAction.children:
+        searchAction(controller, Child, Name, ResActions)
+
+
+def iterateShadowDepths(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False):
+    SplitActions: List[renderdoc.ActionDescription] = []
+    searchAction(controller, Action, "WholeScene split", SplitActions)
+    print("Cascade Nums: ", len(SplitActions))
+    for x in SplitActions:
+        ActionName: str = x.GetName(controller.GetStructuredFile())
+        ActionNums = accumulateActions(controller, x, FilterZero=FilterZero)
+        print("{:50s} {:>10s}" .format(ActionName, str(ActionNums)))
 
 
 def iterScene(controller: renderdoc.ReplayController, SceneAction: renderdoc.ActionDescription, FilterZero):
@@ -51,14 +72,16 @@ def iterScene(controller: renderdoc.ReplayController, SceneAction: renderdoc.Act
         ActionNums = accumulateActions(controller, d, FilterZero=FilterZero)
         if (ActionNums > 0):
             SceneCounter[ActionName] = ActionNums
-        # sort SceneCounter by value
+        if (ActionName.find("ShadowDepths") != -1):
+            iterateShadowDepths(controller, d, FilterZero=FilterZero)
+            # sort SceneCounter by value
     OrderedArr = sorted(SceneCounter.items(), key=lambda x: x[1], reverse=True)
     Total = sum(list(SceneCounter.values()))
     PrefixSum = list(accumulate([item[1] for item in OrderedArr]))
     print("{:50s} {:>10s} {:>10s} {:>10s}" .format("PassName/DC", "DC%", "PrefixSum", "PrefixSum%"))
     for i in range(len(OrderedArr)):
         PassName, DC = OrderedArr[i]
-        print("{:50s} {:2.2%} {} {:2.2%}" .format(OrderedArr[i], DC / Total, PrefixSum[i], PrefixSum[i] / Total))
+        print("{:50s} {:2.2%} {} {:2.2%}" .format(str(OrderedArr[i]), DC / Total, PrefixSum[i], PrefixSum[i] / Total))
     print("TotalDC: ", Total)
 
 
@@ -73,6 +96,7 @@ def sampleCode(controller: renderdoc.ReplayController):
         return
 
     iterScene(controller, SceneAction, True)
+    print("\n" * 5)
     iterScene(controller, SceneAction, False)
 
 
