@@ -1,0 +1,1 @@
+An easy way to implement `static_vector`-like container
