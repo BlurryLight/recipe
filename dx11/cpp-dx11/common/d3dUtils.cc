@@ -62,8 +62,9 @@ HRESULT CreateShaderFromFile(std::wstring_view csoFileNameInOut,
                              bool force_compile) {
   HRESULT hr = S_OK;
   // 当hlsl比cso新的时候必须重编
-  force_compile = force_compile || (fs::last_write_time(csoFileNameInOut) <
-                                    fs::last_write_time(hlslPath));
+  force_compile =
+      force_compile || !fs::exists(csoFileNameInOut) ||
+      (fs::last_write_time(csoFileNameInOut) < fs::last_write_time(hlslPath));
   if (!force_compile && !csoFileNameInOut.empty() &&
       (D3DReadFileToBlob(csoFileNameInOut.data(), ppBlobOut) == S_OK)) {
     return hr;
