@@ -17,11 +17,15 @@ rd = renderdoc
 pattern = "IndirectDraw\(<\d+,\s*(\d+)>\)"
 prog = re.compile(pattern)
 
+bPrintShadowInfo = False
+bPrintBasicInfo = True
+bPrintBasepassFoliageInfo = True
 
-def accumulateActions(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False) -> int:
+
+def accumulateDrawCall(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False) -> int:
     Sum = 0
     for Child in Action.children:
-        Sum += accumulateActions(controller, Child, FilterZero)
+        Sum += accumulateDrawCall(controller, Child, FilterZero)
         if (Child.flags & renderdoc.ActionFlags.Drawcall) == 0:
             continue
         if (FilterZero):
@@ -33,7 +37,22 @@ def accumulateActions(controller: renderdoc.ReplayController, Action: renderdoc.
     return Sum
 
 
+def accumulateEstimatedVertices(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription) -> int:
+    Sum = 0
+    # ActionName = Action.GetName(controller.GetStructuredFile())
+    # print(ActionName, f"indices: {Action.numIndices}", f"instances: {Action.numInstances}")
+    for Child in Action.children:
+        Sum += accumulateEstimatedVertices(controller, Child)
+        if (Child.flags & renderdoc.ActionFlags.Drawcall) == 0:
+            continue
+        # ChildName = Child.GetName(controller.GetStructuredFile())
+        # print(ChildName, f"indices: {Child.numIndices}", f"instances: {Child.numInstances}")
+        Sum += Child.numIndices * Child.numInstances
+    return Sum
+
 # accurate locate only one
+
+
 def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> renderdoc.ActionDescription:
     if Action.GetName(controller.GetStructuredFile()) == name:
         return Action
@@ -46,42 +65,67 @@ def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> 
 # dfs search Action has substring
 
 
-def searchAction(controller, BeginAction: renderdoc.ActionDescription, Name: str, ResActions: List[renderdoc.ActionDescription]):
+def searchAction(controller, BeginAction: renderdoc.ActionDescription, Name: str, ResActions: List[renderdoc.ActionDescription], depth, maxDepth=10):
+    if (depth >= maxDepth):  # limit dfs max depth
+        return
     if BeginAction.GetName(controller.GetStructuredFile()).find(Name) != -1:
         ResActions.append(BeginAction)
     for Child in BeginAction.children:
-        searchAction(controller, Child, Name, ResActions)
+        searchAction(controller, Child, Name, ResActions, depth + 1, maxDepth)
 
 
 def iterateShadowDepths(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False):
+    print(f"Iter Shadows, Filtering Zero {FilterZero}")
     SplitActions: List[renderdoc.ActionDescription] = []
-    searchAction(controller, Action, "WholeScene split", SplitActions)
+    searchAction(controller, Action, "WholeScene split", SplitActions, depth=0, maxDepth=10)
     print("Cascade Nums: ", len(SplitActions))
     for x in SplitActions:
         ActionName: str = x.GetName(controller.GetStructuredFile())
-        ActionNums = accumulateActions(controller, x, FilterZero=FilterZero)
+        ActionNums = accumulateDrawCall(controller, x, FilterZero=FilterZero)
         print("{:50s} {:>10s}" .format(ActionName, str(ActionNums)))
 
 
-def iterScene(controller: renderdoc.ReplayController, SceneAction: renderdoc.ActionDescription, FilterZero):
-    print("Iter SceneAction, Filtering Zero {}", FilterZero)
+def iterateBasePassForName(controller: renderdoc.ReplayController, Name, Action: renderdoc.ActionDescription, FilterZero=False):
+    print(f"Iter BasePass {Name}, Filtering Zero {FilterZero}")
+    TargetActions: List[renderdoc.ActionDescription] = []
+    searchAction(controller, Action, Name, TargetActions, depth=0, maxDepth=3)
+    Total = 0
+    for x in TargetActions:
+        ActionName: str = x.GetName(controller.GetStructuredFile())
+        ActionNums = accumulateDrawCall(controller, x, FilterZero=FilterZero)
+        if (ActionNums > 0):
+            print("{:50s} {:>10s}" .format(ActionName, str(ActionNums)))
+            Total += 1
+    print("Total DC:", Total)
+
+
+def iterateBasePassFoliage(controller: renderdoc.ReplayController, Action: renderdoc.ActionDescription, FilterZero=False):
+    iterateBasePassForName(controller, "Foliage", Action, FilterZero)
+
+
+def iterSceneDrawCall(controller: renderdoc.ReplayController, SceneAction: renderdoc.ActionDescription, FilterZero):
+    print(f"Iter SceneAction, Filtering Zero {FilterZero}")
     # Iterate over the actions
-    SceneCounter = {}
+    SceneDCCounter = {}
+    SceneVerticesCounter = {}
     for d in SceneAction.children:
         ActionName: str = d.GetName(controller.GetStructuredFile())
-        ActionNums = accumulateActions(controller, d, FilterZero=FilterZero)
-        if (ActionNums > 0):
-            SceneCounter[ActionName] = ActionNums
-        if (ActionName.find("ShadowDepths") != -1):
-            iterateShadowDepths(controller, d, FilterZero=FilterZero)
-            # sort SceneCounter by value
-    OrderedArr = sorted(SceneCounter.items(), key=lambda x: x[1], reverse=True)
-    Total = sum(list(SceneCounter.values()))
+        ActionDCNums = accumulateDrawCall(controller, d, FilterZero=FilterZero)
+        if (ActionDCNums > 0):
+            SceneDCCounter[ActionName] = ActionDCNums
+
+        ActionVerticesNums = accumulateEstimatedVertices(controller, d)
+        if (ActionVerticesNums > 0):
+            SceneVerticesCounter[ActionName] = ActionVerticesNums
+
+    OrderedArr = sorted(SceneDCCounter.items(), key=lambda x: x[1], reverse=True)
+    Total = sum(list(SceneDCCounter.values()))
     PrefixSum = list(accumulate([item[1] for item in OrderedArr]))
-    print("{:50s} {:>10s} {:>10s} {:>10s}" .format("PassName/DC", "DC%", "PrefixSum", "PrefixSum%"))
+    print("{:50s} {:>10s} {:>10s} {:>10s} {:>10s}" .format("PassName/DC", "DC%", "PrefixSum", "PrefixSum%", "Vertices"))
     for i in range(len(OrderedArr)):
         PassName, DC = OrderedArr[i]
-        print("{:50s} {:2.2%} {} {:2.2%}" .format(str(OrderedArr[i]), DC / Total, PrefixSum[i], PrefixSum[i] / Total))
+        print("{:50s} {:2.2%} {} {:2.2%} {}" .format(
+            str(OrderedArr[i]), DC / Total, PrefixSum[i], PrefixSum[i] / Total, SceneVerticesCounter[PassName]))
     print("TotalDC: ", Total)
 
 
@@ -95,9 +139,25 @@ def sampleCode(controller: renderdoc.ReplayController):
     if SceneAction is None:
         return
 
-    iterScene(controller, SceneAction, True)
-    print("\n" * 5)
-    iterScene(controller, SceneAction, False)
+    if bPrintBasicInfo:
+        iterSceneDrawCall(controller, SceneAction, True)
+        print("\n" * 3)
+        iterSceneDrawCall(controller, SceneAction, False)
+
+    if (bPrintShadowInfo):
+        ShadowDepthsAction: renderdoc.ActionDescription = None
+        ShadowDepthsAction = locateAction(controller, SceneAction, "ShadowDepths")
+        if (ShadowDepthsAction):
+            iterateShadowDepths(controller, ShadowDepthsAction, FilterZero=True)
+            print("\n" * 3)
+            iterateShadowDepths(controller, ShadowDepthsAction, FilterZero=False)
+
+    if (bPrintBasepassFoliageInfo):
+        BasepassAction = locateAction(controller, SceneAction, "BasePassParallel")  # dx12 only
+        if (BasepassAction):
+            iterateBasePassFoliage(controller, BasepassAction, FilterZero=True)
+            print("\n" * 3)
+            iterateBasePassFoliage(controller, BasepassAction, FilterZero=False)
 
 
 def loadCapture(filename):
