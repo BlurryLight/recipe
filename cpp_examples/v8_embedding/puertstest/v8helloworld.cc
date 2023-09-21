@@ -27,6 +27,24 @@
 #endif
 
 #include "v8.h"
+
+void MySin(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  v8::HandleScope handle_scope(args.GetIsolate());
+  v8::Isolate* Isolate = args.GetIsolate();
+  v8::Local<v8::Context> Context = Isolate->GetCurrentContext();
+  for (int i = 0; i < args.Length(); i++) {
+
+    if(args[i]->IsNumber())
+    {
+      double Arg = args[i]->ToNumber(Context).ToLocalChecked()->Value();
+      printf("%f",sin(Arg));
+    }
+  }
+  printf("\n");
+  fflush(stdout);
+}
+
+
 int main(int argc, char* argv[]) {
 //   // Initialize V8.
 //   v8::V8::InitializeICUDefaultLocation(argv[0]);
@@ -49,42 +67,14 @@ int main(int argc, char* argv[]) {
     // Create a stack-allocated handle scope.
     v8::HandleScope handle_scope(isolate);
     // Create a new context.
-    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Local<v8::ObjectTemplate> globalObject = v8::ObjectTemplate::New(isolate);
+    globalObject->Set(isolate,"mysin",v8::FunctionTemplate::New(isolate,MySin));
+    v8::Local<v8::Context> context = v8::Context::New(isolate,nullptr,globalObject);
     // Enter the context for compiling and running the hello world script.
     v8::Context::Scope context_scope(context);
     {
-      // Create a string containing the JavaScript source code.
-      v8::Local<v8::String> source =
-          v8::String::NewFromUtf8Literal(isolate, "'Hello' + ', World!'");
-      // Compile the source code.
-      v8::Local<v8::Script> script =
-          v8::Script::Compile(context, source).ToLocalChecked();
-      // Run the script to get the result.
-      v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
-      // Convert the result to an UTF8 string and print it.
-      v8::String::Utf8Value utf8(isolate, result);
-      printf("%s\n", *utf8);
-    }
-    {
-      // Use the JavaScript API to generate a WebAssembly module.
-      //
-      // |bytes| contains the binary format for the following module:
-      //
-      //     (func (export "add") (param i32 i32) (result i32)
-      //       get_local 0
-      //       get_local 1
-      //       i32.add)
-      //
       const char csource[] = R"(
-        let bytes = new Uint8Array([
-          0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01,
-          0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 0x07,
-          0x07, 0x01, 0x03, 0x61, 0x64, 0x64, 0x00, 0x00, 0x0a, 0x09, 0x01,
-          0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x6a, 0x0b
-        ]);
-        let module = new WebAssembly.Module(bytes);
-        let instance = new WebAssembly.Instance(module);
-        instance.exports.add(3, 4);
+        mysin(1,2,3,4);
       )";
       // Create a string containing the JavaScript source code.
       v8::Local<v8::String> source =
