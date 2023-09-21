@@ -53,11 +53,12 @@ def accumulateEstimatedVertices(controller: renderdoc.ReplayController, Action: 
 # accurate locate only one
 
 
-def locateAction(controller, Action: renderdoc.ActionDescription, name: str) -> renderdoc.ActionDescription:
-    if Action.GetName(controller.GetStructuredFile()) == name:
+def locateAction(controller, Action: renderdoc.ActionDescription, targetNames: List[str]) -> renderdoc.ActionDescription:
+    curActionName: str = Action.GetName(controller.GetStructuredFile())
+    if curActionName in targetNames:
         return Action
     for Child in Action.children:
-        Result = locateAction(controller, Child, name)
+        Result = locateAction(controller, Child, targetNames)
         if Result is not None:
             return Result
     return None
@@ -132,7 +133,7 @@ def iterSceneDrawCall(controller: renderdoc.ReplayController, SceneAction: rende
 def sampleCode(controller: renderdoc.ReplayController):
     SceneAction: renderdoc.ActionDescription = None
     for d in controller.GetRootActions():
-        SceneAction = locateAction(controller, d, "Scene")
+        SceneAction = locateAction(controller, d, ["Scene"])
         if (SceneAction):
             break
 
@@ -146,14 +147,14 @@ def sampleCode(controller: renderdoc.ReplayController):
 
     if (bPrintShadowInfo):
         ShadowDepthsAction: renderdoc.ActionDescription = None
-        ShadowDepthsAction = locateAction(controller, SceneAction, "ShadowDepths")
+        ShadowDepthsAction = locateAction(controller, SceneAction, ["ShadowDepths"])
         if (ShadowDepthsAction):
             iterateShadowDepths(controller, ShadowDepthsAction, FilterZero=True)
             print("\n" * 3)
             iterateShadowDepths(controller, ShadowDepthsAction, FilterZero=False)
 
     if (bPrintBasepassFoliageInfo):
-        BasepassAction = locateAction(controller, SceneAction, "BasePassParallel")  # dx12 only
+        BasepassAction = locateAction(controller, SceneAction, ["BasePassParallel"])  # dx12 only
         if (BasepassAction):
             iterateBasePassFoliage(controller, BasepassAction, FilterZero=True)
             print("\n" * 3)

@@ -27,9 +27,13 @@ set ( PuertsTestSRC puertsTest.cc
 
 add_executable(helloworld hello-world.cc)
 add_executable(puertsTest ${PuertsTestSRC})
+add_executable(v8hellowrold v8helloworld.cc)
+
+add_executable(shell shell.cc)
+add_executable(process process.cc)
 
 set (LIB_NAME wee8)
-set(target_list helloworld puertsTest)
+set(target_list helloworld puertsTest v8hellowrold shell process)
 
 foreach(exe ${target_list})
     target_link_libraries(${exe}
