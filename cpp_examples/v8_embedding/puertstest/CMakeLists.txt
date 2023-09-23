@@ -13,10 +13,11 @@ set (CMAKE_CXX_STANDARD 14)
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 set(JS_ENGINE_ROOT ${CMAKE_SOURCE_DIR}/../v8)
+message(${JS_ENGINE_ROOT})
 
 include_directories(
     ${JS_ENGINE_ROOT}/Inc
-    puerts/include
+    ${CMAKE_SOURCE_DIR}/puerts/include
 )
 
 set ( PuertsTestSRC puertsTest.cc 
@@ -41,5 +42,6 @@ foreach(exe ${target_list})
         ${JS_ENGINE_ROOT}/Lib/Win64DLL/v8_libplatform.dll.lib
         ${LIBS_NEEDED}
     )
+    target_include_directories(${exe} PRIVATE ${JS_ENGINE_ROOT}/Inc)
     target_compile_definitions (${exe} PRIVATE PLATFORM_WINDOWS)
 endforeach()

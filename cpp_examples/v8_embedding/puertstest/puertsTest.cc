@@ -59,8 +59,32 @@ public:
 
 UsingCppType(TestClass);
 
+struct Point1f {
+    float x = 0;
+};
 
-int main(int argc, char* argv[]) {
+void GetPointX(v8::Local<v8::String> property,
+               const v8::PropertyCallbackInfo<v8::Value> &Info) {
+    v8::Local<v8::Object> self = Info.Holder();
+    if (self->IsObject()) {
+        Point1f *p =
+            (Point1f *)self->GetInternalField(0).As<v8::External>()->Value();
+        Info.GetReturnValue().Set(p->x);
+    }
+}
+
+void SetPointX(v8::Local<v8::String> property, v8::Local<v8::Value> value,
+               const v8::PropertyCallbackInfo<void> &Info) {
+    v8::Local<v8::Object> self = Info.Holder();
+    v8::Local<v8::Context> context = Info.GetIsolate()->GetCurrentContext();
+    if (self->IsObject()) {
+        Point1f *p =
+            (Point1f *)self->GetInternalField(0).As<v8::External>()->Value();
+        p->x = value->NumberValue(context).FromMaybe(0.0);
+    }
+}
+
+int main(int argc, char *argv[]) {
     // Initialize V8.
     v8::StartupData SnapshotBlob;
     SnapshotBlob.data = (const char *)SnapshotBlobCode;
@@ -84,6 +108,12 @@ int main(int argc, char* argv[]) {
         // Create a stack-allocated handle scope.
         v8::HandleScope handle_scope(isolate);
 
+        v8::Local<v8::ObjectTemplate> Point1fTemplate = v8::ObjectTemplate::New(isolate);
+        Point1fTemplate->SetInternalFieldCount(1); // for one pointer
+        Point1fTemplate->SetAccessor(v8::String::NewFromUtf8Literal(isolate, "x"),
+                                    GetPointX, SetPointX);
+
+
         // Create a new context.
         v8::Local<v8::Context> context = v8::Context::New(isolate);
 
@@ -99,7 +129,15 @@ int main(int argc, char* argv[]) {
             pom->LoadCppType(info);
         }, v8::External::New(isolate, &cppObjectMapper))->GetFunction(context).ToLocalChecked()).Check();
             
-            
+
+        Point1f* p = new Point1f();
+        auto Point1fObj = Point1fTemplate->NewInstance(context).ToLocalChecked();
+        Point1fObj->SetInternalField(0, v8::External::New(isolate, p));
+
+        (void)context->Global()->Set(
+            context, v8::String::NewFromUtf8(isolate, "Point1fObj").ToLocalChecked(),
+            Point1fObj);
+
         //注册
         puerts::DefineClass<TestClass>()
             .Constructor<int>()
@@ -119,6 +157,10 @@ int main(int argc, char* argv[]) {
                 TestClass.Print(obj.X);
                 
                 TestClass.Print('ret = ' + obj.Add(1, 3));
+
+                TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
+                Point1fObj.x = 100;
+                TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
               )";
 
             // Create a string containing the JavaScript source code.
@@ -135,7 +177,6 @@ int main(int argc, char* argv[]) {
         }
         
         cppObjectMapper.UnInitialize(isolate);
-
     }
 
     // Dispose the isolate and tear down V8.
