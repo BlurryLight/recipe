@@ -36,6 +36,7 @@ void FCppObjectMapper::LoadCppType(const v8::FunctionCallbackInfo<v8::Value>& In
         return;
     }
 
+    // ravenzhong: 这里有一个O(n)的查找
     std::string TypeName = *(v8::String::Utf8Value(Isolate, Info[0]));
 
     auto ClassDef = FindCppTypeClassByName(TypeName);
@@ -58,6 +59,7 @@ static void PointerNew(const v8::FunctionCallbackInfo<v8::Value>& Info)
 void FCppObjectMapper::Initialize(v8::Isolate* InIsolate, v8::Local<v8::Context> InContext)
 {
     auto LocalTemplate = v8::FunctionTemplate::New(InIsolate, PointerNew);
+    // 2 should be enough
     LocalTemplate->InstanceTemplate()->SetInternalFieldCount(4);    // 0 Ptr, 1, CDataName
     PointerConstructor = v8::UniquePersistent<v8::Function>(InIsolate, LocalTemplate->GetFunction(InContext).ToLocalChecked());
 }

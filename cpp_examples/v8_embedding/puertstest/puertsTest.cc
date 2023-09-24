@@ -80,9 +80,10 @@ void SetPointX(v8::Local<v8::String> property, v8::Local<v8::Value> value,
     if (self->IsObject()) {
         Point1f *p =
             (Point1f *)self->GetInternalField(0).As<v8::External>()->Value();
-        p->x = value->NumberValue(context).FromMaybe(0.0);
+        p->x = (float)(value->NumberValue(context).FromMaybe(0.0));
     }
 }
+
 
 int main(int argc, char *argv[]) {
     // Initialize V8.
@@ -113,30 +114,64 @@ int main(int argc, char *argv[]) {
         Point1fTemplate->SetAccessor(v8::String::NewFromUtf8Literal(isolate, "x"),
                                     GetPointX, SetPointX);
 
+        v8::Local<v8::FunctionTemplate> dummyFt =
+            v8::FunctionTemplate::New(isolate, [](const v8::FunctionCallbackInfo<v8::Value> &info) {
+                if(info.IsConstructCall())
+                {
+                    std::cout << "construct dummy object" << std::endl;
+                }
+            });
+        dummyFt->SetClassName(v8::String::NewFromUtf8Literal(isolate, "Dummy"));
+        v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
+        global->Set(v8::String::NewFromUtf8Literal(isolate, "Dummy"), dummyFt);
+        dummyFt->InstanceTemplate()->Set(
+            v8::String::NewFromUtf8Literal(isolate, "InstanceProperty"),
+            v8::Number::New(isolate, 1));
+
+        dummyFt->PrototypeTemplate()->Set(
+            v8::String::NewFromUtf8Literal(isolate, "ProtoProperty"),
+            v8::Number::New(isolate, 2));
 
         // Create a new context.
-        v8::Local<v8::Context> context = v8::Context::New(isolate);
+        v8::Local<v8::Context> context = v8::Context::New(isolate, nullptr, global);
 
         // Enter the context for compiling and running the hello world script.
         v8::Context::Scope context_scope(context);
         
         cppObjectMapper.Initialize(isolate, context);
         isolate->SetData(MAPPER_ISOLATE_DATA_POS, static_cast<puerts::ICppObjectMapper*>(&cppObjectMapper));
-        
-        context->Global()->Set(context, v8::String::NewFromUtf8(isolate, "loadCppType").ToLocalChecked(), v8::FunctionTemplate::New(isolate, [](const v8::FunctionCallbackInfo<v8::Value>& info)
-        {
-            auto pom = static_cast<puerts::FCppObjectMapper*>((v8::Local<v8::External>::Cast(info.Data()))->Value());
-            pom->LoadCppType(info);
-        }, v8::External::New(isolate, &cppObjectMapper))->GetFunction(context).ToLocalChecked()).Check();
-            
 
-        Point1f* p = new Point1f();
-        auto Point1fObj = Point1fTemplate->NewInstance(context).ToLocalChecked();
-        Point1fObj->SetInternalField(0, v8::External::New(isolate, p));
+        // 这下面一块是
+        // 1. 向JS里注册一个loadCppType函数
+        // 2. 这个函数调用的时候会回到loadcpptypefunc, 又转发到  FCppObjectMapper->LoadCppType
+        // 里面应该是返回了一个带有prototype的funciton之类的东西，所以js层就可以new了
+        auto LoadCppTypeFunc =
+            [](const v8::FunctionCallbackInfo<v8::Value> &info) {
+              auto pom = static_cast<puerts::FCppObjectMapper *>(
+                  (v8::Local<v8::External>::Cast(info.Data()))->Value());
+              pom->LoadCppType(info);
+            };
+        //  创建FUnctiontemplate的时候可以传入一个data，这个data会在每次调用的时候传回来
+        auto LoadCppTypeFuncTemplate = v8::FunctionTemplate::New(
+            isolate, LoadCppTypeFunc,
+            v8::External::New(isolate, &cppObjectMapper));
 
-        (void)context->Global()->Set(
-            context, v8::String::NewFromUtf8(isolate, "Point1fObj").ToLocalChecked(),
-            Point1fObj);
+        auto LoadCppTypeFuncObject =
+            LoadCppTypeFuncTemplate->GetFunction(context).ToLocalChecked();
+        context->Global()
+            ->Set(context,
+                  v8::String::NewFromUtf8(isolate, "loadCppType")
+                      .ToLocalChecked(),
+                  LoadCppTypeFuncObject)
+            .Check();
+
+        // Point1f* p = new Point1f();
+        // auto Point1fObj = Point1fTemplate->NewInstance(context).ToLocalChecked();
+        // Point1fObj->SetInternalField(0, v8::External::New(isolate, p));
+
+        // (void)context->Global()->Set(
+        //     context, v8::String::NewFromUtf8(isolate, "Point1fObj").ToLocalChecked(),
+        //     Point1fObj);
 
         //注册
         puerts::DefineClass<TestClass>()
@@ -158,9 +193,17 @@ int main(int argc, char *argv[]) {
                 
                 TestClass.Print('ret = ' + obj.Add(1, 3));
 
-                TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
-                Point1fObj.x = 100;
-                TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
+                let dummy = new Dummy();
+                TestClass.Print(JSON.stringify(dummy));
+                TestClass.Print(dummy.InstanceProperty);
+                TestClass.Print(dummy.constructor);
+                var prototype = Object.getPrototypeOf(dummy);
+                TestClass.Print(JSON.stringify(prototype));
+                TestClass.Print(dummy.hasOwnProperty('InstanceProperty'));
+                TestClass.Print(dummy.hasOwnProperty('ProtoProperty'));
+                // TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
+                // Point1fObj.x = 100;
+                // TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
               )";
 
             // Create a string containing the JavaScript source code.
