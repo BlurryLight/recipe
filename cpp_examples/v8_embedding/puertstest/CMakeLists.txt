@@ -33,9 +33,10 @@ add_executable(v8hellowrold v8helloworld.cc)
 add_executable(shell shell.cc)
 add_executable(process process.cc)
 add_executable(v8TestCallJS TestV8CallJs.cc)
+add_executable(v8TestCallJSModule ModuleLoadTest/main.cpp)
 
 set (LIB_NAME wee8)
-set(target_list helloworld puertsTest v8hellowrold shell process v8TestCallJS)
+set(target_list helloworld puertsTest v8hellowrold shell process v8TestCallJS v8TestCallJSModule)
 
 foreach(exe ${target_list})
     target_link_libraries(${exe}
