@@ -160,6 +160,9 @@ v8::Local<v8::FunctionTemplate> FCppObjectMapper::GetTemplateOfClass(v8::Isolate
         auto Template = v8::FunctionTemplate::New(
             Isolate, CDataNew, v8::External::New(Isolate, const_cast<void*>(reinterpret_cast<const void*>(ClassDefinition))));
         Template->InstanceTemplate()->SetInternalFieldCount(4);
+        //++ravenzhong
+        Template->SetClassName(v8::String::NewFromUtf8(Isolate, ClassDefinition->ScriptName, v8::NewStringType::kNormal).ToLocalChecked());
+        //--ravenzhong
 
         JSPropertyInfo* PropertyInfo = ClassDefinition->Properties;
         while (PropertyInfo && PropertyInfo->Name && PropertyInfo->Getter)

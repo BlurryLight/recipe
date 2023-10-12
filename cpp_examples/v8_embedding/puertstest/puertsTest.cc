@@ -186,6 +186,7 @@ int main(int argc, char *argv[]) {
                 const TestClass = loadCppType('TestClass');
                 TestClass.Print('hello world');
                 let obj = new TestClass(123);
+                TestClass.Print(obj.constructor.name);
                 
                 TestClass.Print(obj.X);
                 obj.X = 99;
