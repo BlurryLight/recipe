@@ -1125,6 +1125,10 @@ struct PropertyWrapper<API, Ret Ins::*, member,
     }
 };
 
+// &TestClass::A -> int TestClass::*
+// Ret = int
+// ins = TestClass
+// member = &TestClass::A
 template <typename API, class Ins, class Ret, Ret Ins::*member>
 struct PropertyWrapper<API, Ret Ins::*, member, typename std::enable_if<is_objecttype<Ret>::value || is_uetype<Ret>::value>::type>
 {

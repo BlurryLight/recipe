@@ -59,7 +59,6 @@ static void PointerNew(const v8::FunctionCallbackInfo<v8::Value>& Info)
 void FCppObjectMapper::Initialize(v8::Isolate* InIsolate, v8::Local<v8::Context> InContext)
 {
     auto LocalTemplate = v8::FunctionTemplate::New(InIsolate, PointerNew);
-    // 2 should be enough
     LocalTemplate->InstanceTemplate()->SetInternalFieldCount(4);    // 0 Ptr, 1, CDataName
     PointerConstructor = v8::UniquePersistent<v8::Function>(InIsolate, LocalTemplate->GetFunction(InContext).ToLocalChecked());
 }
@@ -187,7 +186,7 @@ v8::Local<v8::FunctionTemplate> FCppObjectMapper::GetTemplateOfClass(v8::Isolate
                 PropertyAttribute = (v8::PropertyAttribute)(PropertyAttribute | v8::ReadOnly);
             auto Data = PropertyInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->Data))
                                            : v8::Local<v8::Value>();
-            Template->SetAccessorProperty(
+            Template->SetAccessorProperty( // 静态成员直接设置在这个Function上
                 v8::String::NewFromUtf8(Isolate, PropertyInfo->Name, v8::NewStringType::kNormal).ToLocalChecked(),
                 v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data),
                 v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data), PropertyAttribute);

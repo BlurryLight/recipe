@@ -42,6 +42,11 @@ public:
     TestClass(int p) {
         std::cout << "TestClass(" << p << ")" << std::endl;
         X = p;
+        Arr[0] = 100;
+        Arr[1] = 101;
+        Arr[2] = 102;
+        Y = UINT_MAX;
+        ptr = Arr;
     }
 
     static void Print(std::string msg) {
@@ -53,8 +58,19 @@ public:
         std::cout << "Add(" << a << "," << b << ")" << std::endl;
         return a + b;
     }
-    
+
+    void PointerAdd(uint32_t* pt)
+    {
+        if(pt)
+        {
+            *pt = (*pt) + 1;
+        }
+    }
+
     int X;
+    uint32_t Arr[3];
+    uint32_t Y;
+    uint32_t* ptr;
 };
 
 UsingCppType(TestClass);
@@ -178,7 +194,11 @@ int main(int argc, char *argv[]) {
             .Constructor<int>()
             .Function("Print", MakeFunction(&TestClass::Print))
             .Property("X", MakeProperty(&TestClass::X))
+            .Property("Y", MakeProperty(&TestClass::Y))
+            .Property("Ptr", MakeProperty(&TestClass::ptr))
+            .Property("Arr", MakeReadonlyProperty(&TestClass::Arr))
             .Method("Add", MakeFunction(&TestClass::Add))
+            .Method("PointerAdd", MakeFunction(&TestClass::PointerAdd))
             .Register();
 
         {
@@ -191,17 +211,22 @@ int main(int argc, char *argv[]) {
                 TestClass.Print(obj.X);
                 obj.X = 99;
                 TestClass.Print(obj.X);
-                
-                TestClass.Print('ret = ' + obj.Add(1, 3));
+                TestClass.Print(obj.Y);
+                TestClass.Print(obj.Arr);
+                obj.PointerAdd(obj.Ptr);
+                const typedArray = new Uint32Array(obj.Arr);
+                TestClass.Print([...typedArray]);
 
-                let dummy = new Dummy();
-                TestClass.Print(JSON.stringify(dummy));
-                TestClass.Print(dummy.InstanceProperty);
-                TestClass.Print(dummy.constructor);
-                var prototype = Object.getPrototypeOf(dummy);
-                TestClass.Print(JSON.stringify(prototype));
-                TestClass.Print(dummy.hasOwnProperty('InstanceProperty'));
-                TestClass.Print(dummy.hasOwnProperty('ProtoProperty'));
+                // TestClass.Print('ret = ' + obj.Add(1, 3));
+
+                // let dummy = new Dummy();
+                // TestClass.Print(JSON.stringify(dummy));
+                // TestClass.Print(dummy.InstanceProperty);
+                // TestClass.Print(dummy.constructor);
+                // var prototype = Object.getPrototypeOf(dummy);
+                // TestClass.Print(JSON.stringify(prototype));
+                // TestClass.Print(dummy.hasOwnProperty('InstanceProperty'));
+                // TestClass.Print(dummy.hasOwnProperty('ProtoProperty'));
                 // TestClass.Print('Point1fObj.x = ' + Point1fObj.x);
                 // Point1fObj.x = 100;
                 // TestClass.Print('Point1fObj.x = ' + Point1fObj.x);

@@ -14,6 +14,8 @@
 #include "DataTransfer.h"
 #include "JSClassRegister.h"
 
+#include <cstdio>
+
 #define __DefObjectType_v8_impl(CLS)                  \
     namespace puerts                                  \
     {                                                 \
@@ -514,6 +516,7 @@ struct Converter<std::reference_wrapper<T>, typename std::enable_if<!is_objectty
 
     static T toCpp(v8::Local<v8::Context> context, const v8::Local<v8::Value>& value)
     {
+        std::printf("%s", typeid(T).name()); // ravenzhong debug
         if (value->IsObject())
         {
             auto outer = value->ToObject(context).ToLocalChecked();

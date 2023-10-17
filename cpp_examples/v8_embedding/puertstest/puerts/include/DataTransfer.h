@@ -207,6 +207,9 @@ struct TOuterLinker<T, FT, ToVoid<decltype(&TScriptStructTraits<FT>::Get)>>
 class JSENV_API DataTransfer
 {
 public:
+    // 因为GetAlignedPointerFromInternalField系列的API需要2 bytes对齐.
+    // 2bytes对齐的话, 要求最后一位必须是0
+    // 类内结构体的对齐可能做不到这种pack,所以这里拆了一下指针
     FORCEINLINE static void* MakeAddressWithHighPartOfTwo(void* Address1, void* Address2)
     {
         UPTRINT High = reinterpret_cast<UPTRINT>(Address1) & (((UPTRINT) -1) << (sizeof(UPTRINT) / 2));    //清除低位
