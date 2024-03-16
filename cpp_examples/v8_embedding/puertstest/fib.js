@@ -25,7 +25,7 @@ function fibonacci_loop(n) {
     return q;
 }
 
-// --jitless failed
+// --jitless failed 可能是库里用的某个上古v8版本有问题，我用9.4的就没问题
 // --no-opt works
 {
   let k = 1e+6;
