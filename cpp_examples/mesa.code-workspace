@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"path": "D:/coderepo/cppBase/mesa"
+		},
+		{
+			"path": "D:/coderepo/cppBase/Vulkan-fork"
+		}
+	],
+	"settings": {
+		"clangd.path": "C:/msys64/ucrt64/bin/clangd.exe",
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.hg": true,
+			"**/CVS": true,
+			"**/.DS_Store": true,
+			"**/Thumbs.db": true,
+			"bin/*": true,
+			"build/*": true,
+			"*.xml": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/bower_components": true,
+			"**/*.code-search": true,
+			"**/*.xml":true,
+			"docs/relnotes/**":true
+		},
+		"files.associations": {
+			"*.cu": "cpp",
+			"*.hlsl": "hlsl",
+			"*.hlsli": "hlsl",
+			"lvp_private.h": "c",
+			"*.inc": "c",
+			"lp_debug.h": "c"
+		}
+	}
+}
