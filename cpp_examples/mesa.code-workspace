@@ -24,8 +24,8 @@
 			"**/node_modules": true,
 			"**/bower_components": true,
 			"**/*.code-search": true,
-			"**/*.xml":true,
-			"docs/relnotes/**":true
+			"**/*.xml": true,
+			"docs/relnotes/**": true
 		},
 		"files.associations": {
 			"*.cu": "cpp",
@@ -34,6 +34,110 @@
 			"lvp_private.h": "c",
 			"*.inc": "c",
 			"lp_debug.h": "c"
+		},
+		"terminal.integrated.defaultProfile.windows": "msys2",
+		"terminal.integrated.profiles.windows": {
+			"PowerShell": {
+				"source": "PowerShell",
+				"icon": "terminal-powershell"
+			},
+			"Command Prompt": {
+				"path": [
+					"${env:windir}\\Sysnative\\cmd.exe",
+					"${env:windir}\\System32\\cmd.exe"
+				],
+				"args": [],
+				"icon": "terminal-cmd"
+			},
+			"Git Bash": {
+				"source": "Git Bash"
+			},
+			"msys2": {
+				"path": "C:/msys64/msys2_shell.cmd",
+				"args": [
+					"-defterm",
+					"-here",
+					"-no-start",
+					"-ucrt64"
+				],
+				"env": {
+					"CHERE_INVOKING": "1"
+				}
+			}
 		}
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"options": {
+			"shell": {
+				"executable": "C:\\msys64\\msys2_shell.cmd",
+				"args": [
+					"-defterm",
+					"-ucrt64",
+					"-no-start",
+					"-here",
+					"-shell bash -l -c"
+				]
+			}
+		},
+		"tasks": [
+			{
+				"label": "Meson Configuration",
+				"type": "shell",
+				"command": "\"meson setup build/ -Dprefix=/c/tmp/mesa --buildtype=debug -Dgallium-drivers=swrast -Dvulkan-drivers=swrast\"",
+				"group": {
+					"kind": "build",
+					"isDefault": false
+				},
+			},
+			{
+				"label": "Meson Build",
+				"type": "shell",
+				"command": "\"meson compile -C build/\"",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				},
+				"problemMatcher": [
+					"$gcc"
+				]
+			}
+		]
+	},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "mesa-debug",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${command:cmake.launchTargetPath}",
+				"args": [],
+				"stopAtEntry": false,
+				"cwd": "${command:cmake.launchTargetDirectory}",
+				"environment": [
+					{
+						"name": "VK_DRIVER_FILES",
+						"value": "D:\\coderepo\\cppBase\\mesa\\build\\src\\gallium\\targets\\lavapipe\\lvp_devenv_icd.x86_64.json"
+					},
+				],
+				"externalConsole": true,
+				"MIMode": "gdb",
+				"miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe",
+				"setupCommands": [
+					{
+						"description": "Enable pretty-printing for gdb",
+						"text": "-enable-pretty-printing",
+						"ignoreFailures": true
+					},
+					{
+						"description": "Set Disassembly Flavor to Intel",
+						"text": "-gdb-set disassembly-flavor intel",
+						"ignoreFailures": true
+					}
+				],
+				"preLaunchTask": "Meson Build"
+			}
+		],
 	}
 }
