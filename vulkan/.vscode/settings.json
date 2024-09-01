@@ -1,5 +1,0 @@
-{
-    "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modificationsIfAvailable",
-    "glsllint.glslangValidatorArgs": "-V"
-}
