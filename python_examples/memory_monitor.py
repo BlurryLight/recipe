@@ -415,6 +415,33 @@ class MemoryMonitor:
                         'cx': str(x), 'cy': str(y), 'r': '3', 'fill': color
                     })
 
+            
+            # 添加图例
+            legend_y = height - 30
+            legend_items = [
+                ('PSS', colors['PSS']),
+                ('Graphics', colors['Graphics']),
+                ('RSS', colors['RSS']),
+                ('Heap', colors['Heap'])
+            ]
+
+            legend_x = width - 280
+            for i, (name, color) in enumerate(legend_items):
+                x = legend_x + (i * 70)
+
+                # 色块
+                ET.SubElement(svg, 'rect', {
+                    'x': str(x), 'y': str(legend_y), 'width': '15', 'height': '10',
+                    'fill': color
+                })
+
+                # 标签
+                label = ET.SubElement(svg, 'text', {
+                    'x': str(x + 20), 'y': str(legend_y + 8),
+                    'font-size': '12'
+                })
+                label.text = name
+
             # 添加标记注释
             for i, data in enumerate(self.memory_data):
                 if data.mark:
