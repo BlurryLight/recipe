@@ -14,3 +14,4 @@ buildw
 *.so
 *.obj
 dx12/CMakeSettings.json
+.vscode/.history
