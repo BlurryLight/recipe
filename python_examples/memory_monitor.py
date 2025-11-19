@@ -78,14 +78,17 @@ Uptime: 1277732 Realtime: 1277732
 class MemoryData:
     """内存数据类"""
     def __init__(self, timestamp: str, total_pss: int, graphics: int,
-                 rss: int, heap_size: int, heap_alloc: int):
+                 rss: int, heap_size: int, heap_alloc: int, mark: Optional[str] = None):
         self.timestamp = timestamp
         self.total_pss = total_pss
         self.graphics = graphics
         self.rss = rss
         self.heap_size = heap_size
         self.heap_alloc = heap_alloc
+        self.mark = mark
 
+
+count = 0
 
 class MemoryMonitor:
     """内存监控器"""
@@ -95,7 +98,12 @@ class MemoryMonitor:
         self.interval = interval
         self.memory_data: List[MemoryData] = []
         self.running = False
+        self.current_mark: Optional[str] = None
     
+    def add_mark(self, mark: str):
+        """添加标记，在下一次get_memory_info时会被附加到数据"""
+        self.current_mark = mark
+
     def stop_monitoring(self):
         """停止监控"""
         self.running = False
@@ -111,6 +119,11 @@ class MemoryMonitor:
                 print(f"错误: 无法获取包 {self.package_name} 的内存信息")
                 print(f"错误信息: {result.stderr}")
                 return None
+
+            global count
+            count = count + 1
+            if count % 20 == 0:
+                self.add_mark("20s passed")
 
             output = result.stdout
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -158,7 +171,10 @@ class MemoryMonitor:
                         except (ValueError, IndexError):
                             pass
 
-            return MemoryData(timestamp, total_pss, graphics, rss, heap_size, heap_alloc)
+            # 创建MemoryData对象，附加当前的mark
+            mark = self.current_mark
+            self.current_mark = None  # 清理mark
+            return MemoryData(timestamp, total_pss, graphics, rss, heap_size, heap_alloc, mark)
 
         except Exception as e:
             print(f"获取内存信息时发生错误: {e}")
@@ -225,7 +241,7 @@ class MemoryMonitor:
                 writer.writerow([
                     'Timestamp', 'Total_PSS_KB', 'Graphics_KB',
                     'RSS_KB', 'Heap_Size_KB', 'Heap_Alloc_KB',
-                    'Total_PSS_MB', 'Graphics_MB', 'RSS_MB', 'Heap_Alloc_MB'
+                    'Total_PSS_MB', 'Graphics_MB', 'RSS_MB', 'Heap_Alloc_MB', 'Mark'
                 ])
 
                 # 写入数据
@@ -240,7 +256,8 @@ class MemoryMonitor:
                         round(data.total_pss / 1024, 2),
                         round(data.graphics / 1024, 2),
                         round(data.rss / 1024, 2),
-                        round(data.heap_alloc / 1024, 2)
+                        round(data.heap_alloc / 1024, 2),
+                        data.mark if data.mark else ""
                     ])
 
             print(f"CSV报告已保存到: {csv_filename}")
@@ -398,31 +415,34 @@ class MemoryMonitor:
                         'cx': str(x), 'cy': str(y), 'r': '3', 'fill': color
                     })
 
-            # 添加图例
-            legend_y = height - 30
-            legend_items = [
-                ('PSS', colors['PSS']),
-                ('Graphics', colors['Graphics']),
-                ('RSS', colors['RSS']),
-                ('Heap', colors['Heap'])
-            ]
+            # 添加标记注释
+            for i, data in enumerate(self.memory_data):
+                if data.mark:
+                    x = margin + (chart_width * i / max(1, len(self.memory_data) - 1))
+                    y = margin
 
-            legend_x = width - 280
-            for i, (name, color) in enumerate(legend_items):
-                x = legend_x + (i * 70)
+                    # 绘制标记线
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(x), 'y1': str(y),
+                        'x2': str(x), 'y2': str(height - margin),
+                        'stroke': '#999999', 'stroke-width': '1', 'stroke-dasharray': '5,5'
+                    })
 
-                # 色块
-                ET.SubElement(svg, 'rect', {
-                    'x': str(x), 'y': str(legend_y), 'width': '15', 'height': '10',
-                    'fill': color
-                })
+                    # 绘制标记文本背景
+                    mark_text_width = len(data.mark) * 6
+                    ET.SubElement(svg, 'rect', {
+                        'x': str(x - mark_text_width // 2), 'y': str(y - 25),
+                        'width': str(mark_text_width), 'height': '20',
+                        'fill': '#FFFFCC', 'stroke': '#999999', 'rx': '3'
+                    })
 
-                # 标签
-                label = ET.SubElement(svg, 'text', {
-                    'x': str(x + 20), 'y': str(legend_y + 8),
-                    'font-size': '12'
-                })
-                label.text = name
+                    # 绘制标记文本
+                    mark_label = ET.SubElement(svg, 'text', {
+                        'x': str(x), 'y': str(y - 10),
+                        'text-anchor': 'middle', 'font-size': '11',
+                        'fill': '#000000'
+                    })
+                    mark_label.text = data.mark
 
             # 保存SVG文件
             tree = ET.ElementTree(svg)
