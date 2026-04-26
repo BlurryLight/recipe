@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <type_traits>
@@ -46,8 +47,18 @@ decltype(auto) DispatchCPU(F &&func, const void *ptr, int index) {
 
 template <typename... Ts>
 class TaggedPointer {
+  private:
+    static constexpr int tagShift = 57;
+    static constexpr int tagBits = 64 - tagShift;
+    static constexpr uint64_t tagMask = ((uint64_t{1} << tagBits) - 1) << tagShift;
+    static constexpr uint64_t ptrMask = ~tagMask;
+
   public:
+    static_assert(sizeof(uintptr_t) <= sizeof(uint64_t));
+    static_assert(sizeof...(Ts) < (1u << tagBits), "Too many tagged pointer types");
+
     TaggedPointer() = default;
+    TaggedPointer(std::nullptr_t) {}
 
     template <typename T>
     explicit TaggedPointer(T *ptr) {
@@ -56,34 +67,68 @@ class TaggedPointer {
 
     template <typename T>
     void set(T *ptr) {
-        ptr_ = ptr;
-        tag_ = TypeIndex<std::remove_cv_t<T>, Ts...>();
+        const auto iptr = reinterpret_cast<uint64_t>(ptr);
+        assert((iptr & ptrMask) == iptr && "Pointer uses bits reserved for tag");
+
+        const auto typeTag = static_cast<uint64_t>(type_index<T>());
+        bits_ = iptr | (typeTag << tagShift);
     }
 
-    int tag() const { return tag_; }
-    void *ptr() { return ptr_; }
-    const void *ptr() const { return ptr_; }
+    template <typename T>
+    static constexpr int type_index() {
+        return 1 + TypeIndex<std::remove_cv_t<T>, Ts...>();
+    }
+
+    static constexpr int max_tag() { return sizeof...(Ts); }
+    static constexpr int num_tags() { return max_tag() + 1; }
+
+    int tag() const { return static_cast<int>((bits_ & tagMask) >> tagShift); }
+    void *ptr() { return reinterpret_cast<void *>(bits_ & ptrMask); }
+    const void *ptr() const { return reinterpret_cast<const void *>(bits_ & ptrMask); }
+
+    explicit operator bool() const { return ptr() != nullptr; }
 
     template <typename T>
     bool is() const {
-        return tag_ == TypeIndex<std::remove_cv_t<T>, Ts...>();
+        return tag() == type_index<T>();
+    }
+
+    template <typename T>
+    T *cast() {
+        assert(is<T>());
+        return static_cast<T *>(ptr());
+    }
+
+    template <typename T>
+    const T *cast() const {
+        assert(is<T>());
+        return static_cast<const T *>(ptr());
+    }
+
+    template <typename T>
+    T *cast_or_nullptr() {
+        return is<T>() ? static_cast<T *>(ptr()) : nullptr;
+    }
+
+    template <typename T>
+    const T *cast_or_nullptr() const {
+        return is<T>() ? static_cast<const T *>(ptr()) : nullptr;
     }
 
     template <typename F>
     decltype(auto) dispatch(F &&func) {
-        assert(ptr_ != nullptr);
-        return DispatchCPU<F, Ts...>(std::forward<F>(func), ptr_, tag_);
+        assert(ptr() != nullptr);
+        return DispatchCPU<F, Ts...>(std::forward<F>(func), ptr(), tag() - 1);
     }
 
     template <typename F>
     decltype(auto) dispatch(F &&func) const {
-        assert(ptr_ != nullptr);
-        return DispatchCPU<F, Ts...>(std::forward<F>(func), ptr_, tag_);
+        assert(ptr() != nullptr);
+        return DispatchCPU<F, Ts...>(std::forward<F>(func), ptr(), tag() - 1);
     }
 
   private:
-    void *ptr_ = nullptr;
-    int tag_ = -1;
+    uint64_t bits_ = 0;
 };
 
 struct Sphere {
@@ -146,14 +191,41 @@ int main() {
         Triangle triangle;
         Curve curve;
 
+        assert(ShapePtr::max_tag() == 3);
+        assert(ShapePtr::num_tags() == 4);
+        assert(ShapePtr::type_index<Sphere>() == 1);
+        assert(ShapePtr::type_index<Triangle>() == 2);
+        assert(ShapePtr::type_index<Curve>() == 3);
+
+        ShapePtr empty;
+        assert(!empty);
+        assert(empty.ptr() == nullptr);
+        assert(empty.tag() == 0);
+
+        ShapePtr nullShape(nullptr);
+        assert(!nullShape);
+        assert(nullShape.ptr() == nullptr);
+        assert(nullShape.tag() == 0);
+
         ShapePtr shape(&triangle);
+        assert(shape);
+        assert(shape.ptr() == &triangle);
+        assert(shape.tag() == ShapePtr::type_index<Triangle>());
         assert(shape.is<Triangle>());
         assert(!shape.is<Sphere>());
+        assert(shape.cast<Triangle>() == &triangle);
+        assert(shape.cast_or_nullptr<Triangle>() == &triangle);
+        assert(shape.cast_or_nullptr<Sphere>() == nullptr);
 
         auto id = shape.dispatch([](auto *p) { return p->id(); });
         assert(id == 2);
 
         const ShapePtr constShape(&curve);
+        assert(constShape);
+        assert(constShape.ptr() == &curve);
+        assert(constShape.cast<Curve>() == &curve);
+        assert(constShape.cast_or_nullptr<Curve>() == &curve);
+        assert(constShape.cast_or_nullptr<Sphere>() == nullptr);
         auto constId = constShape.dispatch([](const auto *p) { return p->id(); });
         assert(constId == 3);
 
@@ -165,6 +237,8 @@ int main() {
         assert(rawVoidSum == 5);
 
         shape.set(&sphere);
+        assert(shape.ptr() == &sphere);
+        assert(shape.tag() == ShapePtr::type_index<Sphere>());
         assert(shape.dispatch([](auto *p) { return p->id(); }) == 1);
     }
     // region: Raw End
