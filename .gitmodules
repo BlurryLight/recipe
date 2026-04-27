@@ -1,3 +1,6 @@
 [submodule "lua_examples/lua_c_apis/Lua-with-cmake"]
 	path = lua_examples/lua_c_apis/Lua-with-cmake
 	url = https://github.com/BlurryLight/Lua-with-cmake
+[submodule "cpp_examples/flame_graph_test/FlameGraph"]
+	path = cpp_examples/flame_graph_test/FlameGraph
+	url = https://github.com/brendangregg/FlameGraph.git
