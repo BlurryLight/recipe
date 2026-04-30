@@ -79,3 +79,55 @@ wpaexporter .\out\pbrt-killeroo.etl -profile .\ExportCPUUsageSampled.wpaProfile 
 
 - https://randomascii.wordpress.com/2013/03/26/summarizing-xperf-cpu-usage-with-flame-graphs/
 - https://github.com/google/UIforETW/blob/master/bin/xperf_to_collapsedstacks.py
+
+# macOS sample 火焰图示例
+
+macOS 上可以用系统自带的 `/usr/bin/sample` 对 pbrt 进程采样，再用 Brendan Gregg
+FlameGraph 里的 `stackcollapse-sample.awk` 和 `flamegraph.pl` 生成 SVG。
+
+首次使用需要 FlameGraph 脚本：
+
+```bash
+git clone --depth 1 https://github.com/brendangregg/FlameGraph.git ./FlameGraph
+```
+
+默认目标：
+
+```text
+/Users/zhonghaoyu/coderepo/pbrt-v4-fork/build-release/pbrt
+/Users/zhonghaoyu/coderepo/pbrt-v4-fork/scenes/killeroos/killeroo-simple-debug.pbrt
+```
+
+运行：
+
+```bash
+./Invoke-PbrtSampleFlameGraph.sh --duration 5 --interval-ms 1 --spp 64
+```
+
+输出文件默认写入 `out-macos`：
+
+- `pbrt-killeroo-sample.sample.txt`
+- `pbrt-killeroo-sample.collapsed.txt`
+- `pbrt-killeroo-sample.svg`
+- `pbrt-killeroo-sample.pbrt.log`
+- `pbrt-killeroo-sample.png`
+
+常用覆盖参数：
+
+```bash
+./Invoke-PbrtSampleFlameGraph.sh \
+  --pbrt /path/to/pbrt \
+  --scene /path/to/scene.pbrt \
+  --nthreads 8 \
+  --spp 128 \
+  --duration 10 \
+  --interval-ms 1
+```
+
+要传额外 pbrt 参数，把它们放在 `--` 后面：
+
+```bash
+./Invoke-PbrtSampleFlameGraph.sh --duration 10 -- --wavefront
+```
+
+如果 `perl` 因 locale 报错，脚本内部已经对 `flamegraph.pl` 使用 `LC_ALL=C`。
