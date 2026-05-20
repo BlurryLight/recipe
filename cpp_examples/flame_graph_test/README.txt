@@ -131,3 +131,62 @@ git clone --depth 1 https://github.com/brendangregg/FlameGraph.git ./FlameGraph
 ```
 
 如果 `perl` 因 locale 报错，脚本内部已经对 `flamegraph.pl` 使用 `LC_ALL=C`。
+
+# Android simpleperf 火焰图示例
+
+`Invoke-AndroidSimpleperfFlameGraph.py` 会通过 adb 在设备上调用 simpleperf，
+默认采集 `com.Blurredcode.TP_ThirdPerson`：
+
+```powershell
+python .\Invoke-AndroidSimpleperfFlameGraph.py --duration 5
+```
+
+脚本参考本地 `commands.md` 中验证过的采样命令，默认使用：
+
+```bash
+simpleperf record --app com.Blurredcode.TP_ThirdPerson -e task-clock:u -f 99 --duration 5 --call-graph fp -o /data/local/tmp/tp-thirdperson-simpleperf.data
+```
+
+输出默认写入 `out-android`：
+
+- `tp-thirdperson-simpleperf.data`
+- `tp-thirdperson-simpleperf_symbols.txt`
+- `tp-thirdperson-simpleperf_dso.txt`
+- `tp-thirdperson-simpleperf_callgraph.txt`
+- `tp-thirdperson-simpleperf.samples.txt`
+- `tp-thirdperson-simpleperf.collapsed.txt`
+- `tp-thirdperson-simpleperf.svg`
+
+常用参数：
+
+```powershell
+python .\Invoke-AndroidSimpleperfFlameGraph.py --duration 10 -f 99
+python .\Invoke-AndroidSimpleperfFlameGraph.py --include-tid 13818
+python .\Invoke-AndroidSimpleperfFlameGraph.py --split-threads --top-threads 5
+python .\Invoke-AndroidSimpleperfFlameGraph.py --no-svg
+python .\Invoke-AndroidSimpleperfFlameGraph.py --skip-record --keep-remote
+```
+
+`--split-threads` 会先采全应用，再按 `report-sample` 里的 `thread_id` 聚合样本，
+默认只保留最活跃的前 5 个线程，分别生成线程火焰图：
+
+```powershell
+python .\Invoke-AndroidSimpleperfFlameGraph.py --duration 10 --split-threads
+```
+
+额外输出：
+
+- `tp-thirdperson-simpleperf_threads.txt`
+- `tp-thirdperson-simpleperf_threads\01_tid*_*.collapsed.txt`
+- `tp-thirdperson-simpleperf_threads\01_tid*_*.svg`
+
+需求：
+
+- adb 可以连接设备
+- 目标应用已启动，且设备上的 simpleperf 支持 `--app`
+- PATH 中的 Perl，或 Git for Windows/Strawberry Perl
+- `FlameGraph\flamegraph.pl`
+
+如果设备端 simpleperf 不支持 `report-sample`，脚本会保留 `perf.data` 和
+simpleperf 文本报告；可通过 `--simpleperf <host-simpleperf>` 指定本机 simpleperf
+再尝试生成 SVG。
