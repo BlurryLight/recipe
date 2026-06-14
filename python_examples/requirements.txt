@@ -1,0 +1,4 @@
+# Python 依赖，全部安装到 python_examples/.venv，不要装到 user / 系统 site-packages。
+# 如需锁定版本，可在 .venv 生成后用 `uv pip freeze > requirements.lock`。
+numpy
+matplotlib
