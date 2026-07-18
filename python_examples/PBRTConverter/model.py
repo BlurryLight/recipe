@@ -3,13 +3,6 @@ from typing import Optional
 
 
 @dataclass
-class LookAt:
-    origin: tuple[float, float, float]
-    target: tuple[float, float, float]
-    up: tuple[float, float, float] = (0, 1, 0)
-
-
-@dataclass
 class TransformOp:
     op_type: str  # "scale", "translate", "rotate", "lookat", "matrix"
     values: list[float] = field(default_factory=list)
@@ -120,8 +113,50 @@ INTEGRATOR_MAP = {
     "simple": None,
 }
 
-# Sampler mapping
+# Sampler mapping: Nori type -> pbrt sampler name
 SAMPLER_MAP = {
     "independent": "random",
+    "halton": "halton",
+}
+
+# ---- Mitsuba 0.6 mappings ----
+
+MITSUBA_BSDF_MAP = {
+    "diffuse": ("diffuse", {
+        "reflectance": ("albedo", [0.5, 0.5, 0.5]),
+    }),
+    "mirror": ("conductor", {
+        "material": (None, "Ag"),
+    }),
+    "dielectric": ("dielectric", {
+        "intIOR": ("intIOR", 1.5046),
+    }),
+    "glass": ("roughdielectric", {
+        "alpha": ("alpha", 0.1),
+        "intIOR": ("intIOR", 1.5046),
+    }),
+    "microfacet": ("roughplastic", {
+        "alpha": ("alpha", 0.1),
+        "diffuseReflectance": ("kd", [0.5, 0.5, 0.5]),
+        "intIOR": ("intIOR", 1.5046),
+    }),
+}
+
+MITSUBA_INTEGRATOR_MAP = {
+    "path_mis": "path",
+    "path_mats": "path",
+    "path_ems": "path",
+    "path_nee": "path",
+    "direct_mis": "direct",
+    "direct_mats": "direct",
+    "direct_ems": "direct",
+    "whitted": "path",
+    "ao": "ao",
+    "normals": "path",
+    "simple": "path",
+}
+
+MITSUBA_SAMPLER_MAP = {
+    "independent": "independent",
     "halton": "halton",
 }

@@ -1,8 +1,7 @@
 import xml.etree.ElementTree as ET
 import os
 from .model import (
-    Scene, Camera, Sampler, Mesh, BSDF, Emitter, TransformOp, LookAt,
-    INTEGRATOR_MAP, SAMPLER_MAP,
+    Scene, Camera, Sampler, Mesh, BSDF, Emitter, TransformOp,
 )
 
 
@@ -88,7 +87,7 @@ def parse_nori_scene(filepath: str) -> Scene:
 
         if tag == "integrator":
             nori_type = element.attrib.get("type", "path")
-            scene.integrator = INTEGRATOR_MAP.get(nori_type, nori_type)
+            scene.integrator = nori_type
 
         elif tag == "camera":
             cam = Camera()
@@ -114,7 +113,6 @@ def parse_nori_scene(filepath: str) -> Scene:
         elif tag == "sampler":
             smp = Sampler()
             smp.type = element.attrib.get("type", "independent")
-            smp.type = SAMPLER_MAP.get(smp.type, smp.type)
             for child in element:
                 if child.tag == "integer" and child.attrib.get("name") == "sampleCount":
                     smp.sample_count = int(child.attrib.get("value", 16))

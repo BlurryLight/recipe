@@ -1,6 +1,5 @@
 import os
-import math
-from .model import Scene, BSDF_MAP, TransformOp
+from .model import Scene, BSDF_MAP, TransformOp, INTEGRATOR_MAP, SAMPLER_MAP
 from .obj_reader import read_obj
 
 
@@ -18,13 +17,6 @@ def _find_lookat(transform_ops: list[TransformOp]) -> TransformOp | None:
 def _find_scale(transform_ops: list[TransformOp]) -> TransformOp | None:
     for op in transform_ops:
         if op.op_type == "scale":
-            return op
-    return None
-
-
-def _find_translate(transform_ops: list[TransformOp]) -> TransformOp | None:
-    for op in transform_ops:
-        if op.op_type == "translate":
             return op
     return None
 
@@ -136,11 +128,13 @@ def write_pbrt(scene: Scene, output_path: str):
                  f'"integer xresolution" [{cam.width}] '
                  f'"integer yresolution" [{cam.height}] '
                  f'"string filename" "output.exr"')
-    lines.append(f'Sampler "{scene.sampler.type}" '
+    pbrt_sampler = SAMPLER_MAP.get(scene.sampler.type, scene.sampler.type)
+    lines.append(f'Sampler "{pbrt_sampler}" '
                  f'"integer pixelsamples" [{scene.sampler.sample_count}]')
 
-    if scene.integrator:
-        lines.append(f'Integrator "{scene.integrator}"')
+    pbrt_int = INTEGRATOR_MAP.get(scene.integrator)
+    if pbrt_int:
+        lines.append(f'Integrator "{pbrt_int}"')
     else:
         lines.append(f'Integrator "path"')
 
@@ -179,7 +173,6 @@ def write_pbrt(scene: Scene, output_path: str):
 
         obj_path = mesh.obj_filename
         obj_basename = os.path.basename(obj_path)
-        obj_name = os.path.splitext(obj_basename)[0]
         lines.append(f"  # Mesh: {obj_basename}")
         _emit_obj_as_trianglemesh(lines, obj_path, indent="  ")
 
