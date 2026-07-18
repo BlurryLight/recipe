@@ -1,5 +1,7 @@
 # Python 依赖，全部安装到 python_examples/.venv，不要装到 user / 系统 site-packages。
-# 如需锁定版本，可在 .venv 生成后用 `uv pip freeze > requirements.lock`。
+# Python 版本：固定 3.11（见 .python-version 和 setup_venv.sh 中的 PYTHON_VERSION）。
+# 原因：OpenEXR 3.4.13 wheel 在 Python 3.14 上有 `__ZNSt3__113__hash_memory` 链接错误。
+# 如需锁定精确版本，可在 .venv 生成后用 `uv pip freeze > requirements.lock`。
 numpy
 matplotlib
 OpenEXR
