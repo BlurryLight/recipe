@@ -1,3 +1,4 @@
+import math
 import os
 from .model import Scene, BSDF_MAP, TransformOp, INTEGRATOR_MAP, SAMPLER_MAP
 from .obj_reader import read_obj
@@ -5,6 +6,13 @@ from .obj_reader import read_obj
 
 def _vec3_str(v):
     return " ".join(str(x) for x in v)
+
+
+def _nori_hfov_to_pbrt_vfov(hfov_deg: float, width: int, height: int) -> float:
+    aspect = width / float(height)
+    hfov_rad = math.radians(hfov_deg)
+    vfov_rad = 2.0 * math.atan(math.tan(hfov_rad / 2.0) / aspect)
+    return math.degrees(vfov_rad)
 
 
 def _find_lookat(transform_ops: list[TransformOp]) -> TransformOp | None:
@@ -115,7 +123,12 @@ def write_pbrt(scene: Scene, output_path: str):
 
     if lookat:
         if scale:
-            lines.append(f"Scale {_vec3_str(scale.values)}")
+            flipped = list(scale.values)
+            if len(flipped) == 1:
+                flipped[0] = -flipped[0]
+            elif len(flipped) >= 3:
+                flipped[0] = -flipped[0]
+            lines.append(f"Scale {_vec3_str(flipped)}")
         lines.append(
             f"LookAt {_vec3_str(lookat.origin)}  "
             f"{_vec3_str(lookat.target)}  {_vec3_str(lookat.up)}"
@@ -123,14 +136,15 @@ def write_pbrt(scene: Scene, output_path: str):
     else:
         lines.append("LookAt 0 0 10  0 0 0  0 1 0")
 
-    lines.append(f'Camera "perspective" "float fov" [{cam.fov}]')
-    lines.append(f'Film "image" '
-                 f'"integer xresolution" [{cam.width}] '
-                 f'"integer yresolution" [{cam.height}] '
-                 f'"string filename" "output.exr"')
+    lines.append('Camera "perspective"')
+    lines.append(f'  "float fov" [ {cam.fov:.6g} ]')
+    lines.append('Film "image"')
+    lines.append(f'  "integer xresolution" [ {cam.width} ]')
+    lines.append(f'  "integer yresolution" [ {cam.height} ]')
+    lines.append(f'  "string filename" "output.exr"')
     pbrt_sampler = SAMPLER_MAP.get(scene.sampler.type, scene.sampler.type)
-    lines.append(f'Sampler "{pbrt_sampler}" '
-                 f'"integer pixelsamples" [{scene.sampler.sample_count}]')
+    lines.append(f'Sampler "{pbrt_sampler}"')
+    lines.append(f'  "integer pixelsamples" [ {scene.sampler.sample_count} ]')
 
     pbrt_int = INTEGRATOR_MAP.get(scene.integrator)
     if pbrt_int:

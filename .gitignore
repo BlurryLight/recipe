@@ -24,3 +24,5 @@ __pycache__/
 *.pyo
 # 由 float_precision.py 生成的图表，可随时重新生成
 python_examples/out/
+logs
+*.exr
