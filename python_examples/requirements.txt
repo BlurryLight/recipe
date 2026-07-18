@@ -2,3 +2,5 @@
 # 如需锁定版本，可在 .venv 生成后用 `uv pip freeze > requirements.lock`。
 numpy
 matplotlib
+OpenEXR
+Pillow
