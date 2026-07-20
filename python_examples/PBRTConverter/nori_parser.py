@@ -1,6 +1,7 @@
+import math
 import xml.etree.ElementTree as ET
 import os
-from .model import (
+from model import (
     Scene, Camera, Sampler, Mesh, BSDF, Emitter, TransformOp,
 )
 
@@ -75,6 +76,14 @@ def _parse_emitter(element) -> Emitter:
     return Emitter(type=emitter_type, params=params)
 
 
+def _nori_hfov_to_pbrt_vfov(hfov_deg: float, width: int, height: int) -> float:
+    aspect = width / float(height)
+    hfov_rad = math.radians(hfov_deg)
+    vfov_rad = 2.0 * math.atan(math.tan(hfov_rad / 2.0) / aspect)
+    return math.degrees(vfov_rad)
+
+
+
 def parse_nori_scene(filepath: str) -> Scene:
     tree = ET.parse(filepath)
     root = tree.getroot()
@@ -98,7 +107,7 @@ def parse_nori_scene(filepath: str) -> Scene:
                     name = child.attrib.get("name", "")
                     value = float(child.attrib.get("value", 0))
                     if name == "fov":
-                        cam.fov = value
+                        cam.hfov = value
                 elif child_tag == "integer":
                     name = child.attrib.get("name", "")
                     value = int(child.attrib.get("value", 0))
@@ -108,6 +117,7 @@ def parse_nori_scene(filepath: str) -> Scene:
                         cam.height = value
                 elif child_tag == "transform":
                     cam.transform = _parse_transform(child)
+            cam.vfov = _nori_hfov_to_pbrt_vfov(cam.hfov, cam.width, cam.height)
             scene.camera = cam
 
         elif tag == "sampler":

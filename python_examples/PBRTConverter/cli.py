@@ -2,9 +2,9 @@ import argparse
 import sys
 import os
 
-from .nori_parser import parse_nori_scene
-from .pbrt_writer import write_pbrt
-from .mitsuba_writer import write_mitsuba
+from nori_parser import parse_nori_scene
+from pbrt_writer import write_pbrt
+from mitsuba_writer import write_mitsuba
 
 
 def main():

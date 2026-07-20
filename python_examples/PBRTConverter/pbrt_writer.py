@@ -1,19 +1,11 @@
 import math
 import os
-from .model import Scene, BSDF_MAP, TransformOp, INTEGRATOR_MAP, SAMPLER_MAP
-from .obj_reader import read_obj
+from model import Scene, BSDF_MAP, TransformOp, INTEGRATOR_MAP, SAMPLER_MAP
+from obj_reader import read_obj
 
 
 def _vec3_str(v):
     return " ".join(str(x) for x in v)
-
-
-def _nori_hfov_to_pbrt_vfov(hfov_deg: float, width: int, height: int) -> float:
-    aspect = width / float(height)
-    hfov_rad = math.radians(hfov_deg)
-    vfov_rad = 2.0 * math.atan(math.tan(hfov_rad / 2.0) / aspect)
-    return math.degrees(vfov_rad)
-
 
 def _find_lookat(transform_ops: list[TransformOp]) -> TransformOp | None:
     for op in transform_ops:
@@ -36,9 +28,12 @@ def _find_rotate(transform_ops: list[TransformOp]) -> TransformOp | None:
     return None
 
 
+_TRS_ORDER = {"translate": 0, "rotate": 1, "scale": 2}
+
 def _emit_pbrt_transform(lines: list[str], ops: list[TransformOp],
                           indent: str = ""):
-    for op in ops:
+    sorted_ops = sorted(ops, key=lambda o: _TRS_ORDER.get(o.op_type, 99))
+    for op in sorted_ops:
         if op.op_type == "scale":
             lines.append(f"{indent}Scale {_vec3_str(op.values)}")
         elif op.op_type == "translate":
@@ -119,16 +114,9 @@ def write_pbrt(scene: Scene, output_path: str):
 
     cam = scene.camera
     lookat = _find_lookat(cam.transform)
-    scale = _find_scale(cam.transform)
 
     if lookat:
-        if scale:
-            flipped = list(scale.values)
-            if len(flipped) == 1:
-                flipped[0] = -flipped[0]
-            elif len(flipped) >= 3:
-                flipped[0] = -flipped[0]
-            lines.append(f"Scale {_vec3_str(flipped)}")
+        lines.append("Scale -1 1 1")
         lines.append(
             f"LookAt {_vec3_str(lookat.origin)}  "
             f"{_vec3_str(lookat.target)}  {_vec3_str(lookat.up)}"
@@ -137,7 +125,7 @@ def write_pbrt(scene: Scene, output_path: str):
         lines.append("LookAt 0 0 10  0 0 0  0 1 0")
 
     lines.append('Camera "perspective"')
-    lines.append(f'  "float fov" [ {cam.fov:.6g} ]')
+    lines.append(f'  "float fov" [ {cam.vfov:.6g} ]')
     lines.append('Film "image"')
     lines.append(f'  "integer xresolution" [ {cam.width} ]')
     lines.append(f'  "integer yresolution" [ {cam.height} ]')

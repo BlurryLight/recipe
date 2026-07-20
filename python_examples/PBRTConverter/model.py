@@ -36,7 +36,8 @@ class Mesh:
 @dataclass
 class Camera:
     type: str = "perspective"
-    fov: float = 30.0
+    hfov: float = 30.0
+    vfov: float = -1.0  # Will be computed based on hfov and aspect ratio
     width: int = 1280
     height: int = 720
     transform: list[TransformOp] = field(default_factory=list)

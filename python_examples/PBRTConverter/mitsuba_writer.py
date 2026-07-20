@@ -1,7 +1,7 @@
 import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-from .model import (
+from model import (
     Scene, BSDF, TransformOp,
     MITSUBA_BSDF_MAP, MITSUBA_INTEGRATOR_MAP, MITSUBA_SAMPLER_MAP,
 )
@@ -134,7 +134,7 @@ def write_mitsuba(scene: Scene, output_path: str):
     # Sensor (camera)
     cam = scene.camera
     sensor = ET.SubElement(root, "sensor", type="perspective")
-    _emit_property(sensor, "float", "fov", cam.fov)
+    _emit_property(sensor, "float", "fov", cam.hfov)
     _emit_property(sensor, "float", "nearClip", 1e-4)
     _emit_property(sensor, "float", "farClip", 1e4)
 
